@@ -1,0 +1,26 @@
+{
+  "name": "ai-cloud-document",
+  "version": "0.1.0",
+  "private": true,
+  "description": "零一文档 — 智能云文档系统（表格 / 文档 / 思维笔记）",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm -w @lingyi-doc/web run dev",
+    "build": "bash scripts/build.sh",
+    "server": "npm -w @lingyi-doc/server run dev",
+    "admin": "npm -w @lingyi-doc/admin run dev",
+    "db:check": "npm -w @lingyi-doc/server run db:check:dev",
+    "db:init": "npm -w @lingyi-doc/server run db:init:dev",
+    "db:migrate": "npm -w @lingyi-doc/server run db:migrate:dev",
+    "db:seed": "npm -w @lingyi-doc/server run db:seed:dev",
+    "admin:seed": "npm -w @lingyi-doc/server run admin:seed:dev",
+    "setup": "bash scripts/setup.sh",
+    "deploy:dev": "bash scripts/deploy/dev/deploy.sh",
+    "deploy:dev:bootstrap": "bash scripts/deploy/dev/bootstrap-remote.sh"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

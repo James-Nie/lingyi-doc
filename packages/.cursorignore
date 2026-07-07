@@ -1,0 +1,19 @@
+# 示例 .cursorignore 文件
+# 排除依赖目录
+node_modules/
+vendor/
+.venv/
+
+# 排除构建输出
+dist/
+build/
+*.min.js
+
+# 排除大型数据文件
+*.csv
+*.json.gz
+datasets/
+
+# 排除自动生成的代码
+src/generated/
+*.g.ts

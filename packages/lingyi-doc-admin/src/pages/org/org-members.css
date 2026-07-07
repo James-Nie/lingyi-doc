@@ -1,0 +1,167 @@
+.org-members-page {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100vh - 112px);
+  background: #fff;
+  border: 1px solid #f0f0f0;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.org-members-tenant-bar {
+  padding: 12px 16px;
+  border-bottom: 1px solid #f0f0f0;
+  background: #fafafa;
+}
+
+.org-members-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.org-members-sidebar {
+  width: 260px;
+  flex-shrink: 0;
+  border-right: 1px solid #f0f0f0;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+}
+
+.org-members-sidebar-search {
+  padding: 16px 12px 8px;
+}
+
+.org-members-tree-wrap {
+  flex: 1;
+  overflow: auto;
+  padding: 0 8px;
+}
+
+.org-members-tree-wrap .ant-tree {
+  background: transparent;
+}
+
+.org-members-tree-wrap .ant-tree-treenode {
+  width: 100%;
+  padding: 2px 0;
+}
+
+.org-members-tree-wrap .ant-tree-node-content-wrapper {
+  flex: 1;
+  min-width: 0;
+}
+
+.org-members-tree-node {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  padding-right: 4px;
+  min-height: 32px;
+}
+
+.org-members-tree-node-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+
+.org-members-tree-node-label span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.org-members-tree-more {
+  opacity: 0;
+  flex-shrink: 0;
+  color: #8c8c8c;
+}
+
+.org-members-tree-wrap .ant-tree-treenode:hover .org-members-tree-more {
+  opacity: 1;
+}
+
+.org-members-sidebar-footer {
+  padding: 12px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.org-members-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 20px 24px;
+}
+
+.org-members-header {
+  margin-bottom: 16px;
+}
+
+.org-members-header-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 28px;
+  color: #1f1f1f;
+}
+
+.org-members-header-count {
+  margin-top: 4px;
+  font-size: 13px;
+  color: #8c8c8c;
+}
+
+.org-members-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.org-members-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.org-members-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.org-members-name-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.org-members-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.org-members-status-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+}

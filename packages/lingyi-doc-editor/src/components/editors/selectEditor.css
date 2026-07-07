@@ -1,0 +1,126 @@
+/* 多维表单选/多选下拉编辑器 */
+.sheet-select-editor.ant-select {
+  font-size: 13px;
+}
+
+.sheet-select-editor-cell.ant-select {
+  height: 100%;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.sheet-select-editor-cell.ant-select .ant-select-selector {
+  height: 100% !important;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.sheet-select-editor-inline.ant-select {
+  width: 100%;
+}
+
+.sheet-select-editor.ant-select .ant-select-selector {
+  border-radius: 6px !important;
+  border-color: #dee0e3 !important;
+  min-height: 32px !important;
+  padding: 2px 8px !important;
+  align-items: center;
+}
+
+.sheet-select-editor.ant-select:not(.ant-select-disabled):hover .ant-select-selector {
+  border-color: #c9cdd4 !important;
+}
+
+.sheet-select-editor.ant-select-focused .ant-select-selector,
+.sheet-select-editor.ant-select-open .ant-select-selector {
+  border-color: #3370ff !important;
+  box-shadow: none !important;
+}
+
+.sheet-select-editor.ant-select-multiple .ant-select-selector {
+  padding: 4px 8px !important;
+}
+
+.sheet-select-editor .ant-select-selection-wrap {
+  align-self: center;
+}
+
+.sheet-select-editor .ant-select-selection-placeholder {
+  color: #86909c;
+}
+
+.sheet-select-editor .ant-select-arrow {
+  color: #86909c;
+  font-size: 11px;
+}
+
+.sheet-select-dropdown.ant-select-dropdown {
+  border-radius: 8px;
+  border: 1px solid #dee0e3;
+  overflow: hidden;
+}
+
+.sheet-select-dropdown .ant-select-item {
+  padding: 6px 12px !important;
+  min-height: 36px;
+  align-items: center;
+}
+
+.sheet-select-dropdown .ant-select-item-option-active {
+  background: #f5f6f7 !important;
+}
+
+.sheet-select-dropdown .ant-select-item-option-selected {
+  background: transparent !important;
+  font-weight: 400 !important;
+}
+
+.sheet-select-dropdown .ant-select-item-option-selected.ant-select-item-option-active {
+  background: #f5f6f7 !important;
+}
+
+.sheet-select-dropdown .ant-select-item-option-state {
+  display: none;
+}
+
+.sheet-select-dropdown .ant-select-item-empty {
+  padding: 8px 12px;
+  color: #86909c;
+  font-size: 13px;
+}
+
+.sheet-select-dropdown .ant-select-item-option-content {
+  overflow: visible;
+  flex: 1;
+  min-width: 0;
+}
+
+.sheet-select-dropdown-panel .rc-virtual-list,
+.sheet-select-dropdown-panel .rc-virtual-list-holder {
+  max-height: 256px;
+}
+
+.sheet-select-dropdown-search {
+  padding: 8px 12px 4px;
+}
+
+.sheet-select-dropdown-search input {
+  width: 100%;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 13px;
+  color: #1f2329;
+  line-height: 22px;
+}
+
+.sheet-select-dropdown-search input::placeholder {
+  color: #86909c;
+}
+
+.sheet-select-dropdown-search::after {
+  content: '';
+  display: block;
+  margin-top: 8px;
+  border-bottom: 1px solid #dee0e3;
+}

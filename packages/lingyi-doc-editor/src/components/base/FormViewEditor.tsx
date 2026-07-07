@@ -1,0 +1,329 @@
+import React, { useCallback, useMemo, useState } from 'react';
+import type { BaseView, CellValue, ColumnDef, ColumnType, FreeTable } from '@lingyi-doc/core';
+import { BASE_THEME, getRatingConfig, getRatingColumnWidth } from '@lingyi-doc/core';
+import { useSheetStore } from '../../store/sheetStore';
+import { FormFieldCard } from './FormFieldCard';
+import { FormFieldDeleteDialog } from './FormFieldDeleteDialog';
+import { FormFieldPalette } from './FormFieldPalette';
+import { FormViewToolbar } from './FormViewToolbar';
+import {
+  addAllFieldsToForm,
+  addFieldToForm,
+  createDefaultColumnDef,
+  getFormFieldItems,
+  removeAllFieldsFromForm,
+  removeFormFieldItem,
+  reorderFormFieldItems,
+  purgeFormField,
+  updateFormFieldItem,
+  updateFormViewConfig,
+} from './formViewUtils';
+import { isEmptyCellValue } from './formFillUtils';
+
+interface FormViewEditorProps {
+  table: FreeTable;
+  formView: BaseView;
+  onChange: () => void;
+  onDeleteField?: (fieldId: string) => void;
+  readOnly?: boolean;
+}
+
+const DROP_PLACEHOLDER_STYLE: React.CSSProperties = {
+  height: 56,
+  marginBottom: 12,
+  borderRadius: 8,
+  border: `2px dashed ${BASE_THEME.primaryColor}`,
+  background: 'rgba(51, 112, 255, 0.04)',
+  boxSizing: 'border-box',
+};
+
+export const FormViewEditor: React.FC<FormViewEditorProps> = ({ table, formView, onChange, onDeleteField, readOnly = false }) => {
+  const formEditorTab = useSheetStore(s => s.formEditorTab);
+  const setFormEditorTab = useSheetStore(s => s.setFormEditorTab);
+  const setStatusText = useSheetStore(s => s.setStatusText);
+
+  const [expandedFieldId, setExpandedFieldId] = useState<string | null>(null);
+  const [fillValues, setFillValues] = useState<Record<string, CellValue>>({});
+  const [fillResetKey, setFillResetKey] = useState(0);
+  const [dragState, setDragState] = useState<{ from: number; over: number } | null>(null);
+  const [formRevision, setFormRevision] = useState(0);
+  const [deleteTarget, setDeleteTarget] = useState<{ fieldId: string; name: string } | null>(null);
+
+  const sheet = table.sheet;
+  const columnDefs = sheet.columnDefs;
+  const formItems = useMemo(() => getFormFieldItems(formView), [formView, formRevision]);
+
+  const persist = useCallback(() => {
+    setFormRevision(v => v + 1);
+    onChange();
+    table.notifyChange(null);
+  }, [onChange, table]);
+
+  const handleUpdateField = useCallback((fieldId: string, patch: Parameters<typeof updateFormFieldItem>[2]) => {
+    updateFormFieldItem(formView, fieldId, patch);
+    persist();
+  }, [formView, persist]);
+
+  const handleUpdateColumnDef = useCallback((fieldId: string, patch: Partial<ColumnDef>) => {
+    const idx = columnDefs.findIndex(c => c.id === fieldId);
+    if (idx < 0) return;
+    const updated = { ...columnDefs[idx], ...patch };
+    if (patch.ratingIcon !== undefined && updated.type === 'rating') {
+      const width = getRatingColumnWidth(getRatingConfig(updated));
+      updated.width = width;
+      table.setColumnWidth(idx, width);
+    }
+    table.sheet.columnDefs[idx] = updated;
+    table.syncColumnLayout();
+    persist();
+  }, [columnDefs, table, persist]);
+
+  const handleRemoveField = useCallback((fieldId: string) => {
+    const col = columnDefs.find(c => c.id === fieldId);
+    removeFormFieldItem(formView, fieldId);
+    if (expandedFieldId === fieldId) setExpandedFieldId(null);
+    persist();
+    setStatusText(`已将「${col?.name || '字段'}」移出表单，表格视图字段保留`);
+  }, [columnDefs, formView, expandedFieldId, persist, setStatusText]);
+
+  const handleAddField = useCallback((fieldId: string) => {
+    const col = columnDefs.find(c => c.id === fieldId);
+    if (col) {
+      addFieldToForm(formView, col);
+      persist();
+      setStatusText(`已将「${col.name}」加入表单`);
+    }
+  }, [columnDefs, formView, persist, setStatusText]);
+
+  const handleCreateField = useCallback((type: ColumnType) => {
+    const colIndex = columnDefs.length;
+    const newField = createDefaultColumnDef(type, colIndex);
+    table.insertColumns(colIndex, 1);
+    table.sheet.columnDefs.push(newField);
+    table.setColumnWidth(colIndex, newField.width || 160);
+    table.syncColumnLayout();
+    addFieldToForm(formView, newField);
+    setExpandedFieldId(newField.id);
+    persist();
+    setStatusText(`已添加「${newField.name}」到表单`);
+  }, [columnDefs.length, table, formView, persist, setStatusText]);
+
+  const handleDragStart = useCallback((index: number) => (e: React.DragEvent) => {
+    e.stopPropagation();
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', String(index));
+    setDragState({ from: index, over: index });
+  }, []);
+
+  const handleDragOver = useCallback((index: number) => (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDragState(prev => (prev ? { ...prev, over: index } : null));
+  }, []);
+
+  const handleDrop = useCallback((index: number) => (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!dragState) return;
+    const { from } = dragState;
+    if (from !== index) {
+      reorderFormFieldItems(formView, from, index);
+      persist();
+    }
+    setDragState(null);
+  }, [dragState, formView, persist]);
+
+  const handleDragEnd = useCallback(() => {
+    setDragState(null);
+  }, []);
+
+  const handleConfirmDelete = useCallback(() => {
+    if (!deleteTarget) return;
+    onDeleteField?.(deleteTarget.fieldId);
+    purgeFormField(formView, deleteTarget.fieldId);
+    if (expandedFieldId === deleteTarget.fieldId) setExpandedFieldId(null);
+    setDeleteTarget(null);
+    persist();
+    setStatusText(`已删除字段「${deleteTarget.name}」，表格与表单视图均已移除`);
+  }, [deleteTarget, onDeleteField, formView, expandedFieldId, persist, setStatusText]);
+
+  const handleSubmit = useCallback(() => {
+    for (const item of formItems) {
+      if (item.required && isEmptyCellValue(fillValues[item.fieldId])) {
+        const col = columnDefs.find(c => c.id === item.fieldId);
+        setStatusText(`请填写必填项「${item.question || col?.name}」`);
+        return;
+      }
+    }
+
+    const rowIndex = table.rowCount;
+    table.insertRows(rowIndex, 1);
+    for (const item of formItems) {
+      const colIndex = columnDefs.findIndex(c => c.id === item.fieldId);
+      if (colIndex < 0) continue;
+      const cellValue = fillValues[item.fieldId];
+      if (isEmptyCellValue(cellValue)) continue;
+      table.setCellValue(rowIndex, colIndex, cellValue);
+    }
+    table.notifyChange(null);
+    setFillValues({});
+    setFillResetKey(k => k + 1);
+    setStatusText('表单提交成功，已添加一条记录');
+  }, [formItems, fillValues, table, columnDefs, setStatusText]);
+
+  const title = formView.config.formTitle || '表单';
+  const description = formView.config.formDescription || '';
+  const isDragging = dragState !== null;
+
+  const isFillMode = readOnly || formEditorTab === 'fill';
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, background: isFillMode ? '#E8EDF5' : '#EEF1F6' }}>
+      {!readOnly && <FormViewToolbar tab={formEditorTab} onTabChange={setFormEditorTab} />}
+      <div style={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden' }}>
+        {!readOnly && formEditorTab === 'edit' && (
+          <FormFieldPalette
+            view={formView}
+            columnDefs={columnDefs}
+            onAddField={handleAddField}
+            onAddAll={() => { addAllFieldsToForm(formView, columnDefs); persist(); }}
+            onRemoveAll={() => { removeAllFieldsFromForm(formView, columnDefs); persist(); }}
+            onCreateField={handleCreateField}
+          />
+        )}
+        <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, position: 'relative' }}>
+          <div style={{
+            height: isFillMode ? 160 : 120,
+            background: 'linear-gradient(135deg, #5B8FF9 0%, #3370FF 55%, #6C5CE7 100%)',
+            position: 'relative', overflow: 'hidden',
+          }}>
+            {isFillMode && (
+              <div style={{
+                position: 'absolute', top: 0, right: 0, width: '45%', height: '100%',
+                backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.35) 1px, transparent 1px)',
+                backgroundSize: '14px 14px',
+                opacity: 0.5,
+              }} />
+            )}
+            <div style={{ position: 'absolute', width: 80, height: 80, borderRadius: '50%', background: 'rgba(255,255,255,0.15)', top: 20, left: '15%' }} />
+            <div style={{ position: 'absolute', width: 50, height: 50, borderRadius: 12, background: 'rgba(255,255,255,0.2)', top: 40, right: '20%', transform: 'rotate(15deg)' }} />
+            <div style={{ position: 'absolute', width: 30, height: 30, background: 'rgba(255,255,255,0.25)', bottom: 20, left: '45%', transform: 'rotate(45deg)' }} />
+          </div>
+
+          <div style={{ maxWidth: 720, margin: '0 auto', padding: isFillMode ? '0 24px 48px' : '0 24px 40px' }}>
+            <div style={{
+              background: '#fff', borderRadius: 12, boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
+              marginTop: isFillMode ? -56 : -40,
+              padding: isFillMode ? '36px 40px 32px' : '32px 36px 28px',
+              position: 'relative',
+            }}>
+              {readOnly || formEditorTab !== 'edit' ? (
+                <div style={{ textAlign: 'center', marginBottom: 32 }}>
+                  <h1 style={{ margin: '0 0 8px', fontSize: 28, fontWeight: 700, color: BASE_THEME.cellTextColor }}>{title}</h1>
+                  {description && (
+                    <p style={{ margin: 0, fontSize: 14, color: BASE_THEME.secondaryTextColor, lineHeight: '22px' }}>
+                      {description}
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <>
+                  <input
+                    value={title}
+                    onChange={e => { updateFormViewConfig(formView, { formTitle: e.target.value }); persist(); }}
+                    style={{
+                      width: '100%', border: 'none', fontSize: 28, fontWeight: 700,
+                      color: BASE_THEME.cellTextColor, outline: 'none', marginBottom: 8,
+                      background: 'transparent',
+                    }}
+                  />
+                  <input
+                    value={description}
+                    onChange={e => { updateFormViewConfig(formView, { formDescription: e.target.value }); persist(); }}
+                    placeholder="请输入表单描述"
+                    style={{
+                      width: '100%', border: 'none', fontSize: 14,
+                      color: BASE_THEME.secondaryTextColor, outline: 'none', marginBottom: 24,
+                      background: 'transparent',
+                    }}
+                  />
+                </>
+              )}
+
+              {formItems.length === 0 && !readOnly && (
+                <div style={{ padding: '40px 0', textAlign: 'center', color: BASE_THEME.secondaryTextColor, fontSize: 14 }}>
+                  请从左侧添加字段，或点击工具栏「生成表单」同步表格字段
+                </div>
+              )}
+
+              {formItems.map((item, index) => {
+                const colDef = columnDefs.find(c => c.id === item.fieldId);
+                if (!colDef) return null;
+                const colIndex = columnDefs.findIndex(c => c.id === item.fieldId);
+                const isItemDragging = dragState?.from === index;
+                const isDropTarget = isDragging && dragState?.over === index && dragState.from !== index;
+
+                const precedingFields = formItems.slice(0, index)
+                  .map(fi => columnDefs.find(c => c.id === fi.fieldId))
+                  .filter((c): c is ColumnDef => !!c);
+
+                return (
+                  <div
+                    key={item.fieldId}
+                    onDragOver={formEditorTab === 'edit' ? handleDragOver(index) : undefined}
+                    onDrop={formEditorTab === 'edit' ? handleDrop(index) : undefined}
+                  >
+                    {isDropTarget && <div style={DROP_PLACEHOLDER_STYLE} />}
+                    <FormFieldCard
+                      item={item}
+                      columnDef={colDef}
+                      precedingFields={precedingFields}
+                      expanded={!readOnly && formEditorTab === 'edit' && expandedFieldId === item.fieldId}
+                      mode={readOnly ? 'fill' : formEditorTab}
+                      fillValue={fillValues[item.fieldId]}
+                      fillResetKey={fillResetKey}
+                      isLocked={colIndex === 0}
+                      isDragging={isItemDragging}
+                      onExpand={() => setExpandedFieldId(prev => prev === item.fieldId ? null : item.fieldId)}
+                      onUpdate={patch => handleUpdateField(item.fieldId, patch)}
+                      onUpdateColumnDef={patch => handleUpdateColumnDef(item.fieldId, patch)}
+                      onRemove={() => handleRemoveField(item.fieldId)}
+                      onDeleteField={() => setDeleteTarget({ fieldId: item.fieldId, name: item.question || colDef.name })}
+                      onFillChange={readOnly ? undefined : v => setFillValues(prev => ({ ...prev, [item.fieldId]: v }))}
+                      dragHandleProps={!readOnly && formEditorTab === 'edit' ? {
+                        draggable: true,
+                        onDragStart: handleDragStart(index),
+                        onDragEnd: handleDragEnd,
+                      } : undefined}
+                    />
+                  </div>
+                );
+              })}
+
+              {formEditorTab === 'fill' && formItems.length > 0 && !readOnly && (
+                <button
+                  type="button"
+                  onClick={handleSubmit}
+                  style={{
+                    marginTop: 8, width: '100%', padding: '13px 0', border: 'none', borderRadius: 8,
+                    background: BASE_THEME.primaryColor, color: '#fff', fontSize: 15, fontWeight: 500,
+                    cursor: 'pointer', boxShadow: '0 2px 8px rgba(51, 112, 255, 0.25)',
+                  }}
+                >
+                  提交
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <FormFieldDeleteDialog
+        visible={!!deleteTarget}
+        fieldName={deleteTarget?.name || ''}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
+    </div>
+  );
+};
