@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo } from 'react';
-import type { BaseFormFieldItem, CellValue, ColumnDef, FreeTable, SheetModel } from '@lingyi-doc/core';
+import type { BaseFormFieldItem, CellValue, ColumnDef, FreeTable, BaseSheetModel } from '@lingyi-doc/core';
+import { isBaseSheet } from '@lingyi-doc/core';
 import { FormRecordFieldFill } from './base/FormRecordFieldFill';
 import { getFormFieldItems } from './base/formViewUtils';
 
@@ -10,7 +11,7 @@ export interface RecordDetailFieldEntry {
 }
 
 /** 详情面板字段列表：优先使用表单视图顺序与文案 */
-export function resolveRecordDetailFields(sheet: SheetModel): RecordDetailFieldEntry[] {
+export function resolveRecordDetailFields(sheet: BaseSheetModel): RecordDetailFieldEntry[] {
   const formView = sheet.views?.find(v => v.viewType === 'form');
   const formItems = getFormFieldItems(formView ?? null);
   const columnDefs = sheet.columnDefs;
@@ -54,10 +55,10 @@ export const RecordDetailFormFields: React.FC<RecordDetailFormFieldsProps> = ({
   style,
 }) => {
   const sheet = table.sheet;
-  const fields = useMemo(
-    () => resolveRecordDetailFields(sheet),
-    [sheet.columnDefs, sheet.views],
-  );
+  const fields = useMemo(() => {
+    if (!isBaseSheet(sheet)) return [];
+    return resolveRecordDetailFields(sheet);
+  }, [sheet]);
 
   const handleChange = useCallback((colIndex: number, value: CellValue) => {
     table.setCellValue(rowIndex, colIndex, value);

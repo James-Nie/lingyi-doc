@@ -18,12 +18,17 @@ interface DocImageInsertDialogProps {
   open: boolean;
   onClose: () => void;
   onInsert: (payload: InsertImagePayload) => void;
+  /** 自定义图片处理；默认上传 OSS 供文档使用 */
+  prepareFile?: (file: File) => Promise<InsertImagePayload>;
+  title?: string;
 }
 
 export const DocImageInsertDialog: React.FC<DocImageInsertDialogProps> = ({
   open,
   onClose,
   onInsert,
+  prepareFile,
+  title = '插入图片',
 }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -41,7 +46,7 @@ export const DocImageInsertDialog: React.FC<DocImageInsertDialogProps> = ({
     setError(null);
     setLoading(true);
     try {
-      const payload = await prepareImageFileForInsert(file);
+      const payload = await (prepareFile ?? prepareImageFileForInsert)(file);
       onInsert(payload);
       onClose();
     } catch {
@@ -63,7 +68,7 @@ export const DocImageInsertDialog: React.FC<DocImageInsertDialogProps> = ({
 
   return (
     <Modal
-      title="插入图片"
+      title={title}
       open={open}
       onCancel={onClose}
       footer={null}

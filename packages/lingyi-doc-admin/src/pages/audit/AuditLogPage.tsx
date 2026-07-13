@@ -6,6 +6,7 @@ import { adminFetch } from '../../stores/authStore';
 interface AuditRow {
   id: number;
   operatorId: string;
+  operatorName: string | null;
   action: string;
   targetType: string | null;
   targetId: string | null;
@@ -33,7 +34,7 @@ export const AuditLogPage: React.FC = () => {
     { title: '操作', dataIndex: 'action', width: 180 },
     { title: '目标类型', dataIndex: 'targetType', width: 120 },
     { title: '目标 ID', dataIndex: 'targetId', ellipsis: true },
-    { title: '操作人', dataIndex: 'operatorId', width: 280, ellipsis: true },
+    { title: '操作人', dataIndex: 'operatorName', width: 160, ellipsis: true, render: (name: string | null, row) => name || row.operatorId || '—' },
     { title: 'IP', dataIndex: 'ip', width: 140 },
     {
       title: '时间',

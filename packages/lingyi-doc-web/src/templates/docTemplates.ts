@@ -1,5 +1,14 @@
 import type { RichDocumentJSON, MindNoteJSON, WhiteboardJSON, Workbook } from '@lingyi-doc/core';
-import { createEmptyDocument, createEmptyMindNote, createEmptyWhiteboard, genBlockId, genMindNodeId } from '@lingyi-doc/core';
+import {
+  createEmptyDocument,
+  createEmptyMindNote,
+  createEmptyWhiteboard,
+  createFlowchartWhiteboard,
+  createMindmapBoardWhiteboard,
+  createQuestionnaireWorkbook,
+  genBlockId,
+  genMindNodeId,
+} from '@lingyi-doc/core';
 import {
   blankBaseWorkbook,
   blankFreeformWorkbook,
@@ -22,7 +31,7 @@ import {
   testCaseMindNoteJson,
 } from './mindNoteTemplates';
 
-export type TemplateDocType = 'richtext' | 'freeform' | 'base' | 'mindnote' | 'slides' | 'whiteboard';
+export type TemplateDocType = 'richtext' | 'freeform' | 'base' | 'questionnaire' | 'mindnote' | 'slides' | 'whiteboard' | 'mindmap' | 'flowchart';
 
 export type TemplateCategoryId =
   | 'recommended'
@@ -87,8 +96,11 @@ export const TEMPLATE_TYPE_OPTIONS: { id: 'all' | TemplateDocType; label: string
   { id: 'freeform', label: '表格' },
   { id: 'slides', label: '幻灯片' },
   { id: 'base', label: '多维表格' },
+  { id: 'questionnaire', label: '问卷' },
   { id: 'mindnote', label: '思维笔记' },
   { id: 'whiteboard', label: '画板' },
+  { id: 'mindmap', label: '思维导图' },
+  { id: 'flowchart', label: '流程图' },
 ];
 
 function meetingDocJson(): RichDocumentJSON {
@@ -187,6 +199,20 @@ function projectMindNoteJson(): MindNoteJSON {
   return json;
 }
 
+function blankQuestionnaireTemplate(): DocTemplate {
+  return {
+    id: 'blank-questionnaire',
+    title: '新建空白问卷',
+    subtitle: '从空白开始收集反馈',
+    docType: 'questionnaire',
+    categories: ['recommended', 'latest'],
+    thumbGradient: 'linear-gradient(135deg, #fef9e6 0%, #ffe082 100%)',
+    documentTitle: '未命名问卷',
+    isBlank: true,
+    buildWorkbook: () => createQuestionnaireWorkbook({ sheetTitle: '问卷', formTitle: '未命名问卷' }),
+  };
+}
+
 function blankTemplate(docType: TemplateDocType, title: string, gradient: string): DocTemplate {
   return {
     id: `blank-${docType}`,
@@ -204,7 +230,13 @@ function blankTemplate(docType: TemplateDocType, title: string, gradient: string
         ? () => blankBaseWorkbook('多维表格')
         : undefined,
     mindNoteJson: docType === 'mindnote' ? createEmptyMindNote('', title) : undefined,
-    whiteboardJson: docType === 'whiteboard' ? createEmptyWhiteboard('', title) : undefined,
+    whiteboardJson: docType === 'whiteboard'
+      ? createEmptyWhiteboard('', title)
+      : docType === 'mindmap'
+        ? createMindmapBoardWhiteboard(title)
+        : docType === 'flowchart'
+          ? createFlowchartWhiteboard(title)
+          : undefined,
   };
 }
 
@@ -335,6 +367,7 @@ export const DOC_TEMPLATES: DocTemplate[] = [
     buildWorkbook: taskTrackerWorkbook,
   },
   blankTemplate('base', '未命名多维表格', 'linear-gradient(135deg, #f3e8fd 0%, #e1bee7 100%)'),
+  blankQuestionnaireTemplate(),
   {
     id: 'base-crm',
     title: '客户信息管理',
@@ -348,6 +381,8 @@ export const DOC_TEMPLATES: DocTemplate[] = [
   },
   blankTemplate('mindnote', '未命名思维笔记', 'linear-gradient(135deg, #e0f7fa 0%, #b2ebf2 100%)'),
   blankTemplate('whiteboard', '未命名画板', 'linear-gradient(135deg, #e6f4ea 0%, #c8e6c9 100%)'),
+  blankTemplate('mindmap', '未命名思维导图', 'linear-gradient(135deg, #e8f0fe 0%, #d2e3fc 100%)'),
+  blankTemplate('flowchart', '未命名流程图', 'linear-gradient(135deg, #fef3e6 0%, #ffe0b2 100%)'),
   {
     id: 'mindnote-project',
     title: '项目脑图',

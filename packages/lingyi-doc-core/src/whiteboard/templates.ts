@@ -6,14 +6,26 @@ import type {
   ShapeKind,
   WhiteboardElement,
 } from './types';
+import { initCurvePathPoints, smoothCurvePath } from './pathEditing';
+import { defaultElbowPoints } from './elbowConnector';
 import type { MindNode, MindNoteBranchStyle } from '../mindnote/types';
 import { computeMindMapLayout } from '../mindnote/layout';
-import { createEmptyMindNode } from '../mindnote/utils';
+import { createEmptyMindNode, createWhiteboardMeasureOptions, WHITEBOARD_MIND_BRANCH_STYLE_DEFAULT } from '../mindnote/utils';
 import { genWhiteboardId, nextZIndex } from './utils';
+import {
+  SHAPE_DEFAULT_FILL,
+  SHAPE_DEFAULT_STROKE,
+  SHAPE_DEFAULT_STROKE_WIDTH,
+} from './shapes/constants';
+import { getShapeRegistry } from './shapes/registry';
+import { resolvePlacementDefaults } from './shapes/builtin';
+import './shapes/builtin';
 
-export const SHAPE_DEFAULT_FILL = '#e8f0fe';
-export const SHAPE_DEFAULT_STROKE = '#3370ff';
-export const SHAPE_DEFAULT_STROKE_WIDTH = 2;
+export {
+  SHAPE_DEFAULT_FILL,
+  SHAPE_DEFAULT_STROKE,
+  SHAPE_DEFAULT_STROKE_WIDTH,
+} from './shapes/constants';
 
 export const STICKY_COLORS = [
   '#fff9c4', '#ffe0b2', '#c8e6c9',
@@ -21,33 +33,12 @@ export const STICKY_COLORS = [
   '#e1bee7', '#f8bbd0', '#ffcdd2',
 ];
 
-export const SHAPE_PRESETS: { kind: ShapeKind; label: string }[] = [
-  { kind: 'roundRect', label: '圆角矩形' },
-  { kind: 'ellipse', label: '全圆角矩形' },
-  { kind: 'diamond', label: '菱形' },
-  { kind: 'rect', label: '矩形' },
-  { kind: 'circle', label: '圆形' },
-  { kind: 'cylinder', label: '圆柱' },
-  { kind: 'chevron', label: '箭头' },
-  { kind: 'dShape', label: 'D形' },
-  { kind: 'parallelogram', label: '平行四边形' },
-  { kind: 'trapezoid', label: '梯形' },
-  { kind: 'speechBubble', label: '圆形气泡' },
-  { kind: 'speechBubbleRect', label: '矩形气泡' },
-  { kind: 'triangleRight', label: '直角三角形' },
-  { kind: 'triangle', label: '三角形' },
-  { kind: 'star', label: '星形' },
-  { kind: 'hexagon', label: '六边形' },
-  { kind: 'pentagon', label: '五边形' },
-  { kind: 'octagon', label: '八边形' },
-  { kind: 'arrowLeft', label: '左箭头' },
-  { kind: 'arrowRight', label: '右箭头' },
-  { kind: 'arrowDouble', label: '双向箭头' },
-  { kind: 'cloud', label: '云形' },
-  { kind: 'braceLeft', label: '左括号' },
-  { kind: 'braceRight', label: '右括号' },
-  { kind: 'plus', label: '十字' },
-];
+export const SHAPE_PRESETS: { kind: ShapeKind; label: string }[] = getShapeRegistry()
+  .listShapePresets({ quickPickOnly: true });
+
+export function refreshShapePresets(): { kind: ShapeKind; label: string }[] {
+  return getShapeRegistry().listShapePresets({ quickPickOnly: true });
+}
 
 export const CONNECTOR_PRESETS: { style: ConnectorStyle; label: string }[] = [
   { style: 'straight', label: '直线' },
@@ -90,15 +81,7 @@ export const MINDMAP_TEMPLATES: { layout: MindmapLayout; label: string; category
 export const MINDMAP_LAYOUT_CATEGORIES = ['思维导图', '树状图', '时间线'] as const;
 
 function createDefaultMindmapRoot(text: string): MindNode {
-  const root = createEmptyMindNode(text);
-  root.children = Array.from({ length: 3 }, (_, i) => {
-    const child = createEmptyMindNode('输入文本');
-    if (i === 0) {
-      child.children = [createEmptyMindNode('输入文本')];
-    }
-    return child;
-  });
-  return root;
+  return createEmptyMindNode(text);
 }
 
 export function createShapeElement(
@@ -106,20 +89,17 @@ export function createShapeElement(
   x: number,
   y: number,
   zIndex: number,
+  options?: { shapeCategoryId?: string },
 ): WhiteboardElement {
-  const base = {
-    id: genWhiteboardId(),
-    type: 'shape' as const,
-    shapeKind,
-    x,
-    y,
-    width: shapeKind === 'ellipse' ? 168 : shapeKind === 'circle' ? 96 : 140,
-    height: shapeKind === 'ellipse' ? 56 : shapeKind === 'circle' ? 96 : 72,
-    zIndex,
+  const registry = getShapeRegistry();
+  const categoryId = options?.shapeCategoryId
+    ?? registry.resolveShapeCategoryId(shapeKind);
+  const baseDefaults = registry.resolveDefaults(shapeKind) ?? {
+    width: 140,
+    height: 72,
     fill: SHAPE_DEFAULT_FILL,
     stroke: SHAPE_DEFAULT_STROKE,
     strokeWidth: SHAPE_DEFAULT_STROKE_WIDTH,
-    text: undefined as string | undefined,
     fontSize: 14,
     textColor: '#1f2329',
     textAlign: 'center' as const,
@@ -127,17 +107,30 @@ export function createShapeElement(
     fontWeight: 400,
     fontStyle: 'normal' as const,
   };
-  if (shapeKind === 'braceLeft' || shapeKind === 'braceRight') {
-    return {
-      ...base,
-      width: 160,
-      height: 100,
-      stroke: '#1f2329',
-      strokeWidth: 2.5,
-      text: shapeKind === 'braceLeft' ? '左括号' : '右括号',
-    };
-  }
-  return base;
+  const placement = resolvePlacementDefaults(shapeKind, categoryId);
+  const defaults = placement ? { ...baseDefaults, ...placement } : baseDefaults;
+  return {
+    id: genWhiteboardId(),
+    type: 'shape',
+    shapeKind,
+    shapeCategoryId: categoryId,
+    x,
+    y,
+    width: defaults.width,
+    height: defaults.height,
+    zIndex,
+    fill: defaults.fill,
+    stroke: defaults.stroke,
+    strokeWidth: defaults.strokeWidth,
+    text: defaults.text,
+    fontSize: defaults.fontSize,
+    textColor: defaults.textColor,
+    textAlign: defaults.textAlign,
+    textVerticalAlign: defaults.textVerticalAlign,
+    fontWeight: defaults.fontWeight,
+    fontStyle: defaults.fontStyle,
+    seqLifelineLength: defaults.seqLifelineLength,
+  };
 }
 
 export function createStickyElement(x: number, y: number, color: string, zIndex: number): WhiteboardElement {
@@ -172,17 +165,24 @@ export function createTextElement(x: number, y: number, zIndex: number): Whitebo
 export function createTableElement(x: number, y: number, zIndex: number): WhiteboardElement {
   const rows = 3;
   const cols = 3;
+  const cellSize = 80;
   return {
     id: genWhiteboardId(),
     type: 'table',
     x,
     y,
-    width: cols * 80,
-    height: rows * 32,
+    width: cols * cellSize,
+    height: rows * cellSize,
     zIndex,
     rows,
     cols,
     cells: Array.from({ length: rows }, () => Array.from({ length: cols }, () => '')),
+    fontSize: 14,
+    color: '#1f2329',
+    textAlign: 'center',
+    textVerticalAlign: 'center',
+    stroke: '#1f2329',
+    fill: '#ffffff',
   };
 }
 
@@ -228,25 +228,32 @@ export function createConnectorElement(
     height: Math.abs(y2 - y1) || 1,
     zIndex,
     style,
-    points: [{ x: x1, y: y1 }, { x: x2, y: y2 }],
+    points: style === 'curve'
+      ? smoothCurvePath(initCurvePathPoints({ x: x1, y: y1 }, { x: x2, y: y2 }))
+      : style === 'elbow'
+        ? defaultElbowPoints({ x: x1, y: y1 }, { x: x2, y: y2 })
+        : [{ x: x1, y: y1 }, { x: x2, y: y2 }],
     stroke: '#1f2329',
     strokeWidth: 2,
     arrowEnd: style !== 'straight',
     startBind: binds?.startBind,
     endBind: binds?.endBind,
+    pathMode: (style === 'elbow' || style === 'curve') && binds?.startBind && binds?.endBind
+      ? 'auto'
+      : undefined,
   };
 }
 
-const MINDMAP_EMBED_PADDING = 64;
+const MINDMAP_EMBED_PADDING = 16;
 const MINDMAP_MIN_W = 160;
 const MINDMAP_MIN_H = 120;
 
 function mindmapElementSize(
   root: MindNode,
   layout: MindmapLayout,
-  branchStyle: MindNoteBranchStyle = 'straight',
+  branchStyle: MindNoteBranchStyle = WHITEBOARD_MIND_BRANCH_STYLE_DEFAULT,
 ): { width: number; height: number } {
-  const { width, height } = computeMindMapLayout(root, layout, branchStyle);
+  const { width, height } = computeMindMapLayout(root, layout, branchStyle, createWhiteboardMeasureOptions());
   return {
     width: Math.max(Math.ceil(width + MINDMAP_EMBED_PADDING * 2), MINDMAP_MIN_W),
     height: Math.max(Math.ceil(height + MINDMAP_EMBED_PADDING * 2), MINDMAP_MIN_H),
@@ -260,7 +267,7 @@ export function createMindmapElement(
   zIndex: number,
 ): WhiteboardElement {
   const root = createDefaultMindmapRoot('输入文本');
-  const { width, height } = mindmapElementSize(root, layout, 'straight');
+  const { width, height } = mindmapElementSize(root, layout, WHITEBOARD_MIND_BRANCH_STYLE_DEFAULT);
   return {
     id: genWhiteboardId(),
     type: 'mindmap',
@@ -271,7 +278,7 @@ export function createMindmapElement(
     zIndex,
     layout,
     root,
-    branchStyle: 'straight',
+    branchStyle: WHITEBOARD_MIND_BRANCH_STYLE_DEFAULT,
   };
 }
 

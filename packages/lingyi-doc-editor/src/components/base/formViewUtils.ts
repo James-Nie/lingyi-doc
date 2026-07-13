@@ -1,14 +1,31 @@
-import type { BaseFormFieldItem, BaseView, ColumnDef, ColumnType, SheetModel } from '@lingyi-doc/core';
+import type { BaseFormFieldItem, BaseView, ColumnDef, ColumnType, FilterCondition, GroupRule, BaseSheetModel, SortRule } from '@lingyi-doc/core';
 import { getFieldTypeMeta } from './fieldTypeMeta';
-import { getRatingConfig, getRatingColumnWidth } from '@lingyi-doc/core';
+import { getRatingConfig, getRatingColumnWidth, isGroupableColumn } from '@lingyi-doc/core';
+import { useSheetStore } from '../../store/sheetStore';
 
-export function getActiveBaseView(sheet: SheetModel): BaseView | null {
+export function getActiveBaseView(sheet: BaseSheetModel): BaseView | null {
   if (!sheet.views?.length) return null;
   const id = sheet.activeViewId || sheet.views[0].viewId;
   return sheet.views.find(v => v.viewId === id) || sheet.views[0];
 }
 
-export function createFormViewFromSheet(sheet: SheetModel): BaseView {
+/** 确保多维表存在可用的 grid 视图（分组/排序等视图配置依赖） */
+export function ensureActiveBaseView(sheet: BaseSheetModel): BaseView {
+  let view = getActiveBaseView(sheet);
+  if (view) return view;
+  if (!sheet.views) sheet.views = [];
+  view = {
+    viewId: `view_grid_${Date.now()}`,
+    viewName: '表格',
+    viewType: 'grid',
+    config: {},
+  };
+  sheet.views.push(view);
+  sheet.activeViewId = view.viewId;
+  return view;
+}
+
+export function createFormViewFromSheet(sheet: BaseSheetModel): BaseView {
   const fields = sheet.columnDefs.filter(c => !c.hidden);
   const formFieldItems: BaseFormFieldItem[] = fields.map((col, i) => ({
     fieldId: col.id,
@@ -32,7 +49,7 @@ export function createFormViewFromSheet(sheet: SheetModel): BaseView {
   };
 }
 
-export function ensureFormView(sheet: SheetModel): BaseView {
+export function ensureFormView(sheet: BaseSheetModel): BaseView {
   const existing = sheet.views?.find(v => v.viewType === 'form');
   if (existing) {
     syncFormFieldItems(existing, sheet.columnDefs);
@@ -80,7 +97,69 @@ export function syncFormFieldItems(view: BaseView, columnDefs: ColumnDef[]): voi
   view.config.formExcludedFieldIds = [...excludedIds].filter(id => columnDefs.some(c => c.id === id));
 }
 
-export function activateBaseView(sheet: SheetModel, viewId: string): BaseView | null {
+export function updateBaseViewGroupRules(view: BaseView, rules: GroupRule[]): void {
+  view.group = rules.length > 0 ? rules : undefined;
+}
+
+export function updateBaseViewFilter(view: BaseView, filter: FilterCondition[]): void {
+  view.filter = filter.length > 0 ? filter : undefined;
+}
+
+export function updateBaseViewSort(view: BaseView, sort: SortRule[]): void {
+  view.sort = sort.length > 0 ? sort : undefined;
+}
+
+export function updateCollapsedGroupKeys(view: BaseView, keys: string[]): void {
+  view.config = {
+    ...view.config,
+    collapsedGroupKeys: keys.length > 0 ? keys : undefined,
+  };
+}
+
+export function expandGroupPathKeys(collapsedKeys: string[], groupPathKey: string): string[] {
+  const keys = new Set(collapsedKeys);
+  const parts = groupPathKey.split('|');
+  for (let i = 1; i <= parts.length; i++) {
+    keys.delete(parts.slice(0, i).join('|'));
+  }
+  return Array.from(keys);
+}
+
+export function toggleGroupByField(view: BaseView, fieldId: string, columnDefs?: ColumnDef[]): GroupRule[] {
+  if (columnDefs) {
+    const colDef = columnDefs.find(c => c.id === fieldId);
+    if (colDef && !isGroupableColumn(colDef)) {
+      return view.group ?? [];
+    }
+  }
+  const existing = view.group ?? [];
+  const idx = existing.findIndex(r => r.fieldId === fieldId);
+  if (idx >= 0) {
+    const next = existing.filter((_, i) => i !== idx);
+    updateBaseViewGroupRules(view, next);
+    return next;
+  }
+  const next = [...existing, { fieldId, order: 'asc' as const }];
+  updateBaseViewGroupRules(view, next);
+  return next;
+}
+
+export function isFieldGrouped(view: BaseView | null, fieldId: string): boolean {
+  return !!view?.group?.some(r => r.fieldId === fieldId);
+}
+
+/** 根据 sheet.activeViewId 同步编辑器视图状态（加载文档 / 切换工作表后调用） */
+export function applySheetStoreFromBaseView(sheet: BaseSheetModel): void {
+  const view = getActiveBaseView(sheet);
+  if (view?.viewType === 'form') {
+    useSheetStore.getState().setCurrentView('form');
+    useSheetStore.getState().setFormEditorTab('edit');
+    return;
+  }
+  useSheetStore.getState().setCurrentView(view?.viewType ?? 'grid');
+}
+
+export function activateBaseView(sheet: BaseSheetModel, viewId: string): BaseView | null {
   const view = sheet.views?.find(v => v.viewId === viewId);
   if (!view) return null;
   sheet.activeViewId = viewId;

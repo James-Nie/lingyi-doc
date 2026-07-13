@@ -4,9 +4,10 @@ import { BASE_THEME } from '@lingyi-doc/core';
 import { PlusOutlined } from '@ant-design/icons';
 import {
   FIELD_TYPE_CATEGORIES,
-  FORM_PALETTE_CREATABLE_TYPES,
+  FIELD_PALETTE_TYPES,
   getFieldTypeMeta,
 } from './fieldTypeMeta';
+import { FieldTypeIcon } from './FieldTypeIcon';
 import { getOptionalFormFields } from './formViewUtils';
 
 const PALETTE_WIDTH = 248;
@@ -51,12 +52,7 @@ const TypeGridButton: React.FC<{
         minWidth: 0,
       }}
     >
-      <span style={{
-        width: 18, flexShrink: 0, textAlign: 'center',
-        color: BASE_THEME.headerIconColor, fontSize: 12,
-      }}>
-        {meta.icon}
-      </span>
+      <FieldTypeIcon type={type} size={16} color={BASE_THEME.headerIconColor} />
       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {meta.name}
       </span>
@@ -68,7 +64,6 @@ const OptionalFieldRow: React.FC<{
   columnDef: ColumnDef;
   onAdd: () => void;
 }> = ({ columnDef, onAdd }) => {
-  const meta = getFieldTypeMeta(columnDef.type);
   const [hovered, setHovered] = useState(false);
 
   return (
@@ -84,12 +79,7 @@ const OptionalFieldRow: React.FC<{
         transition: 'background 0.15s',
       }}
     >
-      <span style={{
-        width: 18, flexShrink: 0, textAlign: 'center',
-        color: BASE_THEME.headerIconColor, fontSize: 12,
-      }}>
-        {meta.icon}
-      </span>
+      <FieldTypeIcon type={columnDef.type} size={16} color={BASE_THEME.headerIconColor} />
       <span style={{
         flex: 1, minWidth: 0, fontSize: 13, color: BASE_THEME.cellTextColor,
         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
@@ -180,7 +170,7 @@ export const FormFieldPalette: React.FC<FormFieldPaletteProps> = ({
         </div>
 
         {FIELD_TYPE_CATEGORIES.map(cat => {
-          const types = FORM_PALETTE_CREATABLE_TYPES[cat.key];
+          const types = FIELD_PALETTE_TYPES[cat.key];
           return (
             <div key={cat.key} style={{ marginBottom: 14 }}>
               <div style={{

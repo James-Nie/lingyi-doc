@@ -30,11 +30,13 @@ export default defineConfig({
     alias: {
       '@lingyi-doc/core': path.resolve(__dirname, '../lingyi-doc-core/src'),
       '@lingyi-doc/editor': path.resolve(__dirname, '../lingyi-doc-editor/src'),
+      '@lingyi-doc/mind-map': path.resolve(__dirname, '../lingyi-doc-mind-map/src'),
+      '@lingyi-doc/mind-map-react': path.resolve(__dirname, '../lingyi-doc-mind-map-react/src'),
     },
     dedupe: ['react', 'react-dom'],
   },
   optimizeDeps: {
-    include: ['antd', '@ant-design/icons', 'dayjs', 'simple-mind-map', 'mammoth'],
+    include: ['antd', '@ant-design/icons', 'dayjs', 'mammoth'],
   },
   server: {
     port: 5173,
@@ -46,6 +48,7 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:3000',
         changeOrigin: true,
+        ws: true,
       },
     },
   },

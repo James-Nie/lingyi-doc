@@ -3,6 +3,7 @@ import type {
   HeadingBlock,
   ListBlock,
   ListItem,
+  OrderedListStyle,
   ParagraphBlock,
   QuoteBlock,
   RichDocumentJSON,
@@ -14,6 +15,7 @@ import type {
   BaseEmbedViewType,
   WhiteboardBlock,
 } from './types';
+import { commentMarkStyle, type MarksToHtmlOptions } from './comments';
 import { normalizeWhiteboardBlockData } from './whiteboardBlock';
 
 let blockIdCounter = 0;
@@ -310,9 +312,9 @@ export function importDocumentJSON(json: RichDocumentJSON): { blocks: DocBlock[]
 }
 
 /** 将 marks 按位置排序并渲染为 HTML 片段（支持 \n 软换行） */
-export function marksToHtml(text: string, marks: TextMark[]): string {
+export function marksToHtml(text: string, marks: TextMark[], options?: MarksToHtmlOptions): string {
   if (!text) return '';
-  if (!text.includes('\n')) return renderMarkedLine(text, marks);
+  if (!text.includes('\n')) return renderMarkedLine(text, marks, options);
 
   const lines = text.split('\n');
   let offset = 0;
@@ -324,13 +326,13 @@ export function marksToHtml(text: string, marks: TextMark[]): string {
         start: Math.max(0, m.start - offset),
         end: Math.min(line.length, m.end - offset),
       }));
-    const html = line.length === 0 ? '\u200B' : renderMarkedLine(line, lineMarks);
+    const html = line.length === 0 ? '\u200B' : renderMarkedLine(line, lineMarks, options);
     offset += line.length + 1;
     return html;
   }).join('<br>');
 }
 
-function renderMarkedLine(text: string, marks: TextMark[]): string {
+function renderMarkedLine(text: string, marks: TextMark[], options?: MarksToHtmlOptions): string {
   if (!text) return '';
   if (!marks.length) return escapeHtml(text);
 
@@ -352,18 +354,21 @@ function renderMarkedLine(text: string, marks: TextMark[]): string {
     if (start >= end) continue;
     const segment = escapeHtml(text.slice(start, end));
     const active = sorted.filter(m => m.start <= start && m.end >= end);
-    html += wrapSegment(segment, active);
+    html += wrapSegment(segment, active, options);
   }
   return html || escapeHtml(text);
 }
 
-function wrapSegment(segment: string, marks: TextMark[]): string {
+function wrapSegment(segment: string, marks: TextMark[], options?: MarksToHtmlOptions): string {
   if (!marks.length) return segment;
   let result = segment;
-  const order: MarkType[] = ['link', 'color', 'background', 'fontSize', 'bold', 'italic', 'underline', 'strikethrough'];
+  const order: MarkType[] = ['comment', 'link', 'color', 'background', 'fontSize', 'bold', 'italic', 'underline', 'strikethrough'];
   const sorted = [...marks].sort((a, b) => order.indexOf(a.type) - order.indexOf(b.type));
   for (const m of sorted) {
     switch (m.type) {
+      case 'comment':
+        result = `<span data-doc-comment="${escapeAttr(m.value || '')}" style="${commentMarkStyle(m.value || '', options?.selectedCommentId)}">${result}</span>`;
+        break;
       case 'bold':
         result = `<strong>${result}</strong>`;
         break;
@@ -772,6 +777,8 @@ function formatListCounter(numFmt: string | undefined, counter: number): string 
     case 'chineseCounting':
     case 'chineseCountingThousand':
       return `${toChineseNumber(counter)}、`;
+    case 'chineseParenthetical':
+      return `(${toChineseNumber(counter)})`;
     case 'lowerLetter':
       return `${String.fromCharCode(96 + ((counter - 1) % 26) + 1)}.`;
     case 'upperLetter':
@@ -788,15 +795,25 @@ function formatListCounter(numFmt: string | undefined, counter: number): string 
 }
 
 /** 飞书 3 级编号：1→decimal / 2→lowerLetter / 3→lowerRoman */
-export function getOrderedNumFmtForLevel(level: number): string {
+export function getOrderedNumFmtForLevel(level: number, style: OrderedListStyle = 'multiLevel'): string {
   const lv = Math.min(Math.max(1, level), 3);
+  if (style === 'chinese') {
+    if (lv === 1) return 'chineseCounting';
+    if (lv === 2) return 'chineseParenthetical';
+    return 'decimal';
+  }
+  if (style === 'hierarchical') return 'hierarchical';
   if (lv === 1) return 'decimal';
   if (lv === 2) return 'lowerLetter';
   return 'lowerRoman';
 }
 
 /** 有序列表项按层级独立递归计数 */
-export function orderedListMarker(items: ListItem[], index: number): string {
+export function orderedListMarker(
+  items: ListItem[],
+  index: number,
+  style: OrderedListStyle = 'multiLevel',
+): string {
   const counters: number[] = [];
   for (let i = 0; i <= index; i += 1) {
     const level = Math.min(Math.max(1, items[i].level ?? 1), 3);
@@ -806,8 +823,13 @@ export function orderedListMarker(items: ListItem[], index: number): string {
   }
   const item = items[index];
   const level = Math.min(Math.max(1, item.level ?? 1), 3);
+
+  if (style === 'hierarchical') {
+    return `${counters.slice(0, level).join('.')}.`;
+  }
+
   const lvl = level - 1;
-  const numFmt = getOrderedNumFmtForLevel(level);
+  const numFmt = item.numFmt ?? getOrderedNumFmtForLevel(level, style);
   return formatListCounter(numFmt, counters[lvl] ?? 1);
 }
 
@@ -859,6 +881,8 @@ function marksFromElement(el: HTMLElement): ActiveMark[] {
     const bg = cssColorToHex(node.style.backgroundColor);
     if (bg && bg !== '#000000') marks.push({ type: 'background', value: bg });
     if (node.style.fontSize) marks.push({ type: 'fontSize', value: node.style.fontSize });
+    const commentId = node.dataset.docComment;
+    if (commentId) marks.push({ type: 'comment', value: commentId });
     node = node.parentElement;
   }
   return marks;

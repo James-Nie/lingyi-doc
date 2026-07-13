@@ -127,7 +127,11 @@ function ColorSwatch({
   return (
     <button
       type="button"
-      onClick={onClick}
+      onMouseDown={e => {
+        e.preventDefault();
+        e.stopPropagation();
+        onClick();
+      }}
       style={{
         width: SWATCH,
         height: SWATCH,

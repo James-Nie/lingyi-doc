@@ -57,28 +57,27 @@ export const CellEditor: React.FC<CellEditorProps> = ({
     }
   }
 
-  // 同步 formulaBarText 到编辑器值
+  // 仅在切换编辑单元格时初始化编辑器，避免输入过程中被 formulaBarText / cellData 刷新打断
   useEffect(() => {
-    if (editingCell) {
-      const nextValue = isFreeformBoolean && cellData
-        ? getFreeformBooleanEditText(cellData.value)
-        : formulaBarText;
-      setEditorValue(nextValue);
-      if (inputRef.current) {
-        inputRef.current.value = nextValue;
-        inputRef.current.focus();
-        const len = inputRef.current.value.length;
-        inputRef.current.setSelectionRange(len, len);
-      }
-      if (checkboxRef.current) {
-        const checked = isFreeformBoolean && cellData?.value.type === 'boolean'
-          ? cellData.value.value
-          : formulaBarText.toUpperCase() === 'TRUE' || formulaBarText === '1' || formulaBarText === '是';
-        checkboxRef.current.checked = checked;
-        checkboxRef.current.focus();
-      }
+    if (!editingCell) return;
+    const nextValue = isFreeformBoolean && cellData
+      ? getFreeformBooleanEditText(cellData.value)
+      : formulaBarText;
+    setEditorValue(nextValue);
+    if (inputRef.current) {
+      inputRef.current.value = nextValue;
+      inputRef.current.focus();
+      const len = inputRef.current.value.length;
+      inputRef.current.setSelectionRange(len, len);
     }
-  }, [editingCell?.row, editingCell?.col, formulaBarText, isFreeformBoolean, cellData?.value]);
+    if (checkboxRef.current) {
+      const checked = isFreeformBoolean && cellData?.value.type === 'boolean'
+        ? cellData.value.value
+        : formulaBarText.toUpperCase() === 'TRUE' || formulaBarText === '1' || formulaBarText === '是';
+      checkboxRef.current.checked = checked;
+      checkboxRef.current.focus();
+    }
+  }, [editingCell?.row, editingCell?.col, isFreeformBoolean]);
 
   if (!editingCell || !position) return null;
 

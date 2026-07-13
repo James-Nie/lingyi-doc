@@ -22,7 +22,7 @@ export const SelectEditor: React.FC<BaseEditorProps> = ({
   const currentRaw = initialValue.type === 'text' ? initialValue.text : '';
   const currentId = normalizeSelectOptionId(options, currentRaw);
   const [selected, setSelected] = useState(currentId);
-  const { open, handleOpenChange } = useEditorDropdownOpen({ autoOpen: !inline });
+  const { open, setOpen, handleOpenChange } = useEditorDropdownOpen({ autoOpen: !inline });
   const { search, setSearch, filteredOptions } = useSelectOptionSearch(options);
 
   const selectOptions = useMemo(
@@ -60,6 +60,10 @@ export const SelectEditor: React.FC<BaseEditorProps> = ({
         const next = value ?? '';
         setSelected(next);
         commitValue(next);
+        if (inline) {
+          setOpen(false);
+          setSearch('');
+        }
       }}
       onOpenChange={nextOpen => {
         if (!nextOpen) setSearch('');

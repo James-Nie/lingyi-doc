@@ -1,5 +1,5 @@
 import type { MindmapElement } from '@lingyi-doc/core';
-import { computeMindMapLayout, findMindNode } from '@lingyi-doc/core';
+import { computeMindMapLayout, createWhiteboardMeasureOptions, findMindNode, WHITEBOARD_MIND_BRANCH_STYLE_DEFAULT } from '@lingyi-doc/core';
 import { WB_MM_THEME } from '../mindmap/wbMindmapTheme';
 import { resolveNodeAppearance } from './nodeStyle';
 import { fullRoundRectPath } from './shapePaths';
@@ -12,20 +12,12 @@ export function drawMindmapElement(
   selected: boolean,
   activeNodeId?: string | null,
 ): { width: number; height: number } {
-  const branchStyle = element.branchStyle ?? 'straight';
-  const layout = computeMindMapLayout(element.root, element.layout, branchStyle);
+  const branchStyle = element.branchStyle ?? WHITEBOARD_MIND_BRANCH_STYLE_DEFAULT;
+  const layout = computeMindMapLayout(element.root, element.layout, branchStyle, createWhiteboardMeasureOptions());
   const lineColor = element.lineColor ?? WB_MM_THEME.line;
 
   ctx.save();
   ctx.translate(element.x, element.y);
-
-  if (selected || hovered) {
-    ctx.strokeStyle = WB_MM_THEME.accent;
-    ctx.lineWidth = 2;
-    ctx.setLineDash([4, 4]);
-    ctx.strokeRect(-4, -4, layout.width + 8, layout.height + 8);
-    ctx.setLineDash([]);
-  }
 
   ctx.strokeStyle = lineColor;
   ctx.lineWidth = 1.5;

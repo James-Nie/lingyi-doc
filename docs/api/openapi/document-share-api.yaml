@@ -1,0 +1,66 @@
+openapi: 3.0.0
+info:
+  title: 文档分享 API
+  description: 文档分享相关接口
+  version: 1.0.0
+
+paths:
+  /api/documents/{documentId}/share:
+    post:
+      summary: 创建文档分享链接
+      parameters:
+        - name: documentId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                permission:
+                  type: string
+                  enum: [view, edit, comment]
+                  default: view
+                expireAt:
+                  type: string
+                  format: date-time
+                password:
+                  type: string
+      responses:
+        '200':
+          description: 分享链接创建成功
+
+  /api/documents/{documentId}/share/{shareId}:
+    delete:
+      summary: 删除分享链接
+      parameters:
+        - name: documentId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: shareId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 分享链接删除成功
+
+  /api/share/{shareCode}:
+    get:
+      summary: 通过分享码访问文档
+      parameters:
+        - name: shareCode
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 文档访问成功

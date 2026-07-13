@@ -1,11 +1,64 @@
 import type {
   AnchorId,
   ConnectorElement,
+  ConnectorLabelLayout,
+  ConnectorStyle,
   WhiteboardElement,
   WhiteboardPoint,
 } from '@lingyi-doc/core';
-import { getAnchorPoint, resolveElbowRoute } from '@lingyi-doc/core';
+import {
+  anchorInwardReferencePoint,
+  getAnchorPoint,
+  getConnectorLabelAnchor,
+  getConnectorLabelTextHeight,
+  getConnectorPathFrameAtMidpoint,
+  resolveConnectorLabelPosition,
+  CONNECTOR_LABEL_PAD_X,
+  CONNECTOR_LABEL_PAD_Y,
+  resolveElbowRoute,
+  resolveManualElbowRoute,
+  ensureCurvePathPoints,
+  isConnectable,
+  effectiveConnectorPathMode,
+  isCurveConnectorStyle,
+  migrateConnectorToStyle,
+  smoothCurvePath,
+  type ElbowObstacle,
+  type ResolveElbowRouteOpts,
+} from '@lingyi-doc/core';
 import { getShapeConnectorAnchorPoint } from './canvas/shapePaths';
+import { elementBounds } from './viewportUtils';
+
+const ARROW_REF_DISTANCE = 40;
+
+/** 浮动工具栏预估高度 + 与连线的屏幕间距 */
+const CONNECTOR_TOOLBAR_SCREEN_HEIGHT = 40;
+const CONNECTOR_TOOLBAR_SCREEN_GAP = 18;
+const CONNECTOR_TOOLBAR_EXTRA_FOR_FLAT = 14;
+
+/** 终点箭头：有绑定时始终沿锚点内法线指入图形 */
+export function resolveConnectorEndTipDirection(
+  anchor: AnchorId,
+  end: WhiteboardPoint,
+): { from: WhiteboardPoint; to: WhiteboardPoint; tipAt: 'to' } {
+  return {
+    from: anchorInwardReferencePoint(anchor, end, ARROW_REF_DISTANCE),
+    to: end,
+    tipAt: 'to',
+  };
+}
+
+/** 起点箭头：有绑定时始终沿锚点内法线指入图形 */
+export function resolveConnectorStartTipDirection(
+  anchor: AnchorId,
+  start: WhiteboardPoint,
+): { from: WhiteboardPoint; to: WhiteboardPoint; tipAt: 'to' } {
+  return {
+    from: anchorInwardReferencePoint(anchor, start, ARROW_REF_DISTANCE),
+    to: start,
+    tipAt: 'to',
+  };
+}
 
 /** 画板连接锚点：图形走轮廓求交，其余元素走默认包围盒 */
 export function getBoardAnchorPoint(el: WhiteboardElement, anchor: AnchorId): WhiteboardPoint {
@@ -41,13 +94,92 @@ export function getBoardConnectorEndpoints(
   return [start, end];
 }
 
+function collectElbowObstacles(elements: WhiteboardElement[]): ElbowObstacle[] {
+  const obstacles: ElbowObstacle[] = [];
+  for (const el of elements) {
+    if (!isConnectable(el)) continue;
+    const b = elementBounds(el);
+    obstacles.push({ id: el.id, x: b.x, y: b.y, w: b.w, h: b.h });
+  }
+  return obstacles;
+}
+
+function elbowRouteOpts(conn: ConnectorElement, elements: WhiteboardElement[]): ResolveElbowRouteOpts {
+  const opts: ResolveElbowRouteOpts = {
+    obstacles: collectElbowObstacles(elements),
+  };
+  if (conn.startBind) opts.startAnchor = conn.startBind.anchor;
+  if (conn.endBind) opts.endAnchor = conn.endBind.anchor;
+  return opts;
+}
+
+/** 工具栏锚点：置于连线包围盒上方（屏幕像素间距），避免遮挡线段与拖动手柄 */
+export function computeConnectorToolbarScreenAnchor(
+  route: WhiteboardPoint[],
+  viewport: { x: number; y: number; zoom: number },
+): { x: number; y: number; placement: 'top' | 'bottom' } {
+  const xs = route.map(p => p.x);
+  const ys = route.map(p => p.y);
+  const minX = Math.min(...xs);
+  const maxX = Math.max(...xs);
+  const minY = Math.min(...ys);
+  const maxY = Math.max(...ys);
+  const width = maxX - minX;
+  const height = maxY - minY;
+  const widthScreen = width * viewport.zoom;
+  const heightScreen = height * viewport.zoom;
+
+  const isNearlyHorizontal = heightScreen < 10 && widthScreen > 48;
+  const clearance = CONNECTOR_TOOLBAR_SCREEN_HEIGHT
+    + CONNECTOR_TOOLBAR_SCREEN_GAP
+    + (isNearlyHorizontal ? CONNECTOR_TOOLBAR_EXTRA_FOR_FLAT : 0);
+
+  const anchorX = isNearlyHorizontal
+    ? viewport.x + (minX + width * 0.28) * viewport.zoom
+    : viewport.x + ((minX + maxX) / 2) * viewport.zoom;
+
+  return {
+    x: anchorX,
+    y: viewport.y + minY * viewport.zoom - clearance,
+    placement: 'top',
+  };
+}
+
+function resolveBoardCurveRoute(
+  conn: ConnectorElement,
+  start: WhiteboardPoint,
+  end: WhiteboardPoint,
+): WhiteboardPoint[] {
+  const pts = ensureCurvePathPoints(conn.points, start, end);
+  if (effectiveConnectorPathMode(conn) === 'auto') {
+    return smoothCurvePath(pts);
+  }
+  return pts;
+}
+
+function resolveBoardElbowRoute(
+  conn: ConnectorElement,
+  start: WhiteboardPoint,
+  end: WhiteboardPoint,
+  elements: WhiteboardElement[],
+): WhiteboardPoint[] {
+  const opts = elbowRouteOpts(conn, elements);
+  if (effectiveConnectorPathMode(conn) === 'manual') {
+    return resolveManualElbowRoute(conn.points, start, end, opts);
+  }
+  return resolveElbowRoute(conn.points, start, end, opts);
+}
+
 export function getBoardConnectorRoute(
   conn: ConnectorElement,
   elements: WhiteboardElement[],
 ): WhiteboardPoint[] {
   const [start, end] = getBoardConnectorEndpoints(conn, elements);
   if (conn.style === 'elbow') {
-    return resolveElbowRoute(conn.points, start, end);
+    return resolveBoardElbowRoute(conn, start, end, elements);
+  }
+  if (isCurveConnectorStyle(conn.style)) {
+    return resolveBoardCurveRoute(conn, start, end);
   }
   return [start, end];
 }
@@ -57,8 +189,10 @@ export function syncBoardConnectors(elements: WhiteboardElement[]): WhiteboardEl
     if (el.type !== 'connector') return el;
     const [start, end] = getBoardConnectorEndpoints(el, elements);
     const points = el.style === 'elbow'
-      ? resolveElbowRoute(el.points, start, end)
-      : [start, end];
+      ? resolveBoardElbowRoute(el, start, end, elements)
+      : isCurveConnectorStyle(el.style)
+        ? resolveBoardCurveRoute(el, start, end)
+        : [start, end];
     const xs = points.map(p => p.x);
     const ys = points.map(p => p.y);
     return {
@@ -70,4 +204,86 @@ export function syncBoardConnectors(elements: WhiteboardElement[]): WhiteboardEl
       height: Math.max(...ys) - Math.min(...ys) || 1,
     };
   });
+}
+
+/** 切换连线样式并迁移路径点 */
+export function convertBoardConnectorStyle(
+  conn: ConnectorElement,
+  elements: WhiteboardElement[],
+  targetStyle: ConnectorStyle,
+): ConnectorElement {
+  const [start, end] = getBoardConnectorEndpoints(conn, elements);
+  const route = getBoardConnectorRoute(conn, elements);
+  const opts = elbowRouteOpts(conn, elements);
+
+  if (targetStyle === 'curve') {
+    return {
+      ...conn,
+      style: 'curve',
+      pathMode: effectiveConnectorPathMode(conn),
+      points: migrateConnectorToStyle(route, start, end, 'curve'),
+    };
+  }
+
+  if (targetStyle === 'elbow') {
+    const patch: ConnectorElement = {
+      ...conn,
+      style: 'elbow',
+      pathMode: conn.startBind && conn.endBind ? 'auto' : 'manual',
+      points: migrateConnectorToStyle(route, start, end, 'elbow', opts),
+    };
+    return syncBoardConnectors(elements.map(el => (el.id === conn.id ? patch : el)))
+      .find(el => el.id === conn.id) as ConnectorElement;
+  }
+
+  if (targetStyle === 'straight' || targetStyle === 'arrow') {
+    const patch: ConnectorElement = {
+      ...conn,
+      style: targetStyle,
+      points: [start, end],
+      pathMode: undefined,
+    };
+    if (targetStyle === 'arrow') {
+      const endArrow = conn.arrowEnd === false || conn.arrowEnd === 'none' ? 'arrow' : conn.arrowEnd;
+      patch.arrowEnd = endArrow;
+    }
+    return syncBoardConnectors(elements.map(el => (el.id === conn.id ? patch : el)))
+      .find(el => el.id === conn.id) as ConnectorElement;
+  }
+
+  return conn;
+}
+
+export function getBoardConnectorLabelLayout(
+  conn: ConnectorElement,
+  elements: WhiteboardElement[],
+): ConnectorLabelLayout | null {
+  const [a, b] = getBoardConnectorEndpoints(conn, elements);
+  const route = getBoardConnectorRoute(conn, elements);
+  const frame = getConnectorPathFrameAtMidpoint(conn.style, a, b, route);
+  if (!frame) return null;
+  return {
+    frame,
+    position: resolveConnectorLabelPosition(conn),
+  };
+}
+
+export function getBoardConnectorLabelBounds(
+  conn: ConnectorElement,
+  elements: WhiteboardElement[],
+  textWidth: number,
+): { x: number; y: number; w: number; h: number; anchor: WhiteboardPoint } | null {
+  const text = conn.text?.trim();
+  if (!text) return null;
+  const layout = getBoardConnectorLabelLayout(conn, elements);
+  if (!layout) return null;
+  const h = getConnectorLabelTextHeight();
+  const anchor = getConnectorLabelAnchor(layout.frame, layout.position, h);
+  return {
+    x: anchor.x - textWidth / 2 - CONNECTOR_LABEL_PAD_X,
+    y: anchor.y - h / 2 - CONNECTOR_LABEL_PAD_Y,
+    w: textWidth + CONNECTOR_LABEL_PAD_X * 2,
+    h: h + CONNECTOR_LABEL_PAD_Y * 2,
+    anchor,
+  };
 }

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useSheetStore } from '../store/sheetStore';
-import type { FreeTable } from '@lingyi-doc/core';
+import { isBaseSheet, type FreeTable } from '@lingyi-doc/core';
 
 interface StatusBarProps {
   table?: FreeTable;
@@ -13,7 +13,7 @@ export const StatusBar: React.FC<StatusBarProps> = ({ table }) => {
   const zoomLevel = useSheetStore(s => s.zoomLevel);
   const currentView = useSheetStore(s => s.currentView);
 
-  const isBase = table?.sheet.type === 'base';
+  const isBase = table ? isBaseSheet(table.sheet) : false;
   const rowCount = table?.rowCount || 0;
   const colCount = table?.colCount || 0;
 

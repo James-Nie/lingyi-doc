@@ -1,22 +1,34 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DocumentManager } from '@lingyi-doc/core';
 import type { DocumentListItem } from '@lingyi-doc/core';
-import { CreateDocMenu, type CreateDocType } from '../CreateDocMenu';
-import { useTemplatePicker } from '../templates/TemplatePickerContext';
+import { CreateDocSidebarTrigger } from '../createDoc';
+import { useCreateDocument } from '../../hooks/useCreateDocument';
 import { SidebarDocContextMenu, type SidebarDocAction } from '../layout/SidebarDocContextMenu';
 import { RenameDocumentModal } from '../RenameDocumentModal';
 import { SidebarDirectorySection } from '../layout/sidebar/SidebarDirectorySection';
-import { SidebarIconBtn } from '../layout/sidebar/SidebarIconBtn';
 import { SidebarResizeHandle } from '../layout/sidebar/SidebarResizeHandle';
 import { useSidebarResize } from '../layout/sidebar/useSidebarResize';
 import { useSidebarContextMenu } from '../layout/sidebar/useSidebarContextMenu';
 import { ImportCloudDocModal } from './ImportCloudDocModal';
 import { KbMoveNodeModal } from './KbMoveNodeModal';
+import { MoveDocumentModal } from '../MoveDocumentModal';
 import { knowledgeBaseStore, type KnowledgeBase, type WikiSpaceNode } from '../../stores/knowledgeBaseStore';
 import { documentLibraryStore } from '../../stores/documentLibraryStore';
 import { appPath } from '../../utils/appPaths';
 import { confirmDeleteToRecycleBin } from '../../utils/appDialog';
+import {
+  buildKbTree,
+  collectAncestorIds,
+  flattenKbTree,
+} from '../../utils/kbTreeUtils';
+import {
+  canDropKbNode,
+  computeKbNodeMove,
+  resolveKbDropPosition,
+  type KbDropTarget,
+} from '../../utils/kbDirectoryDnD';
+import { resolveMoveDocumentSource, type MoveDocumentSource } from '../../utils/moveDocument';
 
 interface WikiSpaceSidebarProps {
   kb: KnowledgeBase;
@@ -31,7 +43,9 @@ interface WikiSpaceSidebarProps {
 const WIKI_SIDEBAR_WIDTH_KEY = 'wiki-space-sidebar-width';
 const WIKI_SIDEBAR_DEFAULT_W = 260;
 
-function getNodeDocType(node: WikiSpaceNode, documents: DocumentListItem[]): string | undefined {
+function getNodeDisplayType(node: WikiSpaceNode, documents: DocumentListItem[]): string {
+  if (node.isHome || node.type === 'page') return 'page';
+  if (node.type === 'folder') return 'folder';
   if (node.docId) {
     const doc = documents.find(item => item.id === node.docId);
     if (doc?.docType) return doc.docType;
@@ -50,18 +64,19 @@ export const WikiSpaceSidebar: React.FC<WikiSpaceSidebarProps> = ({
   onOpenMembers,
 }) => {
   const navigate = useNavigate();
-  const { openTemplatePicker } = useTemplatePicker();
   const [search, setSearch] = useState('');
-  const [createMenuOpen, setCreateMenuOpen] = useState(false);
+  const [createParentId, setCreateParentId] = useState<string | null>(null);
   const [directoryExpanded, setDirectoryExpanded] = useState(true);
   const [sortAsc, setSortAsc] = useState(true);
   const [documents, setDocuments] = useState<DocumentListItem[]>([]);
   const [busyNodeId, setBusyNodeId] = useState<string | null>(null);
   const [renameNode, setRenameNode] = useState<WikiSpaceNode | null>(null);
   const [moveNode, setMoveNode] = useState<WikiSpaceNode | null>(null);
+  const [moveDocSource, setMoveDocSource] = useState<MoveDocumentSource | null>(null);
   const [importOpen, setImportOpen] = useState(false);
-  const [createMenuAnchor, setCreateMenuAnchor] = useState<DOMRect | null>(null);
-  const addBtnRef = useRef<HTMLButtonElement>(null);
+  const [userExpanded, setUserExpanded] = useState<Record<string, boolean>>({});
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dropTarget, setDropTarget] = useState<KbDropTarget | null>(null);
   const {
     sidebarWidth,
     resizeHover,
@@ -90,18 +105,69 @@ export const WikiSpaceSidebar: React.FC<WikiSpaceSidebarProps> = ({
   }, []);
 
   const homeNode = useMemo(() => nodes.find(node => node.isHome) ?? null, [nodes]);
+  const createDoc = useCreateDocument({
+    getKbContext: () => {
+      const parentNodeId = createParentId ?? homeNode?.id;
+      return parentNodeId ? { kbId: kb.id, parentNodeId } : undefined;
+    },
+  });
+  const isSearching = search.trim().length > 0;
 
-  const handlePickDocType = (type: CreateDocType) => {
-    setCreateMenuOpen(false);
-    openTemplatePicker({
-      typeFilter: type,
-      kbContext: homeNode ? { kbId: kb.id, parentNodeId: homeNode.id } : undefined,
-    });
-  };
+  const defaultExpandedIds = useMemo(() => {
+    const ids = new Set<string>();
+    if (activeNodeId) {
+      collectAncestorIds(nodes, activeNodeId).forEach(id => ids.add(id));
+    }
+    return ids;
+  }, [nodes, activeNodeId]);
+
+  const expandedIds = useMemo(() => {
+    const set = new Set(defaultExpandedIds);
+    for (const [id, expanded] of Object.entries(userExpanded)) {
+      if (expanded) set.add(id);
+      else set.delete(id);
+    }
+    return set;
+  }, [defaultExpandedIds, userExpanded]);
+
+  const openCreateMenu = useCallback((parentId: string | null, anchor: DOMRect) => {
+    setCreateParentId(parentId);
+    createDoc.openMenuAt(anchor);
+  }, [createDoc.openMenuAt]);
+
+  const closeCreateMenu = useCallback(() => {
+    createDoc.closeMenu();
+    setCreateParentId(null);
+  }, [createDoc.closeMenu]);
+
+  const handlePickDocType = useCallback((type: Parameters<typeof createDoc.handlePickDocType>[0]) => {
+    createDoc.handlePickDocType(type);
+    setCreateParentId(null);
+  }, [createDoc]);
+
+  const handleCreateFolder = useCallback(async () => {
+    const parentId = createParentId ?? homeNode?.id ?? null;
+    closeCreateMenu();
+    try {
+      const folder = await knowledgeBaseStore.createFolder(kb.id, '未命名文件夹', parentId);
+      if (parentId) {
+        setUserExpanded(prev => {
+          const next = { ...prev, [parentId]: true };
+          collectAncestorIds(nodes, parentId).forEach(id => { next[id] = true; });
+          return next;
+        });
+      }
+      setRenameNode(folder);
+      navigate(appPath.wikiSpaceNode(kb.id, folder.id));
+      toast('文件夹已创建');
+    } catch (err) {
+      toast(`创建文件夹失败: ${(err as Error).message}`);
+    }
+  }, [closeCreateMenu, createParentId, homeNode?.id, kb.id, navigate, nodes, toast]);
 
   const handleSidebarStub = (name: string) => {
     if (name === '迁入已有云文档') {
-      setCreateMenuOpen(false);
+      closeCreateMenu();
       setImportOpen(true);
       return;
     }
@@ -110,26 +176,42 @@ export const WikiSpaceSidebar: React.FC<WikiSpaceSidebarProps> = ({
 
   const filteredNodes = useMemo(() => {
     const query = search.trim().toLowerCase();
+    const base = nodes.filter(node => !node.isHome);
     let list = query
-      ? nodes.filter(node => node.title.toLowerCase().includes(query))
-      : [...nodes];
-    list.sort((a, b) => {
-      if (a.isHome) return -1;
-      if (b.isHome) return 1;
-      const cmp = a.title.localeCompare(b.title, 'zh-CN');
-      return sortAsc ? cmp : -cmp;
-    });
+      ? base.filter(node => node.title.toLowerCase().includes(query))
+      : [...base];
+    if (isSearching) {
+      list.sort((a, b) => {
+        const cmp = a.title.localeCompare(b.title, 'zh-CN');
+        return sortAsc ? cmp : -cmp;
+      });
+    }
     return list;
-  }, [nodes, search, sortAsc]);
+  }, [nodes, search, sortAsc, isSearching]);
 
-  const directoryItems = useMemo(
-    () => filteredNodes.map(node => ({
+  const directoryItems = useMemo(() => {
+    if (isSearching) {
+      return filteredNodes.map(node => ({
+        id: node.id,
+        title: node.title,
+        docType: getNodeDisplayType(node, documents),
+        depth: 0,
+        isFolder: node.type === 'folder',
+      }));
+    }
+
+    const tree = buildKbTree(filteredNodes);
+    const flat = flattenKbTree(tree, expandedIds);
+    return flat.map(({ node, depth, hasChildren }) => ({
       id: node.id,
       title: node.title,
-      docType: getNodeDocType(node, documents),
-    })),
-    [filteredNodes, documents],
-  );
+      docType: getNodeDisplayType(node, documents),
+      depth,
+      hasChildren,
+      isFolder: node.type === 'folder',
+      expanded: expandedIds.has(node.id),
+    }));
+  }, [filteredNodes, documents, expandedIds, isSearching]);
 
   const existingDocIds = useMemo(
     () => nodes.map(node => node.docId).filter((id): id is string => Boolean(id)),
@@ -149,6 +231,86 @@ export const WikiSpaceSidebar: React.FC<WikiSpaceSidebarProps> = ({
       navigate(appPath.wikiSpace(kb.id));
     }
   }, [homeNode, kb.id, navigate]);
+
+  const handleToggleExpand = useCallback((nodeId: string) => {
+    setUserExpanded(prev => ({
+      ...prev,
+      [nodeId]: !expandedIds.has(nodeId),
+    }));
+  }, [expandedIds]);
+
+  const handleItemDragStart = useCallback((nodeId: string, e: React.DragEvent) => {
+    if (isSearching) return;
+    e.dataTransfer.setData('text/plain', nodeId);
+    e.dataTransfer.effectAllowed = 'move';
+    setDraggingId(nodeId);
+    setDropTarget(null);
+  }, [isSearching]);
+
+  const handleItemDragEnd = useCallback(() => {
+    setDraggingId(null);
+    setDropTarget(null);
+  }, []);
+
+  const handleItemDragOver = useCallback((nodeId: string, e: React.DragEvent) => {
+    if (!draggingId || isSearching) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const item = directoryItems.find(entry => entry.id === nodeId);
+    if (!item) return;
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const position = resolveKbDropPosition(e.clientY, rect, !!item.isFolder);
+    if (!canDropKbNode(nodes, draggingId, nodeId, position)) {
+      setDropTarget(null);
+      return;
+    }
+    setDropTarget({ nodeId, position });
+  }, [draggingId, directoryItems, isSearching, nodes]);
+
+  const handleItemDragLeave = useCallback((nodeId: string, e: React.DragEvent) => {
+    const related = e.relatedTarget as Node | null;
+    if (related && (e.currentTarget as HTMLElement).contains(related)) return;
+    setDropTarget(current => (current?.nodeId === nodeId ? null : current));
+  }, []);
+
+  const handleItemDrop = useCallback(async (nodeId: string, e: React.DragEvent) => {
+    e.preventDefault();
+    if (!draggingId || isSearching || busyNodeId) return;
+
+    const item = directoryItems.find(entry => entry.id === nodeId);
+    if (!item) return;
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const position = dropTarget?.nodeId === nodeId
+      ? dropTarget.position
+      : resolveKbDropPosition(e.clientY, rect, !!item.isFolder);
+    const patch = computeKbNodeMove(nodes, draggingId, nodeId, position, homeNode?.id);
+    if (!patch) return;
+
+    setDraggingId(null);
+    setDropTarget(null);
+    setBusyNodeId(draggingId);
+    try {
+      await knowledgeBaseStore.moveNode(kb.id, draggingId, patch);
+      if (position === 'inside') {
+        setUserExpanded(prev => ({ ...prev, [nodeId]: true }));
+      }
+      toast('已更新位置');
+    } catch (err) {
+      toast(`移动失败: ${(err as Error).message}`);
+    } finally {
+      setBusyNodeId(null);
+    }
+  }, [
+    busyNodeId,
+    directoryItems,
+    draggingId,
+    dropTarget,
+    homeNode?.id,
+    isSearching,
+    kb.id,
+    nodes,
+    toast,
+  ]);
 
   const handleNodeAction = useCallback(async (action: SidebarDocAction) => {
     if (!menuNode) return;
@@ -201,7 +363,7 @@ export const WikiSpaceSidebar: React.FC<WikiSpaceSidebarProps> = ({
           title: `${node.title} 副本`,
           type: 'doc',
           docId: newId,
-          parentId: homeNode?.id ?? null,
+          parentId: node.parentId ?? homeNode?.id ?? null,
         });
         toast('副本已创建');
         navigate(appPath.wikiSpaceDoc(kb.id, newId));
@@ -215,7 +377,20 @@ export const WikiSpaceSidebar: React.FC<WikiSpaceSidebarProps> = ({
 
     if (action === 'moveTo') {
       closeMenu();
-      setMoveNode(node);
+      if (node.docId) {
+        void resolveMoveDocumentSource({
+          docId: node.docId,
+          title: node.title || '未命名文档',
+          kbNode: {
+            kbId: kb.id,
+            nodeId: node.id,
+            parentId: node.parentId,
+          },
+          kbName: kb.name,
+        }).then(setMoveDocSource);
+      } else {
+        setMoveNode(node);
+      }
       return;
     }
 
@@ -268,17 +443,6 @@ export const WikiSpaceSidebar: React.FC<WikiSpaceSidebarProps> = ({
     navigateAfterDelete,
   ]);
 
-  const handleToggleCreateMenu = useCallback(() => {
-    setCreateMenuOpen(v => {
-      const next = !v;
-      if (next && addBtnRef.current) {
-        setCreateMenuAnchor(addBtnRef.current.getBoundingClientRect());
-      }
-      if (!next) setCreateMenuAnchor(null);
-      return next;
-    });
-  }, []);
-
   const spaceInitial = kb.name.trim().charAt(0) || '空';
 
   return (
@@ -304,7 +468,7 @@ export const WikiSpaceSidebar: React.FC<WikiSpaceSidebarProps> = ({
             title: doc.title || '未命名文档',
             type: doc.docType === 'freeform' || doc.docType === 'standard' ? 'sheet' : 'doc',
             docId: doc.id,
-            parentId: homeNode?.id ?? null,
+            parentId: createParentId ?? homeNode?.id ?? null,
           });
           setImportOpen(false);
           toast('文档已迁入');
@@ -313,16 +477,38 @@ export const WikiSpaceSidebar: React.FC<WikiSpaceSidebarProps> = ({
       />
 
       <KbMoveNodeModal
-        open={moveNode !== null}
+        open={moveNode !== null && !moveNode.docId}
         node={moveNode}
         nodes={nodes}
         onClose={() => setMoveNode(null)}
         onMove={async (targetParentId) => {
           if (!moveNode) return;
-          await knowledgeBaseStore.moveNode(kb.id, moveNode.id, { parentId: targetParentId });
+          const parentId = targetParentId ?? homeNode?.id ?? null;
+          await knowledgeBaseStore.moveNode(kb.id, moveNode.id, { parentId });
           setMoveNode(null);
           toast('已移动');
         }}
+      />
+
+      <MoveDocumentModal
+        open={moveDocSource !== null}
+        source={moveDocSource}
+        onClose={() => setMoveDocSource(null)}
+        onMoved={target => {
+          toast('已移动');
+          documentLibraryStore.bump();
+          if (target.scope === 'library') {
+            navigate(appPath.home);
+            return;
+          }
+          if (target.kbId === kb.id) {
+            const docId = moveDocSource?.docId;
+            if (docId) navigate(appPath.wikiSpaceDoc(kb.id, docId));
+            return;
+          }
+          navigate(appPath.wikiSpace(target.kbId));
+        }}
+        onError={msg => toast(`移动失败: ${msg}`)}
       />
 
       <div style={{ padding: '14px 16px 10px' }}>
@@ -481,38 +667,44 @@ export const WikiSpaceSidebar: React.FC<WikiSpaceSidebarProps> = ({
           }}
           onItemQuickAdd={(id, e) => {
             e.stopPropagation();
-            onStub('添加快捷方式');
+            const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+            openCreateMenu(id, rect);
           }}
           onItemMore={(id, btn) => openMenu(id, btn)}
           onItemContextMenu={(id, e) => {
             openMenuAt(id, new DOMRect(e.clientX, e.clientY, 0, 0));
           }}
+          onItemToggleExpand={(id) => handleToggleExpand(id)}
+          dragEnabled={!isSearching}
+          draggingId={draggingId}
+          dropTarget={dropTarget}
+          onItemDragStart={handleItemDragStart}
+          onItemDragEnd={handleItemDragEnd}
+          onItemDragOver={handleItemDragOver}
+          onItemDragLeave={handleItemDragLeave}
+          onItemDrop={handleItemDrop}
           addAction={(
-            <SidebarIconBtn
-              ref={addBtnRef}
+            <CreateDocSidebarTrigger
               title="添加文档"
-              active={createMenuOpen}
-              onClick={handleToggleCreateMenu}
-            >
-              +
-            </SidebarIconBtn>
+              context="wikiSpace"
+              menuOpen={createDoc.menuOpen}
+              menuAnchor={createDoc.menuAnchor}
+              onToggle={(anchor) => {
+                if (createDoc.menuOpen) closeCreateMenu();
+                else openCreateMenu(homeNode?.id ?? null, anchor);
+              }}
+              onClose={closeCreateMenu}
+              onCreate={handlePickDocType}
+              onStub={handleSidebarStub}
+              onCreateFolder={handleCreateFolder}
+              onMigrate={() => {
+                closeCreateMenu();
+                setImportOpen(true);
+              }}
+            />
           )}
         />
       </div>
-
-      <CreateDocMenu
-        open={createMenuOpen}
-        variant="dropdown"
-        context="wikiSpace"
-        placement="sidebar-right"
-        anchorRect={createMenuAnchor}
-        onClose={() => {
-          setCreateMenuOpen(false);
-          setCreateMenuAnchor(null);
-        }}
-        onCreate={handlePickDocType}
-        onStub={handleSidebarStub}
-      />
 
       <SidebarDocContextMenu
         open={!!menuItemId}

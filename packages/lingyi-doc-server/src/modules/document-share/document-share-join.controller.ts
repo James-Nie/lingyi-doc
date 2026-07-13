@@ -129,6 +129,39 @@ export class DocumentShareJoinController {
     }
   }
 
+  @Post('docs/by-path/:spaceSlug/:bookSlug/:docSlug/form-submit')
+  @UseGuards(OptionalJwtAuthGuard)
+  async submitPublicForm(
+    @Param('spaceSlug') spaceSlug: string,
+    @Param('bookSlug') bookSlug: string,
+    @Param('docSlug') docSlug: string,
+    @Body() body: Record<string, unknown>,
+    @Req() req: Request,
+  ) {
+    try {
+      const token = typeof body.token === 'string' ? body.token : '';
+      const password = typeof body.password === 'string' ? body.password : undefined;
+      const sheetId = typeof body.sheetId === 'string' ? body.sheetId : '';
+      const viewId = typeof body.viewId === 'string' ? body.viewId : '';
+      const fieldValues = body.fieldValues && typeof body.fieldValues === 'object'
+        ? body.fieldValues as Record<string, unknown>
+        : {};
+      const userAgent = req.headers['user-agent'];
+      return this.documentShareService.submitPublicForm(
+        spaceSlug,
+        bookSlug,
+        docSlug,
+        { token, password, sheetId, viewId, fieldValues },
+        req.ip ?? null,
+        typeof userAgent === 'string' ? userAgent.slice(0, 500) : null,
+      );
+    } catch (err) {
+      if (err instanceof BusinessException) throw err;
+      this.logger.error('submitPublicForm failed', err);
+      throw new BusinessException(100005, '提交失败', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
   /** @deprecated 仅解析 docId，请改用 loadDocumentByPath */
   @Get('c/docs/by-path/:spaceSlug/:bookSlug/:docSlug/resolve')
   @UseGuards(JwtAuthGuard, TenantContextGuard)

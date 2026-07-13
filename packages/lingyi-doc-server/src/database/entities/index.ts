@@ -4,7 +4,7 @@ export { DocumentSnapshotEntity } from './document-snapshot.entity';
 export { CrdtOplogEntity } from './crdt-oplog.entity';
 export { DocumentSheetEntity } from './document-sheet.entity';
 export { BaseTableEntity, BaseRecordEntity, BaseViewEntity } from './base.entity';
-export { TenantEntity, TenantMemberEntity, OrganizationEntity } from './tenant.entity';
+export { TenantEntity, TenantMemberEntity, OrganizationEntity, TenantPositionGroupEntity, TenantPositionEntity, TenantRoleEntity } from './tenant.entity';
 export {
   SchemaMigrationEntity,
   AdminRoleEntity,
@@ -31,6 +31,8 @@ export {
   DocShareAuditLogEntity,
 } from './document-share.entity';
 export { DocTemplateEntity } from './doc-template.entity';
+export { DocCommentThreadEntity, DocCommentReplyEntity } from './document-comment.entity';
+export { QuotaDailyLogEntity } from './quota-daily-log.entity';
 
 import { UserEntity } from './user.entity';
 import { DocumentEntity } from './document.entity';
@@ -38,7 +40,7 @@ import { DocumentSnapshotEntity } from './document-snapshot.entity';
 import { CrdtOplogEntity } from './crdt-oplog.entity';
 import { DocumentSheetEntity } from './document-sheet.entity';
 import { BaseTableEntity, BaseRecordEntity, BaseViewEntity } from './base.entity';
-import { TenantEntity, TenantMemberEntity, OrganizationEntity } from './tenant.entity';
+import { TenantEntity, TenantMemberEntity, OrganizationEntity, TenantPositionGroupEntity, TenantPositionEntity, TenantRoleEntity } from './tenant.entity';
 import {
   SchemaMigrationEntity,
   AdminRoleEntity,
@@ -65,6 +67,8 @@ import {
   DocShareAuditLogEntity,
 } from './document-share.entity';
 import { DocTemplateEntity } from './doc-template.entity';
+import { DocCommentReplyEntity, DocCommentThreadEntity } from './document-comment.entity';
+import { QuotaDailyLogEntity } from './quota-daily-log.entity';
 
 /** 与现有 MySQL schema 对应的全部 TypeORM 实体 */
 export const ALL_ENTITIES = [
@@ -79,6 +83,9 @@ export const ALL_ENTITIES = [
   TenantEntity,
   TenantMemberEntity,
   OrganizationEntity,
+  TenantPositionGroupEntity,
+  TenantPositionEntity,
+  TenantRoleEntity,
   SchemaMigrationEntity,
   AdminRoleEntity,
   AdminPermissionEntity,
@@ -97,4 +104,7 @@ export const ALL_ENTITIES = [
   DocShareVisitLogEntity,
   DocShareAuditLogEntity,
   DocTemplateEntity,
+  DocCommentThreadEntity,
+  DocCommentReplyEntity,
+  QuotaDailyLogEntity,
 ];

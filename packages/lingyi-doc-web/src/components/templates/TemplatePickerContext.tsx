@@ -1,12 +1,17 @@
-import React, { createContext, useCallback, useContext, useState } from 'react';
+import React, { createContext, useCallback, useContext, useMemo, useState, useSyncExternalStore } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { TemplatePickerModal } from './TemplatePickerModal';
 import { createDocumentFromTemplate } from '../../templates/createFromTemplate';
 import type { DocTemplate, TemplateDocType } from '../../templates/docTemplates';
-import { KnowledgeBaseApi } from '../../api/knowledgeBase';
+import { CreateKnowledgeBaseModal } from '../wiki/CreateKnowledgeBaseModal';
+import type { CreateDocType } from '../CreateDocMenu';
+import { authStore } from '../../stores/authStore';
 import { knowledgeBaseStore } from '../../stores/knowledgeBaseStore';
 import { appPath } from '../../utils/appPaths';
-import { navigateToDoc } from '../../utils/navigateToDoc';
+import {
+  finalizeDocumentCreation,
+  mapMenuTypeToTemplateFilter,
+} from '../../utils/createDocumentFromMenu';
 
 export interface WikiKbContext {
   kbId: string;
@@ -18,6 +23,8 @@ interface TemplatePickerContextValue {
     typeFilter?: 'all' | TemplateDocType;
     kbContext?: WikiKbContext;
   }) => void;
+  createFromMenu: (type: CreateDocType, kbContext?: WikiKbContext) => Promise<void>;
+  openCreateKnowledgeBase: () => void;
 }
 
 const TemplatePickerContext = createContext<TemplatePickerContextValue | null>(null);
@@ -37,18 +44,28 @@ interface TemplatePickerProviderProps {
   children: React.ReactNode;
   onError?: (message: string) => void;
   onDuplicateTitle?: (title: string) => void;
+  onToast?: (message: string) => void;
 }
 
 export const TemplatePickerProvider: React.FC<TemplatePickerProviderProps> = ({
   children,
   onError,
   onDuplicateTitle,
+  onToast,
 }) => {
   const navigate = useNavigate();
+  const authState = useSyncExternalStore(authStore.subscribe, authStore.getState);
   const [open, setOpen] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [createKbOpen, setCreateKbOpen] = useState(false);
   const [typeFilter, setTypeFilter] = useState<'all' | TemplateDocType>('all');
   const [kbContext, setKbContext] = useState<WikiKbContext | null>(null);
+
+  const organizationName = useMemo(() => {
+    const session = authState.session;
+    const tenant = authState.tenants.find(t => t.id === session?.currentTenantId);
+    return tenant?.name || '当前企业';
+  }, [authState.session, authState.tenants]);
 
   const openTemplatePicker = useCallback((opts?: {
     typeFilter?: 'all' | TemplateDocType;
@@ -59,32 +76,25 @@ export const TemplatePickerProvider: React.FC<TemplatePickerProviderProps> = ({
     setOpen(true);
   }, []);
 
-  const handleUse = useCallback(async (template: DocTemplate) => {
+  const runCreation = useCallback(async (
+    create: () => Promise<string>,
+    docTitle: string,
+    context?: WikiKbContext | null,
+  ) => {
     setCreating(true);
     try {
-      const id = await createDocumentFromTemplate(template);
+      const id = await create();
       setOpen(false);
-
-      if (kbContext) {
-        await KnowledgeBaseApi.createNode(kbContext.kbId, {
-          title: template.documentTitle,
-          nodeType: 'doc_ref',
-          parentId: kbContext.parentNodeId,
-          docId: id,
-        });
-        await knowledgeBaseStore.loadNodes(kbContext.kbId);
-        knowledgeBaseStore.touchLocal(kbContext.kbId);
-        navigate(appPath.wikiSpaceDoc(kbContext.kbId, id));
-        return;
-      }
-
-      await navigateToDoc(navigate, id);
+      await finalizeDocumentCreation({
+        docId: id,
+        docTitle,
+        kbContext: context ?? undefined,
+        navigate,
+      });
     } catch (err) {
       const message = (err as Error).message;
       if (message.includes('已存在')) {
         onDuplicateTitle?.(message.match(/「(.+?)」/)?.[1] ?? message);
-      } else if (message.includes('开发中')) {
-        onError?.(message);
       } else {
         onError?.(message);
       }
@@ -92,10 +102,42 @@ export const TemplatePickerProvider: React.FC<TemplatePickerProviderProps> = ({
       setCreating(false);
       setKbContext(null);
     }
-  }, [navigate, onError, onDuplicateTitle, kbContext]);
+  }, [navigate, onDuplicateTitle, onError]);
+
+  const createFromMenu = useCallback(async (type: CreateDocType, context?: WikiKbContext) => {
+    openTemplatePicker({ typeFilter: mapMenuTypeToTemplateFilter(type), kbContext: context });
+  }, [openTemplatePicker]);
+
+  const handleUse = useCallback(async (template: DocTemplate) => {
+    await runCreation(
+      () => createDocumentFromTemplate(template),
+      template.documentTitle,
+      kbContext,
+    );
+  }, [kbContext, runCreation]);
+
+  const handleCreateKnowledgeBase = useCallback(async (payload: {
+    name: string;
+    description: string;
+    emoji: string;
+    visibility: 'members' | 'organization';
+  }) => {
+    try {
+      const { kb, defaultNodeId } = await knowledgeBaseStore.create(payload);
+      setCreateKbOpen(false);
+      onToast?.('知识库已创建');
+      navigate(appPath.wikiSpaceNode(kb.id, defaultNodeId));
+    } catch (err) {
+      onError?.(`创建失败: ${(err as Error).message}`);
+    }
+  }, [navigate, onError, onToast]);
+
+  const openCreateKnowledgeBase = useCallback(() => {
+    setCreateKbOpen(true);
+  }, []);
 
   return (
-    <TemplatePickerContext.Provider value={{ openTemplatePicker }}>
+    <TemplatePickerContext.Provider value={{ openTemplatePicker, createFromMenu, openCreateKnowledgeBase }}>
       {children}
       <TemplatePickerModal
         open={open}
@@ -103,6 +145,12 @@ export const TemplatePickerProvider: React.FC<TemplatePickerProviderProps> = ({
         onUse={handleUse}
         creating={creating}
         initialTypeFilter={typeFilter}
+      />
+      <CreateKnowledgeBaseModal
+        open={createKbOpen}
+        organizationName={organizationName}
+        onClose={() => setCreateKbOpen(false)}
+        onCreate={handleCreateKnowledgeBase}
       />
     </TemplatePickerContext.Provider>
   );

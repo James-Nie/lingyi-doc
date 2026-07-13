@@ -1,4 +1,4 @@
-import type { DocBlock, RichDocumentJSON, ToolbarState, BlockAlign, ParagraphStyle, ListType } from './types';
+import type { DocBlock, RichDocumentJSON, ToolbarState, BlockAlign, ParagraphStyle, ListType, OrderedListStyle } from './types';
 import {
   createEmptyDocument,
   createEmptyParagraph,
@@ -154,33 +154,46 @@ export class RichDocument {
     this.updateBlock(index, applyParagraphStyle(block, style), true);
   }
 
-  toggleList(index: number, listType: ListType): void {
+  toggleList(index: number, listType: ListType, orderedStyle?: OrderedListStyle): void {
     const block = this.blocks[index];
     if (!block) return;
 
+    const resolvedStyle = orderedStyle ?? 'multiLevel';
+
     if (isListBlock(block)) {
       if (block.listType === listType) {
+        if (listType === 'ordered' && orderedStyle && orderedStyle !== (block.orderedStyle ?? 'multiLevel')) {
+          const items = normalizeOrderedListItems(block.items, orderedStyle);
+          this.updateBlock(index, { ...block, orderedStyle, items }, true);
+          return;
+        }
         const text = getBlockText(block) || '';
         this.updateBlock(index, { type: 'paragraph', id: block.id, text, marks: [], align: 'left' }, true);
         return;
       }
       const items = listType === 'ordered'
-        ? normalizeOrderedListItems(block.items)
+        ? normalizeOrderedListItems(block.items, resolvedStyle)
         : listType === 'bullet'
           ? normalizeBulletListItems(block.items.map(({ numFmt: _n, ...rest }) => rest))
           : block.items.map(({ numFmt: _n, ...rest }) => rest);
-      this.updateBlock(index, { ...block, listType, items }, true);
+      this.updateBlock(index, {
+        ...block,
+        listType,
+        items,
+        orderedStyle: listType === 'ordered' ? (block.orderedStyle ?? resolvedStyle) : undefined,
+      }, true);
       return;
     }
 
     const text = getBlockText(block) || '';
     const marks = isTextBlock(block) ? block.marks : [];
-    const items = textToListItems(text, marks, listType);
+    const items = textToListItems(text, marks, listType, resolvedStyle);
     this.updateBlock(index, {
       type: 'list',
       id: block.id || genBlockId(),
       listType,
       items,
+      orderedStyle: listType === 'ordered' ? resolvedStyle : undefined,
     }, true);
   }
 

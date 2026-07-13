@@ -1,5 +1,8 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { Button, Input, Menu } from 'antd';
+import { DeleteOutlined, EditOutlined, SearchOutlined } from '@ant-design/icons';
+import type { MenuProps } from 'antd';
 import type { ColumnDef } from '@lingyi-doc/core';
 import { FieldConfigPanel } from './FieldConfigPanel';
 
@@ -37,44 +40,23 @@ const FieldRowContextMenu: React.FC<{
   onDelete: (fieldId: string) => void;
   onClose: () => void;
 }> = ({ menu, onEdit, onDelete, onClose }) => {
-  const menuRef = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState({ x: menu.x, y: menu.y });
-
-  useEffect(() => {
-    const el = menuRef.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    let x = menu.x;
-    let y = menu.y;
-    if (x + rect.width > window.innerWidth - 8) {
-      x = Math.max(8, window.innerWidth - rect.width - 8);
-    }
-    if (y + rect.height > window.innerHeight - 8) {
-      y = Math.max(8, menu.y - rect.height - 4);
-    }
-    setPos({ x, y });
-  }, [menu.x, menu.y]);
-
-  useEffect(() => {
-    const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    document.addEventListener('keydown', handleKey);
-    return () => document.removeEventListener('keydown', handleKey);
-  }, [onClose]);
-
-  const itemStyle: React.CSSProperties = {
-    padding: '8px 12px',
-    width: '100%',
-    border: 'none',
-    background: 'none',
-    cursor: 'pointer',
-    fontSize: 13,
-    textAlign: 'left',
-    color: '#333',
-    display: 'flex',
-    alignItems: 'center',
-    gap: 8,
-    borderRadius: 4,
-  };
+  const items: MenuProps['items'] = [
+    {
+      key: 'edit',
+      icon: <EditOutlined />,
+      label: '编辑',
+      onClick: () => { onEdit(menu.fieldId); onClose(); },
+    },
+  ];
+  if (!menu.isTitle) {
+    items.push({
+      key: 'delete',
+      icon: <DeleteOutlined />,
+      label: '删除',
+      danger: true,
+      onClick: () => { onDelete(menu.fieldId); onClose(); },
+    });
+  }
 
   return createPortal(
     <>
@@ -85,50 +67,19 @@ const FieldRowContextMenu: React.FC<{
         onClick={onClose}
       />
       <div
-        ref={menuRef}
         data-sheet-keep-selection
-        style={{
-          position: 'fixed',
-          left: pos.x,
-          top: pos.y,
-          zIndex: 401,
-          background: '#fff',
-          border: '1px solid #e8e8e8',
-          borderRadius: 8,
-          boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
-          padding: 4,
-          minWidth: ROW_MENU_WIDTH,
-        }}
+        style={{ position: 'fixed', left: menu.x, top: menu.y, zIndex: 401 }}
         onClick={e => e.stopPropagation()}
       >
-        <button
-          type="button"
-          onClick={() => { onEdit(menu.fieldId); onClose(); }}
-          style={itemStyle}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#f5f5f5'; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; }}
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-          </svg>
-          编辑
-        </button>
-        {!menu.isTitle && (
-          <button
-            type="button"
-            onClick={() => { onDelete(menu.fieldId); onClose(); }}
-            style={itemStyle}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#f5f5f5'; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; }}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <polyline points="3 6 5 6 21 6" />
-              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-            </svg>
-            删除
-          </button>
-        )}
+        <Menu
+          items={items}
+          style={{
+            borderRadius: 8,
+            border: '1px solid #e8e8e8',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+            minWidth: ROW_MENU_WIDTH,
+          }}
+        />
       </div>
     </>,
     document.body,
@@ -231,28 +182,15 @@ export const FieldManagePopover: React.FC<FieldManagePopoverProps> = ({
         overflow: 'hidden',
       }}>
         <div style={{ padding: '10px 12px', flexShrink: 0 }}>
-          <div style={{ position: 'relative' }}>
-            <input
-              type="text"
-              data-sheet-keep-selection
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              placeholder="搜索"
-              style={{
-                width: '100%', padding: '7px 8px 7px 30px',
-                border: '1px solid #e8e8e8', borderRadius: 6,
-                fontSize: 13, outline: 'none', boxSizing: 'border-box',
-                background: '#fafafa',
-              }}
-            />
-            <svg
-              style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)' }}
-              width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="2"
-            >
-              <circle cx="11" cy="11" r="7" />
-              <line x1="16.5" y1="16.5" x2="21" y2="21" />
-            </svg>
-          </div>
+          <Input
+            data-sheet-keep-selection
+            allowClear
+            size="small"
+            placeholder="搜索"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            prefix={<SearchOutlined style={{ color: '#bfbfbf' }} />}
+          />
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '2px 6px', minHeight: 0 }}>

@@ -77,11 +77,6 @@ echo "4/4 配置 Nginx 并启动 API..."
 cd "$APP_ROOT"
 bash "$APP_ROOT/scripts/render-nginx.sh" "$APP_ROOT" "$DESKTOP_DOMAIN" "$ADMIN_DOMAIN"
 
-ADMIN_PORT=80
-if [[ "$DESKTOP_DOMAIN" == "$ADMIN_DOMAIN" ]]; then
-  ADMIN_PORT=8080
-fi
-
 mkdir -p "$APP_ROOT/logs"
 mkdir -p "$SERVER_DIR/data/snapshots"
 
@@ -99,10 +94,12 @@ echo ""
 echo "=== 部署完成 ==="
 curl -sf "http://127.0.0.1:3000/api/v1/health" | head -c 200 || echo "健康检查待 API 就绪后访问"
 echo ""
-echo "C 端:     http://${DESKTOP_DOMAIN}"
-if [[ "$ADMIN_PORT" == "8080" ]]; then
-  echo "管理端:   http://${ADMIN_DOMAIN}:8080"
-else
-  echo "管理端:   http://${ADMIN_DOMAIN}"
+echo "C 端 HTTP:  http://${DESKTOP_DOMAIN}"
+if [[ "${ENABLE_SSL:-true}" == "true" ]]; then
+  echo "C 端 HTTPS: https://${DESKTOP_DOMAIN}  (开发自签名证书，浏览器需信任)"
+fi
+echo "管理端:   http://${DESKTOP_DOMAIN}/admin/"
+if [[ "${ENABLE_SSL:-true}" == "true" ]]; then
+  echo "管理端 HTTPS: https://${DESKTOP_DOMAIN}/admin/"
 fi
 echo "健康检查: http://${DESKTOP_DOMAIN}/api/v1/health"

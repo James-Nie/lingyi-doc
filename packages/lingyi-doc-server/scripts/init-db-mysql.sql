@@ -112,6 +112,7 @@ CREATE TABLE IF NOT EXISTS crdt_oplog (
     server_ts       TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '服务端接收时间',
     client_ts       BIGINT       DEFAULT NULL COMMENT '客户端时间戳(ms)',
     UNIQUE KEY uk_oplog_doc_version (doc_id, global_version),
+    UNIQUE KEY uk_oplog_doc_opid (doc_id, op_id),
     KEY idx_oplog_doc (doc_id, global_version),
     KEY idx_oplog_server_ts (server_ts)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

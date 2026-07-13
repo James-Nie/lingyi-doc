@@ -1,4 +1,4 @@
-import type { CellCoord, CellRange, CellValue } from '../types/index';
+import type { CellCoord, CellRange, CellValue, DateFormat } from '../types/index';
 import type { ViewportManager } from '../renderer/index';
 import type { FreeTable } from '../model/index';
 
@@ -115,6 +115,55 @@ function cloneCellValue(value: CellValue): CellValue {
   return JSON.parse(JSON.stringify(value)) as CellValue;
 }
 
+function makeSingleCellRange(table: FreeTable, row: number, col: number): CellRange {
+  return {
+    sheetId: table.sheetId,
+    start: { row, col },
+    end: { row, col },
+  };
+}
+
+function getCellTimestamp(cell: { value: CellValue } | undefined | null): number | null {
+  if (!cell) return null;
+  if (cell.value.type === 'date') return cell.value.timestamp;
+  if (cell.value.type === 'text') {
+    const parsed = Date.parse(cell.value.text);
+    return Number.isNaN(parsed) ? null : parsed;
+  }
+  return null;
+}
+
+/** 将源格的下拉列表/日期验证规则应用到目标格 */
+function applyCellValidationFromSource(
+  table: FreeTable,
+  srcRow: number,
+  srcCol: number,
+  targetRow: number,
+  targetCol: number,
+): void {
+  const range = makeSingleCellRange(table, targetRow, targetCol);
+  table.removeDropdownValidation(range);
+  table.removeDateValidation(range);
+
+  const dropdown = table.getDropdownValidationAt(srcRow, srcCol);
+  if (dropdown) {
+    table.setDropdownValidation(range, {
+      mode: dropdown.mode ?? 'single',
+      showOptionColor: dropdown.showOptionColor !== false,
+      options: dropdown.options?.map(option => ({ ...option })) ?? [],
+    });
+    return;
+  }
+
+  const dateValidation = table.getDateValidationAt(srcRow, srcCol);
+  if (dateValidation) {
+    table.setDateValidation(range, {
+      includeTime: dateValidation.includeTime ?? false,
+      allowReminder: dateValidation.allowReminder ?? false,
+    });
+  }
+}
+
 function getNumericSeriesStep(values: number[]): number | null {
   if (values.length < 2) return null;
   const step = values[1] - values[0];
@@ -122,6 +171,52 @@ function getNumericSeriesStep(values: number[]): number | null {
     if (values[i] - values[i - 1] !== step) return null;
   }
   return step;
+}
+
+function buildDateSeriesValue(
+  table: FreeTable,
+  src: ReturnType<typeof normalizeRange>,
+  relRow: number,
+  relCol: number,
+  axis: 'column' | 'row',
+): CellValue | null {
+  const srcRows = src.endRow - src.startRow + 1;
+  const srcCols = src.endCol - src.startCol + 1;
+  const isColumn = axis === 'column';
+
+  if (isColumn) {
+    if (srcCols !== 1 || srcRows < 2 || relCol !== 0) return null;
+  } else {
+    if (srcRows !== 1 || srcCols < 2 || relRow !== 0) return null;
+  }
+
+  const count = isColumn ? srcRows : srcCols;
+  const timestamps: number[] = [];
+  let template: Extract<CellValue, { type: 'date' }> | null = null;
+
+  for (let i = 0; i < count; i++) {
+    const r = isColumn ? src.startRow + i : src.startRow;
+    const c = isColumn ? src.startCol : src.startCol + i;
+    const cell = table.getCell(r, c);
+    const ts = getCellTimestamp(cell);
+    if (ts === null) return null;
+    timestamps.push(ts);
+    if (cell?.value.type === 'date' && !template) {
+      template = cell.value;
+    }
+  }
+
+  const step = getNumericSeriesStep(timestamps);
+  if (step === null) return null;
+
+  const offset = isColumn ? relRow : relCol;
+  const format: DateFormat = template?.format ?? { kind: 'short' };
+  return {
+    type: 'date',
+    timestamp: timestamps[0] + step * offset,
+    format,
+    ...(template?.reminder !== undefined ? { reminder: template.reminder } : {}),
+  };
 }
 
 function resolveFillValue(
@@ -134,6 +229,12 @@ function resolveFillValue(
 ): CellValue {
   const relRow = targetRow - src.startRow;
   const relCol = targetCol - src.startCol;
+
+  const columnDateValue = buildDateSeriesValue(table, src, relRow, relCol, 'column');
+  if (columnDateValue) return columnDateValue;
+
+  const rowDateValue = buildDateSeriesValue(table, src, relRow, relCol, 'row');
+  if (rowDateValue) return rowDateValue;
 
   // 单列数字序列：向下/上拖动时递增
   if (srcCols === 1 && srcRows >= 2 && relCol === 0) {
@@ -202,19 +303,19 @@ export function applyAutofill(
         if (table.isInMergedCell(r, c)) continue;
 
         const value = resolveFillValue(table, src, r, c, srcRows, srcCols);
-        if (value.type === 'empty') {
-          table.clearCell(r, c);
-          continue;
-        }
-
         const srcRow = src.startRow + (((r - src.startRow) % srcRows) + srcRows) % srcRows;
         const srcCol = src.startCol + (((c - src.startCol) % srcCols) + srcCols) % srcCols;
         const srcCell = table.getCell(srcRow, srcCol);
 
-        table.setCellValue(r, c, value);
-        if (srcCell?.style) {
-          table.setCellStyle(r, c, { ...srcCell.style });
+        if (value.type === 'empty') {
+          table.clearCell(r, c);
+        } else {
+          table.setCellValue(r, c, value);
+          if (srcCell?.style) {
+            table.setCellStyle(r, c, { ...srcCell.style });
+          }
         }
+        applyCellValidationFromSource(table, srcRow, srcCol, r, c);
       }
     }
   }, 'autofill');

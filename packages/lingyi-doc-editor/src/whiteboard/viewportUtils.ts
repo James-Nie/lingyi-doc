@@ -1,4 +1,5 @@
 import type { WhiteboardElement, WhiteboardPoint, WhiteboardViewport } from '@lingyi-doc/core';
+import { getSeqFullBounds, isSeqLifelineKind } from '@lingyi-doc/core';
 import { getShapeVisualBounds } from './canvas/shapePaths';
 
 export const MIN_ZOOM = 0.1;
@@ -76,6 +77,37 @@ export function snapToGrid(value: number, grid = GRID_SIZE): number {
 
 export function snapPoint(p: WhiteboardPoint, grid = GRID_SIZE): WhiteboardPoint {
   return { x: snapToGrid(p.x, grid), y: snapToGrid(p.y, grid) };
+}
+
+/** 直线/箭头拖拽时，接近水平或垂直方向则吸附 */
+export const LINE_ANGLE_SNAP_DEG = 6;
+
+export function snapPointToHV(
+  origin: WhiteboardPoint,
+  pt: WhiteboardPoint,
+  thresholdDeg = LINE_ANGLE_SNAP_DEG,
+): WhiteboardPoint {
+  const dx = pt.x - origin.x;
+  const dy = pt.y - origin.y;
+  if (Math.hypot(dx, dy) < 1) return pt;
+
+  const angle = ((Math.atan2(dy, dx) * 180) / Math.PI + 360) % 360;
+  const distTo = (target: number) => {
+    const d = Math.abs(angle - target);
+    return Math.min(d, 360 - d);
+  };
+
+  if (distTo(0) <= thresholdDeg || distTo(180) <= thresholdDeg) {
+    return { x: pt.x, y: origin.y };
+  }
+  if (distTo(90) <= thresholdDeg || distTo(270) <= thresholdDeg) {
+    return { x: origin.x, y: pt.y };
+  }
+  return pt;
+}
+
+export function isStraightConnectorStyle(style: string): boolean {
+  return style === 'straight' || style === 'arrow';
 }
 
 /** 归一化 wheel delta（兼容鼠标滚轮 / 触控板） */
@@ -166,6 +198,9 @@ export function elementBounds(el: WhiteboardElement): { x: number; y: number; w:
     };
   }
   if (el.type === 'shape') {
+    if (isSeqLifelineKind(el.shapeKind)) {
+      return getSeqFullBounds(el);
+    }
     return getShapeVisualBounds(el.shapeKind, el.x, el.y, el.width, el.height);
   }
   return { x: el.x, y: el.y, w: el.width, h: el.height };

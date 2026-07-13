@@ -34,6 +34,7 @@ export interface MindNoteEditorProps {
   onUndo: () => void;
   onRedo: () => void;
   readOnly?: boolean;
+  onActiveNodeChange?: (id: string | null) => void;
 }
 
 export const MindNoteEditor: React.FC<MindNoteEditorProps> = ({
@@ -58,6 +59,7 @@ export const MindNoteEditor: React.FC<MindNoteEditorProps> = ({
   onUndo,
   onRedo,
   readOnly = false,
+  onActiveNodeChange,
 }) => {
   const [activeNodeId, setActiveNodeId] = useState<string | null>(() =>
     settings.viewMode === 'map' ? null : root.id,
@@ -73,6 +75,10 @@ export const MindNoteEditor: React.FC<MindNoteEditorProps> = ({
   const prevViewModeRef = useRef(settings.viewMode);
 
   const activeNode = activeNodeId ? findMindNode(root, activeNodeId)?.node ?? null : null;
+
+  useEffect(() => {
+    onActiveNodeChange?.(activeNodeId);
+  }, [activeNodeId, onActiveNodeChange]);
 
   useEffect(() => {
     const prev = prevViewModeRef.current;
@@ -95,9 +101,16 @@ export const MindNoteEditor: React.FC<MindNoteEditorProps> = ({
   });
 
   const focusNode = useCallback((id: string | null) => {
-    if (id) focusNodeRef.current = id;
-    setActiveNodeId(id);
-  }, []);
+    if (id) {
+      focusNodeRef.current = id;
+      setActiveNodeId(id);
+      if (isMap) {
+        requestAnimationFrame(() => mapApiRef.current?.startTextEdit(id));
+      }
+      return;
+    }
+    setActiveNodeId(null);
+  }, [isMap]);
 
   const handleOutlineCommand = useCallback((id: string, cmd: MindNoteOutlineCommand) => {
     switch (cmd) {
@@ -369,6 +382,7 @@ export const MindNoteEditor: React.FC<MindNoteEditorProps> = ({
               onZoomChange={zoom => onSettingsChange({ zoom })}
               onReady={api => { mapApiRef.current = api; }}
               onRemoveImage={readOnly ? undefined : handleRemoveImage}
+              onAddImage={readOnly ? undefined : handleAddImage}
             />
             {onNodeUpdate && !readOnly && (
               <MindNoteMapNodeToolbar
@@ -378,6 +392,8 @@ export const MindNoteEditor: React.FC<MindNoteEditorProps> = ({
                 onMoreAction={handleMapMoreAction}
                 onEditDescription={handleEditDescription}
                 onAddImage={handleAddImage}
+                onAddChild={() => handleMapMoreAction('child')}
+                onAddSibling={() => handleMapMoreAction('sibling')}
                 onComment={handleComment}
               />
             )}

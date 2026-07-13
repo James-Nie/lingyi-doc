@@ -1,6 +1,7 @@
 import { FreeTable } from '../model/index';
 import type { BorderStyle, CellCoord, CellData, CellRange, CellStyle, CellValue } from '../types/index';
 import { coordToKey, getCellText, keyToCoord } from '../types/index';
+import { getSheetMergeRanges } from '../types/sheetAccess';
 import {
   SHEET_CLIPBOARD_MIME,
   type ClipboardCellMeta,
@@ -81,7 +82,7 @@ function collectMergesInRect(
   originCol: number,
 ): ClipboardPasteMerge[] {
   const merges: ClipboardPasteMerge[] = [];
-  for (const range of table.sheet.mergeRanges) {
+  for (const range of getSheetMergeRanges(table.sheet)) {
     const mergeMinRow = Math.min(range.start.row, range.end.row);
     const mergeMaxRow = Math.max(range.start.row, range.end.row);
     const mergeMinCol = Math.min(range.start.col, range.end.col);

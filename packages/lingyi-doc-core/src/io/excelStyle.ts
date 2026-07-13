@@ -70,16 +70,18 @@ export function mapVerticalAlignToExcel(value?: CellStyle['verticalAlign']): Exc
 
 export function mapExcelBorderStyle(style?: string): BorderStyle['style'] {
   switch (style) {
+    case 'hair': return 'hair';
     case 'medium': return 'medium';
     case 'thick': return 'thick';
     case 'double': return 'double';
     case 'dotted': return 'dotted';
-    case 'dashDot':
-    case 'dashDotDot':
+    case 'dashDot': return 'dashDot';
+    case 'dashDotDot': return 'dashDotDot';
+    case 'dashDotDotDot':
+    case 'mediumDashed':
     case 'slantedDashDot':
-    case 'hair':
     case 'dashed':
-      return 'dashed';
+      return 'mediumDashed';
     default:
       return 'thin';
   }
@@ -87,10 +89,14 @@ export function mapExcelBorderStyle(style?: string): BorderStyle['style'] {
 
 export function mapBorderStyleToExcel(style: BorderStyle['style']): ExcelJS.BorderStyle {
   switch (style) {
+    case 'hair': return 'hair';
     case 'medium': return 'medium';
     case 'thick': return 'thick';
     case 'double': return 'double';
     case 'dotted': return 'dotted';
+    case 'dashDot': return 'dashDot';
+    case 'dashDotDot': return 'dashDotDot';
+    case 'mediumDashed': return 'mediumDashed';
     case 'dashed': return 'dashed';
     case 'none':
     case 'thin':

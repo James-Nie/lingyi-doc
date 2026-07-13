@@ -1,7 +1,7 @@
 import {
   CellData, CellStyle, CellCoord, coordToKey,
   DEFAULT_CELL_STYLE, DEFAULT_COLUMN_WIDTH, DEFAULT_ROW_HEIGHT,
-  CellRange, SheetModel, getCellText, getCellAlign, ColumnDef, DataValidation,
+  CellRange, SheetModel, getCellText, getCellAlign, ColumnDef, DataValidation, BorderStyle,
 } from '../types/index';
 import { resolveColumnWidth } from '../utils/columnLayout';
 import { resolveRowHeight, isRowLayoutHidden } from '../utils/rowLayout';
@@ -9,7 +9,22 @@ import type { BaseRowHeaderMeta, RecordTreeColumnMeta } from '../utils/rowTree';
 import { getTreeContentRect } from '../utils/rowTree';
 import { BASE_THEME, getSelectTagColors, computeBaseGridWidth, computeBaseGridScreenBounds } from './baseTheme';
 import { findSelectOption, parseMultiSelectOptionIds } from '../utils/selectOptions';
-import { cellValueIncludeTime, formatFreeformDateCellText } from '../utils/dateValidation';
+import {
+  cellValueIncludeTime,
+  formatFreeformDateCellText,
+  shouldShowFreeformDateTime,
+} from '../utils/dateValidation';
+import { drawFieldTypeIcon } from '../utils/fieldTypeIcons';
+import {
+  DOC_COMMENT_HIGHLIGHT_SELECTED_BG,
+  DOC_COMMENT_HIGHLIGHT_IDLE_BG,
+} from '../doc/comments';
+import {
+  applyBorderLineDash,
+  resolveBorderLineWidth,
+  shouldDrawCellBorderSide,
+  type BorderLineStyle,
+} from '../utils/borderStyles';
 
 // ==================== 渲染层定义 ====================
 
@@ -860,11 +875,22 @@ export class CellRenderer {
     columnWidths: Map<number, number>,
     rowHeights: Map<number, number>,
     freezeState: { frozenRows: number; frozenCols: number } = { frozenRows: 0, frozenCols: 0 },
+    skipRow?: (row: number) => boolean,
+    /** 分组视图：整行跳过分割竖线（分组头 / 添加记录行） */
+    skipLayoutRow?: (row: number) => boolean,
+    /** 分组视图：横线起点、右边线、网格色覆盖 */
+    groupedGridOpts?: {
+      horizontalLineLeft?: number;
+      skipRightEdge?: boolean;
+      gridColor?: string;
+    },
   ): void {
     const config = this._viewportManager.config;
 
-    ctx.strokeStyle = config.gridColor;
+    ctx.strokeStyle = groupedGridOpts?.gridColor ?? config.gridColor;
     ctx.lineWidth = config.isBaseMode ? 1 : 0.5;
+
+    const horizontalLineLeft = groupedGridOpts?.horizontalLineLeft ?? 0;
 
     const canvasCssWidth = ctx.canvas.width / (window.devicePixelRatio || 1);
     const canvasCssHeight = ctx.canvas.height / (window.devicePixelRatio || 1);
@@ -897,6 +923,7 @@ export class CellRenderer {
     const zoom = vm.zoomLevel;
     for (let r = 0; r <= rowCount; r++) {
       if (r > 0 && isRowLayoutHidden(r - 1, rowHeights, config.defaultRowHeight)) continue;
+      if (skipRow?.(r)) continue;
       const drawY = r < rowCount
         ? vm.getRowScreenTop(r, rowHeights)
         : vm.getRowScreenTop(rowCount - 1, rowHeights)
@@ -906,17 +933,45 @@ export class CellRenderer {
         continue;
       }
       ctx.beginPath();
-      ctx.moveTo(0, drawY);
+      ctx.moveTo(horizontalLineLeft, drawY);
       ctx.lineTo(gridLineRight, drawY);
       ctx.stroke();
     }
 
     // 多维表：添加列右缘竖线
-    if (config.isBaseMode && gridLineRight > config.headerWidth) {
-      ctx.beginPath();
-      ctx.moveTo(gridLineRight, 0);
-      ctx.lineTo(gridLineRight, gridLineBottom);
-      ctx.stroke();
+    if (config.isBaseMode && gridLineRight > config.headerWidth && !groupedGridOpts?.skipRightEdge) {
+      if (skipLayoutRow) {
+        const segStartRow = Math.max(0, visibleRange.startRow);
+        const segEndRow = Math.min(rowCount - 1, visibleRange.endRow);
+        let segTop: number | null = null;
+        for (let r = segStartRow; r <= segEndRow; r++) {
+          const rowTop = vm.getRowScreenTop(r, rowHeights);
+          const rowH = resolveRowHeight(r, rowHeights, config.defaultRowHeight) * zoom;
+          const rowBottom = rowTop + rowH;
+          if (skipLayoutRow(r)) {
+            if (segTop !== null) {
+              ctx.beginPath();
+              ctx.moveTo(gridLineRight, segTop);
+              ctx.lineTo(gridLineRight, rowTop);
+              ctx.stroke();
+              segTop = null;
+            }
+          } else {
+            if (segTop === null) segTop = rowTop;
+            if (r === segEndRow) {
+              ctx.beginPath();
+              ctx.moveTo(gridLineRight, segTop);
+              ctx.lineTo(gridLineRight, rowBottom);
+              ctx.stroke();
+            }
+          }
+        }
+      } else {
+        ctx.beginPath();
+        ctx.moveTo(gridLineRight, 0);
+        ctx.lineTo(gridLineRight, gridLineBottom);
+        ctx.stroke();
+      }
     }
 
     // 绘制垂直线（冻结列与可滚动列分区绘制，避免滚动时可滚动列边框侵入冻结区）
@@ -948,10 +1003,40 @@ export class CellRenderer {
         if (c > visibleRange.endCol + 1) return 'break';
         return;
       }
-      ctx.beginPath();
-      ctx.moveTo(drawX, 0);
-      ctx.lineTo(drawX, gridLineBottom);
-      ctx.stroke();
+
+      if (skipLayoutRow) {
+        const segStartRow = Math.max(0, visibleRange.startRow);
+        const segEndRow = Math.min(rowCount - 1, visibleRange.endRow);
+        let segTop: number | null = null;
+        for (let r = segStartRow; r <= segEndRow; r++) {
+          const rowTop = vm.getRowScreenTop(r, rowHeights);
+          const rowH = resolveRowHeight(r, rowHeights, config.defaultRowHeight) * zoom;
+          const rowBottom = rowTop + rowH;
+          if (skipLayoutRow(r)) {
+            if (segTop !== null) {
+              ctx.beginPath();
+              ctx.moveTo(drawX, segTop);
+              ctx.lineTo(drawX, rowTop);
+              ctx.stroke();
+              segTop = null;
+            }
+          } else {
+            if (segTop === null) segTop = rowTop;
+            if (r === segEndRow) {
+              ctx.beginPath();
+              ctx.moveTo(drawX, segTop);
+              ctx.lineTo(drawX, rowBottom);
+              ctx.stroke();
+              segTop = null;
+            }
+          }
+        }
+      } else {
+        ctx.beginPath();
+        ctx.moveTo(drawX, 0);
+        ctx.lineTo(drawX, gridLineBottom);
+        ctx.stroke();
+      }
       if (config.isBaseMode && drawX > gridLineRight) return 'break';
     };
 
@@ -1207,14 +1292,13 @@ export class CellRenderer {
     rect: { x: number; y: number; width: number; height: number },
     zoom: number,
   ): void {
-    const includeTime = validation.includeTime ?? false;
     const chevronReserve = 14 * zoom;
     const padding = 4 * zoom;
     const maxContentWidth = Math.max(0, rect.width - padding * 2 - chevronReserve);
     const value = cellData?.value;
 
     if (value?.type === 'date') {
-      const showTime = cellValueIncludeTime(value) || includeTime;
+      const showTime = shouldShowFreeformDateTime(value);
       const displayText = formatFreeformDateCellText(value.timestamp, showTime);
       if (displayText) {
         ctx.save();
@@ -2114,138 +2198,9 @@ export class CellRenderer {
     type: ColumnDef['type'],
     cx: number, cy: number, size: number,
     color: string,
-    isBaseStyle = false,
+    _isBaseStyle = false,
   ): void {
-    ctx.save();
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 1.2;
-    const s = size;
-    const x = cx;
-    const y = cy - s / 2;
-    switch (type) {
-      case 'text': {
-        if (isBaseStyle) {
-          ctx.fillStyle = color;
-          ctx.font = `600 ${s * 0.95}px Arial`;
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText('A', cx, cy - s * 0.08);
-          ctx.strokeStyle = color;
-          ctx.lineWidth = 1;
-          const lineY = cy + s * 0.22;
-          for (let i = 0; i < 3; i++) {
-            ctx.beginPath();
-            ctx.moveTo(cx - s * 0.35, lineY + i * s * 0.18);
-            ctx.lineTo(cx + s * 0.35, lineY + i * s * 0.18);
-            ctx.stroke();
-          }
-        } else {
-          ctx.fillStyle = color;
-          ctx.font = `${s}px Arial`;
-          ctx.textAlign = 'left';
-          ctx.textBaseline = 'top';
-          ctx.fillText('T', x, y);
-        }
-        break;
-      }
-      case 'number':
-      case 'currency':
-      case 'percent':
-      case 'rating':
-      case 'progress': {
-        ctx.fillStyle = color;
-        ctx.font = `${s}px Arial`;
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'top';
-        ctx.fillText('#', x, y);
-        break;
-      }
-      case 'boolean': {
-        ctx.strokeRect(x, y, s, s);
-        break;
-      }
-      case 'date':
-      case 'datetime': {
-        ctx.strokeRect(x, y, s, s);
-        ctx.beginPath();
-        ctx.moveTo(x + 2, y + s * 0.35);
-        ctx.lineTo(x + s - 2, y + s * 0.35);
-        ctx.stroke();
-        break;
-      }
-      case 'select':
-      case 'multiSelect': {
-        if (isBaseStyle) {
-          ctx.strokeStyle = color;
-          ctx.lineWidth = 1.2;
-          ctx.beginPath();
-          ctx.arc(cx, cy, s * 0.38, 0, Math.PI * 2);
-          ctx.stroke();
-          ctx.fillStyle = color;
-          ctx.beginPath();
-          ctx.arc(cx, cy, s * 0.14, 0, Math.PI * 2);
-          ctx.fill();
-        } else {
-          ctx.fillStyle = color;
-          ctx.beginPath();
-          ctx.arc(x + s / 2, y + s / 2, s / 3, 0, Math.PI * 2);
-          ctx.fill();
-        }
-        break;
-      }
-      case 'user': {
-        ctx.strokeStyle = color;
-        ctx.beginPath();
-        ctx.arc(x + s / 2, y + s * 0.4, s * 0.3, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.arc(x + s / 2, y + s * 0.9, s * 0.45, Math.PI, 0);
-        ctx.stroke();
-        break;
-      }
-      case 'link':
-      case 'email':
-      case 'phone': {
-        ctx.fillStyle = color;
-        ctx.font = `${s}px Arial`;
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'top';
-        ctx.fillText(type === 'link' ? '\u2197' : '@', x, y);
-        break;
-      }
-      case 'formula': {
-        ctx.fillStyle = color;
-        ctx.font = `${s}px Arial`;
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'top';
-        ctx.fillText('f', x, y);
-        break;
-      }
-      case 'autoNumber': {
-        ctx.fillStyle = color;
-        ctx.font = `${s}px Arial`;
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'top';
-        ctx.fillText('1', x, y);
-        break;
-      }
-      case 'attachment': {
-        ctx.strokeRect(x + 1, y + s * 0.2, s - 2, s * 0.6);
-        ctx.beginPath();
-        ctx.moveTo(x + s * 0.5, y + s * 0.4);
-        ctx.lineTo(x + s * 0.5, y + s * 0.8);
-        ctx.stroke();
-        break;
-      }
-      default: {
-        ctx.fillStyle = color;
-        ctx.font = `${s}px Arial`;
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'top';
-        ctx.fillText('?', x, y);
-      }
-    }
-    ctx.restore();
+    drawFieldTypeIcon(ctx, type, cx, cy, size, color);
   }
 
   /** 绘制排序箭头 */
@@ -2521,22 +2476,32 @@ export class CellRenderer {
     hoveredRow?: number | null,
     selectedRows?: number[],
     checkedRows?: number[],
-    isBase?: boolean,
     rowTreeMeta?: BaseRowHeaderMeta[],
     activeRow?: number | null,
     /** 多维表：编辑区底部屏幕 Y，用于裁剪序号列背景，避免超出网格 */
     contentBottom?: number,
+    /** 分组视图：序号由内容层绘制，跳过行头列（0–headerWidth）一切绘制 */
+    suppressRowNumbers?: boolean,
+    /** 分组视图：分组头/添加记录行，行头区使用页面底色 */
+    isGroupLayoutRow?: (row: number) => boolean,
+    /** 分组视图：记录行固定显示拖拽+复选框 */
+    pinnedRowControls?: (row: number) => boolean,
   ): void {
     const config = this._viewportManager.config;
     const zoom = this._viewportManager.zoomLevel;
     const dpr = window.devicePixelRatio || 1;
     const canvasHeight = ctx.canvas.height / dpr;
 
-    const isBaseMode = !!config.isBaseMode || !!isBase;
+    const isBaseMode = !!config.isBaseMode;
     const axisSel = resolveAxisSelection(isBaseMode);
     const primaryColor = isBaseMode ? '#3370FF' : '#1a73e8';
     const fontFamily = config.fontFamily || 'Arial, sans-serif';
     const secondaryColor = config.secondaryTextColor || '#86909C';
+
+    // 分组视图：行控件由 GroupedRowControlsRenderer 绘制，不在行头列铺底/画线
+    if (suppressRowNumbers) {
+      return;
+    }
 
     const rowHeaderFillBottom = isBaseMode && contentBottom !== undefined
       ? Math.min(canvasHeight, contentBottom)
@@ -2565,7 +2530,9 @@ export class CellRenderer {
           const isActive = activeRow === r;
           const meta = rowTreeMeta?.[r];
           const depth = meta?.depth ?? 0;
-          const showHoverControls = isBase && (isHovered || isChecked || isActive || isSelected);
+          const isLayoutRow = isGroupLayoutRow?.(r) ?? false;
+          const showHoverControls = isBaseMode && !isLayoutRow
+            && ((pinnedRowControls?.(r) ?? false) || isHovered || isChecked || isActive || isSelected);
 
           if (isActive && isBaseMode) {
             ctx.fillStyle = BASE_AXIS_SELECTION.headerBg;
@@ -2581,7 +2548,7 @@ export class CellRenderer {
             ctx.fillRect(0, drawY, config.headerWidth, h);
           }
 
-          if (isBase) {
+          if (isBaseMode) {
             if (showHoverControls) {
               this._drawBaseRowHeaderHover(ctx, drawY, h, zoom, isChecked);
             }
@@ -2594,7 +2561,7 @@ export class CellRenderer {
               );
             }
 
-            if (depth === 0 && !showHoverControls && !meta?.hasChildren) {
+            if (depth === 0 && !showHoverControls && !meta?.hasChildren && !suppressRowNumbers) {
               ctx.font = `${12 * zoom}px ${fontFamily}`;
               ctx.fillStyle = isActive ? primaryColor : secondaryColor;
               ctx.textAlign = 'center';
@@ -2694,7 +2661,7 @@ export class CellRenderer {
     }
   }
 
-  /** 绘制单元格边框（覆盖默认网格线） */
+  /** 绘制单元格边框（覆盖默认网格线；共享边去重，避免内边框双线叠加） */
   drawCellBorders(
     ctx: CanvasRenderingContext2D,
     coord: CellCoord,
@@ -2702,6 +2669,7 @@ export class CellRenderer {
     columnWidths: Map<number, number>,
     rowHeights: Map<number, number>,
     mergeRanges?: CellRange[],
+    getCellAt?: (row: number, col: number) => CellData | undefined,
   ): void {
     const config = this._viewportManager.config;
     if (isRowLayoutHidden(coord.row, rowHeights, config.defaultRowHeight)) return;
@@ -2735,17 +2703,11 @@ export class CellRenderer {
     const zoom = this._viewportManager.zoomLevel;
 
     // Border thickness mapping
-    const BORDER_PX: Record<string, number> = { thin: 1, medium: 2, thick: 3, dashed: 1, dotted: 1, double: 3, none: 0 };
-
     const drawSide = (side: 'top' | 'right' | 'bottom' | 'left', border: { color: string; style: string }) => {
       if (border.style === 'none') return;
       ctx.strokeStyle = border.color;
-      ctx.lineWidth = (BORDER_PX[border.style] || 1) * zoom;
-
-      if (border.style === 'dashed') ctx.setLineDash([4 * zoom, 2 * zoom]);
-      else if (border.style === 'dotted') ctx.setLineDash([1 * zoom, 2 * zoom]);
-      else if (border.style === 'double') ctx.setLineDash([]);
-      else ctx.setLineDash([]);
+      ctx.lineWidth = resolveBorderLineWidth(border.style as BorderLineStyle, zoom);
+      applyBorderLineDash(ctx, border.style as BorderLineStyle, zoom);
 
       ctx.beginPath();
       let x1: number, y1: number, x2: number, y2: number;
@@ -2791,10 +2753,131 @@ export class CellRenderer {
       ctx.setLineDash([]);
     };
 
-    if (style.borderTop && style.borderTop.style !== 'none') drawSide('top', style.borderTop);
-    if (style.borderRight && style.borderRight.style !== 'none') drawSide('right', style.borderRight);
-    if (style.borderBottom && style.borderBottom.style !== 'none') drawSide('bottom', style.borderBottom);
-    if (style.borderLeft && style.borderLeft.style !== 'none') drawSide('left', style.borderLeft);
+    const neighborSide = (side: 'top' | 'right' | 'bottom' | 'left'): BorderStyle | undefined => {
+      if (!getCellAt) return undefined;
+      switch (side) {
+        case 'top':
+          return getCellAt(coord.row - 1, coord.col)?.style?.borderBottom;
+        case 'left':
+          return getCellAt(coord.row, coord.col - 1)?.style?.borderRight;
+        case 'right':
+          return getCellAt(coord.row, coord.col + 1)?.style?.borderLeft;
+        case 'bottom':
+          return getCellAt(coord.row + 1, coord.col)?.style?.borderTop;
+      }
+    };
+
+    if (shouldDrawCellBorderSide('top', style.borderTop, neighborSide)) {
+      drawSide('top', style.borderTop!);
+    }
+    if (shouldDrawCellBorderSide('left', style.borderLeft, neighborSide)) {
+      drawSide('left', style.borderLeft!);
+    }
+    if (shouldDrawCellBorderSide('right', style.borderRight, neighborSide)) {
+      drawSide('right', style.borderRight!);
+    }
+    if (shouldDrawCellBorderSide('bottom', style.borderBottom, neighborSide)) {
+      drawSide('bottom', style.borderBottom!);
+    }
+  }
+
+  /** 评论单元格背景高亮（选中态 / 普通态） */
+  drawCellCommentHighlight(
+    ctx: CanvasRenderingContext2D,
+    coord: CellCoord,
+    columnWidths: Map<number, number>,
+    rowHeights: Map<number, number>,
+    selected: boolean,
+    mergeRanges?: CellRange[],
+  ): void {
+    const config = this._viewportManager.config;
+    if (isRowLayoutHidden(coord.row, rowHeights, config.defaultRowHeight)) return;
+
+    if (mergeRanges) {
+      for (const range of mergeRanges) {
+        if (coord.row >= range.start.row && coord.row <= range.end.row
+            && coord.col >= range.start.col && coord.col <= range.end.col) {
+          const master = range.master || range.start;
+          if (coord.row !== master.row || coord.col !== master.col) return;
+          break;
+        }
+      }
+    }
+
+    let rect = this._viewportManager.getCellRect(coord, columnWidths, rowHeights);
+    if (mergeRanges) {
+      for (const range of mergeRanges) {
+        const master = range.master || range.start;
+        if (coord.row === master.row && coord.col === master.col
+            && (range.start.row !== range.end.row || range.start.col !== range.end.col)) {
+          const bottomRight = this._viewportManager.getCellRect(range.end, columnWidths, rowHeights);
+          rect = {
+            ...rect,
+            width: bottomRight.x + bottomRight.width - rect.x,
+            height: bottomRight.y + bottomRight.height - rect.y,
+          };
+          break;
+        }
+      }
+    }
+
+    ctx.fillStyle = selected ? DOC_COMMENT_HIGHLIGHT_SELECTED_BG : DOC_COMMENT_HIGHLIGHT_IDLE_BG;
+    ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
+  }
+
+  /** 单元格右上角评论角标（Excel 风格小三角） */
+  drawCellCommentMarker(
+    ctx: CanvasRenderingContext2D,
+    coord: CellCoord,
+    columnWidths: Map<number, number>,
+    rowHeights: Map<number, number>,
+    mergeRanges?: CellRange[],
+  ): void {
+    const config = this._viewportManager.config;
+    if (isRowLayoutHidden(coord.row, rowHeights, config.defaultRowHeight)) return;
+
+    if (mergeRanges) {
+      for (const range of mergeRanges) {
+        if (coord.row >= range.start.row && coord.row <= range.end.row
+            && coord.col >= range.start.col && coord.col <= range.end.col) {
+          const master = range.master || range.start;
+          if (coord.row !== master.row || coord.col !== master.col) return;
+          break;
+        }
+      }
+    }
+
+    let rect = this._viewportManager.getCellRect(coord, columnWidths, rowHeights);
+    if (mergeRanges) {
+      for (const range of mergeRanges) {
+        const master = range.master || range.start;
+        if (coord.row === master.row && coord.col === master.col
+            && (range.start.row !== range.end.row || range.start.col !== range.end.col)) {
+          const bottomRight = this._viewportManager.getCellRect(range.end, columnWidths, rowHeights);
+          rect = {
+            ...rect,
+            width: bottomRight.x + bottomRight.width - rect.x,
+            height: bottomRight.y + bottomRight.height - rect.y,
+          };
+          break;
+        }
+      }
+    }
+
+    const zoom = this._viewportManager.zoomLevel;
+    const size = Math.max(6, 9 * zoom);
+    const x2 = rect.x + rect.width;
+    const y1 = rect.y;
+
+    ctx.save();
+    ctx.fillStyle = '#F7C900';
+    ctx.beginPath();
+    ctx.moveTo(x2, y1);
+    ctx.lineTo(x2, y1 + size);
+    ctx.lineTo(x2 - size, y1);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
   }
 }
 

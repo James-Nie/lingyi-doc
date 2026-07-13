@@ -51,6 +51,12 @@ export const TemplateEditPage: React.FC = () => {
   const [createFormValues, setCreateFormValues] = useState<TemplateBasicFormValues | null>(null);
   const [contentJson, setContentJson] = useState<unknown | null>(null);
   const [editorKey, setEditorKey] = useState('init');
+  /** 接口返回的元信息；内容 Tab 未挂载基本信息表单时作为 docType 等字段的回退 */
+  const [loadedMeta, setLoadedMeta] = useState<{
+    docType: TemplateDocType;
+    documentTitle: string;
+    isBlank: boolean;
+  } | null>(null);
 
   const activeTab = searchParams.get('tab') === 'content' ? 'content' : 'basic';
 
@@ -74,6 +80,11 @@ export const TemplateEditPage: React.FC = () => {
         status: detail.status,
       });
       setContentJson(detail.contentJson);
+      setLoadedMeta({
+        docType: detail.docType,
+        documentTitle: detail.documentTitle,
+        isBlank: detail.isBlank,
+      });
       setEditorKey(`${detail.id}-${detail.updatedAt}`);
     } catch (err) {
       message.error(err instanceof Error ? err.message : '加载失败');
@@ -302,9 +313,9 @@ export const TemplateEditPage: React.FC = () => {
                   <TemplateContentPanel
                     ref={contentEditorRef}
                     editorKey={editorKey}
-                    docType={watchDocType ?? 'richtext'}
-                    documentTitle={watchDocumentTitle ?? '未命名文档'}
-                    isBlank={!!watchIsBlank}
+                    docType={watchDocType ?? loadedMeta?.docType ?? 'richtext'}
+                    documentTitle={watchDocumentTitle ?? loadedMeta?.documentTitle ?? '未命名文档'}
+                    isBlank={watchIsBlank ?? loadedMeta?.isBlank ?? false}
                     contentJson={contentJson}
                   />
                 </Card>

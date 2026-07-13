@@ -1,26 +1,24 @@
-import React, { useState } from 'react';
-import type { ShapeElement, ShapeKind, TextElement } from '@lingyi-doc/core';
-import { SHAPE_PRESETS } from '@lingyi-doc/core';
+import React, { useMemo, useState } from 'react';
+import type { ShapeElement, ShapeKind, TableElement, TextElement } from '@lingyi-doc/core';
+import { getShapeRegistry } from '@lingyi-doc/core';
 import { ShapeIcon } from './ShapeIcon';
+import { TextStylePanel, type TextStylePatch } from './TextStylePanel';
 import { WB_COLORS, WB_PANEL, WB_Z_INDEX } from './styles';
 
 export const SHAPE_FONT_SIZES = [12, 14, 18, 24, 36, 48, 72, 96] as const;
 
-type TextFormatPatch = Partial<{
+type TextFormatPatch = TextStylePatch & Partial<{
   fontSize: number;
   textColor: string;
   textHighlight: string | undefined;
-  textAlign: 'left' | 'center' | 'right';
-  textVerticalAlign: 'top' | 'center' | 'bottom';
-  fontWeight: number;
-  fontStyle: 'normal' | 'italic';
-  textUnderline: boolean;
-  textLineThrough: boolean;
 }>;
 
 type ShapeFormatToolbarProps = {
   anchorX: number;
   anchorY: number;
+  /** 工具栏相对锚点的位置，默认在上方 */
+  placement?: 'above' | 'below';
+  onAddComment?: () => void;
 } & (
   | {
       variant?: 'shape';
@@ -31,6 +29,11 @@ type ShapeFormatToolbarProps = {
       variant: 'text';
       element: TextElement;
       onPatch: (patch: Partial<TextElement>, recordHistory?: boolean) => void;
+    }
+  | {
+      variant: 'table';
+      element: TableElement;
+      onPatch: (patch: Partial<TableElement>, recordHistory?: boolean) => void;
     }
 );
 
@@ -66,11 +69,29 @@ function textPatchToElement(patch: TextFormatPatch): Partial<TextElement> {
   return out;
 }
 
+function tablePatchToElement(patch: TextFormatPatch & Partial<{ stroke: string; fill: string }>): Partial<TableElement> {
+  const out: Partial<TableElement> = {};
+  if (patch.fontSize !== undefined) out.fontSize = patch.fontSize;
+  if (patch.textColor !== undefined) out.color = patch.textColor;
+  if ('textHighlight' in patch) out.textHighlight = patch.textHighlight;
+  if (patch.textAlign !== undefined) out.textAlign = patch.textAlign;
+  if (patch.textVerticalAlign !== undefined) out.textVerticalAlign = patch.textVerticalAlign;
+  if (patch.fontWeight !== undefined) out.fontWeight = patch.fontWeight;
+  if (patch.fontStyle !== undefined) out.fontStyle = patch.fontStyle;
+  if (patch.textUnderline !== undefined) out.textUnderline = patch.textUnderline;
+  if (patch.textLineThrough !== undefined) out.textLineThrough = patch.textLineThrough;
+  if (patch.stroke !== undefined) out.stroke = patch.stroke;
+  if (patch.fill !== undefined) out.fill = patch.fill;
+  return out;
+}
+
 export const ShapeFormatToolbar: React.FC<ShapeFormatToolbarProps> = (props) => {
-  const { anchorX, anchorY } = props;
+  const { anchorX, anchorY, placement = 'above', onAddComment } = props;
   const isText = props.variant === 'text';
+  const isTable = props.variant === 'table';
   const textElement = isText ? props.element : null;
-  const shapeElement = isText ? null : props.element;
+  const tableElement = isTable ? props.element : null;
+  const shapeElement = !isText && !isTable ? props.element : null;
   const [panel, setPanel] = useState<Panel>(null);
   const toggle = (p: Panel) => setPanel(cur => (cur === p ? null : p));
 
@@ -79,31 +100,64 @@ export const ShapeFormatToolbar: React.FC<ShapeFormatToolbarProps> = (props) => 
       props.onPatch(textPatchToElement(patch), recordHistory);
       return;
     }
+    if (isTable) {
+      props.onPatch(tablePatchToElement(patch), recordHistory);
+      return;
+    }
     props.onPatch(patch as Partial<ShapeElement>, recordHistory);
   };
 
   const applyShapeOnlyPatch = (patch: Partial<ShapeElement>, recordHistory?: boolean) => {
-    if (isText || !shapeElement) return;
+    if (isText || isTable || !shapeElement) return;
     props.onPatch(patch, recordHistory);
   };
 
-  const fontSize = textElement ? textElement.fontSize : (shapeElement!.fontSize ?? 14);
-  const textColor = textElement ? textElement.color : (shapeElement!.textColor ?? '#1f2329');
-  const textHighlight = textElement ? textElement.textHighlight : shapeElement!.textHighlight;
+  const applyTableStylePatch = (patch: Partial<TableElement>, recordHistory?: boolean) => {
+    if (!isTable) return;
+    props.onPatch(patch, recordHistory);
+  };
+
+  const fontSize = textElement
+    ? textElement.fontSize
+    : tableElement
+      ? (tableElement.fontSize ?? 14)
+      : (shapeElement!.fontSize ?? 14);
+  const textColor = textElement
+    ? textElement.color
+    : tableElement
+      ? (tableElement.color ?? '#1f2329')
+      : (shapeElement!.textColor ?? '#1f2329');
+  const textHighlight = textElement
+    ? textElement.textHighlight
+    : tableElement
+      ? tableElement.textHighlight
+      : shapeElement!.textHighlight;
   const textAlign = textElement
     ? (textElement.textAlign ?? 'left')
-    : (shapeElement!.textAlign ?? 'center');
+    : tableElement
+      ? (tableElement.textAlign ?? 'left')
+      : (shapeElement!.textAlign ?? 'center');
   const textVerticalAlign = textElement
     ? (textElement.textVerticalAlign ?? 'top')
-    : (shapeElement!.textVerticalAlign ?? 'center');
-  const fontWeight = (textElement?.fontWeight ?? shapeElement?.fontWeight) ?? 400;
-  const fontStyle = textElement?.fontStyle ?? shapeElement?.fontStyle;
-  const textUnderline = textElement?.textUnderline ?? shapeElement?.textUnderline;
-  const textLineThrough = textElement?.textLineThrough ?? shapeElement?.textLineThrough;
+    : tableElement
+      ? (tableElement.textVerticalAlign ?? 'center')
+      : (shapeElement!.textVerticalAlign ?? 'center');
+  const fontWeight = (textElement?.fontWeight ?? tableElement?.fontWeight ?? shapeElement?.fontWeight) ?? 400;
+  const fontStyle = textElement?.fontStyle ?? tableElement?.fontStyle ?? shapeElement?.fontStyle;
+  const textUnderline = textElement?.textUnderline ?? tableElement?.textUnderline ?? shapeElement?.textUnderline;
+  const textLineThrough = textElement?.textLineThrough ?? tableElement?.textLineThrough ?? shapeElement?.textLineThrough;
   const isBold = fontWeight >= 600;
   const isItalic = fontStyle === 'italic';
   const isUnderline = !!textUnderline;
   const isLineThrough = !!textLineThrough;
+
+  const replaceableShapes = useMemo(() => {
+    if (!shapeElement) return [];
+    return getShapeRegistry().listReplaceableShapePresets(
+      shapeElement.shapeKind,
+      shapeElement.shapeCategoryId,
+    );
+  }, [shapeElement?.shapeKind, shapeElement?.shapeCategoryId]);
 
   return (
     <div
@@ -111,7 +165,9 @@ export const ShapeFormatToolbar: React.FC<ShapeFormatToolbarProps> = (props) => 
         position: 'absolute',
         left: anchorX,
         top: anchorY,
-        transform: 'translate(-50%, calc(-100% - 8px))',
+        transform: placement === 'below'
+          ? 'translate(-50%, 8px)'
+          : 'translate(-50%, calc(-100% - 8px))',
         zIndex: WB_Z_INDEX.shapeToolbar,
         pointerEvents: 'auto',
       }}
@@ -127,7 +183,7 @@ export const ShapeFormatToolbar: React.FC<ShapeFormatToolbarProps> = (props) => 
         boxShadow: WB_PANEL.shadow,
         padding: '4px 8px',
       }}>
-        {!isText && shapeElement && (
+        {!isText && !isTable && shapeElement && (
           <>
             <Wrap>
               <TbBtn active={panel === 'shape'} onClick={() => toggle('shape')} title="更改图形">
@@ -137,7 +193,7 @@ export const ShapeFormatToolbar: React.FC<ShapeFormatToolbarProps> = (props) => 
               {panel === 'shape' && (
                 <Popover wide>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6, padding: 4 }}>
-                    {SHAPE_PRESETS.map(s => (
+                    {replaceableShapes.map(s => (
                       <button
                         key={s.kind}
                         type="button"
@@ -242,6 +298,80 @@ export const ShapeFormatToolbar: React.FC<ShapeFormatToolbarProps> = (props) => 
           </>
         )}
 
+        {isTable && tableElement && (
+          <>
+            <Wrap>
+              <TbBtn title="表格" onClick={() => {}}>
+                <span style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: 22,
+                  height: 22,
+                  border: `1px solid ${WB_COLORS.border}`,
+                  borderRadius: 4,
+                  fontSize: 12,
+                  fontWeight: 600,
+                }}>
+                  T
+                </span>
+              </TbBtn>
+            </Wrap>
+            <Divider />
+            <Wrap>
+              <TbBtn active={panel === 'fill'} onClick={() => toggle('fill')} title="填充颜色">
+                <span style={{
+                  width: 18,
+                  height: 18,
+                  borderRadius: '50%',
+                  background: tableElement.fill ?? '#ffffff',
+                  border: `1px solid ${WB_COLORS.border}`,
+                  display: 'inline-block',
+                }} />
+                <Chevron />
+              </TbBtn>
+              {panel === 'fill' && (
+                <Popover>
+                  <Swatches
+                    colors={FILL_SWATCHES}
+                    value={tableElement.fill ?? '#ffffff'}
+                    onPick={c => { applyTableStylePatch({ fill: c }, true); setPanel(null); }}
+                  />
+                  <input
+                    type="color"
+                    value={tableElement.fill ?? '#ffffff'}
+                    onChange={e => applyTableStylePatch({ fill: e.target.value }, false)}
+                    style={{ width: '100%', height: 28, marginTop: 8, border: 'none', cursor: 'pointer' }}
+                  />
+                </Popover>
+              )}
+            </Wrap>
+            <Wrap>
+              <TbBtn active={panel === 'stroke'} onClick={() => toggle('stroke')} title="边框">
+                <span style={{
+                  width: 18,
+                  height: 18,
+                  borderRadius: '50%',
+                  border: `2px solid ${tableElement.stroke ?? '#dee0e3'}`,
+                  display: 'inline-block',
+                  boxSizing: 'border-box',
+                }} />
+                <Chevron />
+              </TbBtn>
+              {panel === 'stroke' && (
+                <Popover>
+                  <Swatches
+                    colors={STROKE_SWATCHES}
+                    value={tableElement.stroke ?? '#dee0e3'}
+                    onPick={c => { applyTableStylePatch({ stroke: c }, true); setPanel(null); }}
+                  />
+                </Popover>
+              )}
+            </Wrap>
+            <Divider />
+          </>
+        )}
+
         <Wrap>
           <TbBtn active={panel === 'fontSize'} onClick={() => toggle('fontSize')} title="字号">
             <span style={{ fontSize: 13, fontWeight: 500, minWidth: 20, textAlign: 'center' }}>{fontSize}</span>
@@ -325,11 +455,13 @@ export const ShapeFormatToolbar: React.FC<ShapeFormatToolbarProps> = (props) => 
 
         <Divider />
 
-        <TbBtn title="评论" onClick={() => {}}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-          </svg>
-        </TbBtn>
+        {onAddComment && (
+          <TbBtn title="添加评论" onClick={onAddComment}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </svg>
+          </TbBtn>
+        )}
 
         <TbBtn title="更多" onClick={() => {}}>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
@@ -502,106 +634,6 @@ function TextColorPanel({
   );
 }
 
-function TextStylePanel({
-  textAlign,
-  textVerticalAlign,
-  isBold,
-  isItalic,
-  isUnderline,
-  isLineThrough,
-  onPatch,
-}: {
-  textAlign: 'left' | 'center' | 'right';
-  textVerticalAlign: 'top' | 'center' | 'bottom';
-  isBold: boolean;
-  isItalic: boolean;
-  isUnderline: boolean;
-  isLineThrough: boolean;
-  onPatch: (patch: TextFormatPatch, recordHistory?: boolean) => void;
-}) {
-  const fmtBtn = (active: boolean): React.CSSProperties => ({
-    flex: 1,
-    height: 34,
-    border: active ? `2px solid ${WB_COLORS.accent}` : `1px solid ${WB_COLORS.border}`,
-    borderRadius: 6,
-    background: active ? '#eef3ff' : '#fff',
-    cursor: 'pointer',
-    color: WB_COLORS.text,
-    fontSize: 14,
-  });
-
-  return (
-    <Popover wide width={220} anchor="center">
-      <PanelSection label="样式">
-        <div style={{ display: 'flex', gap: 6 }}>
-          <button
-            type="button"
-            title="加粗"
-            style={fmtBtn(isBold)}
-            onClick={() => onPatch({ fontWeight: isBold ? 400 : 700 }, true)}
-          >
-            <span style={{ fontWeight: 700 }}>B</span>
-          </button>
-          <button
-            type="button"
-            title="斜体"
-            style={fmtBtn(isItalic)}
-            onClick={() => onPatch({ fontStyle: isItalic ? 'normal' : 'italic' }, true)}
-          >
-            <span style={{ fontStyle: 'italic' }}>I</span>
-          </button>
-          <button
-            type="button"
-            title="下划线"
-            style={fmtBtn(isUnderline)}
-            onClick={() => onPatch({ textUnderline: !isUnderline }, true)}
-          >
-            <span style={{ textDecoration: 'underline' }}>U</span>
-          </button>
-          <button
-            type="button"
-            title="中划线"
-            style={fmtBtn(isLineThrough)}
-            onClick={() => onPatch({ textLineThrough: !isLineThrough }, true)}
-          >
-            <span style={{ textDecoration: 'line-through' }}>S</span>
-          </button>
-        </div>
-      </PanelSection>
-
-      <PanelSection label="水平对齐">
-        <div style={{ display: 'flex', gap: 6 }}>
-          {(['left', 'center', 'right'] as const).map(a => (
-            <button
-              key={a}
-              type="button"
-              style={fmtBtn(textAlign === a)}
-              onClick={() => onPatch({ textAlign: a }, true)}
-            >
-              <AlignIcon align={a} />
-            </button>
-          ))}
-        </div>
-      </PanelSection>
-
-      <PanelSection label="垂直对齐" last>
-        <div style={{ display: 'flex', gap: 6 }}>
-          {(['top', 'center', 'bottom'] as const).map(v => (
-            <button
-              key={v}
-              type="button"
-              style={fmtBtn(textVerticalAlign === v)}
-              onClick={() => onPatch({ textVerticalAlign: v }, true)}
-            >
-              <VerticalAlignIcon align={v} />
-            </button>
-          ))}
-        </div>
-      </PanelSection>
-    </Popover>
-  );
-}
-
 function Swatches({
   colors,
   value,
@@ -633,44 +665,5 @@ function Swatches({
         />
       ))}
     </div>
-  );
-}
-
-function AlignIcon({ align }: { align: 'left' | 'center' | 'right' }) {
-  const x = align === 'left' ? 4 : align === 'right' ? 16 : 10;
-  return (
-    <svg width="20" height="18" viewBox="0 0 24 20" aria-hidden>
-      <text x="3" y="8" fontSize="11" fontWeight="600" fill="currentColor">A</text>
-      <line x1={x} y1="13" x2={x + (align === 'center' ? 4 : 14)} y2="13" stroke="currentColor" strokeWidth="1.5" />
-      <line x1={align === 'right' ? 6 : 3} y1="17" x2={align === 'left' ? 17 : 21} y2="17" stroke="currentColor" strokeWidth="1.5" />
-    </svg>
-  );
-}
-
-function VerticalAlignIcon({ align }: { align: 'top' | 'center' | 'bottom' }) {
-  const boxY = 3;
-  const boxH = 14;
-  const lineY = align === 'top'
-    ? boxY + 3
-    : align === 'bottom'
-      ? boxY + boxH - 3
-      : boxY + boxH / 2;
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden>
-      <rect x="5" y={boxY} width="14" height={boxH} rx="2" fill="none" stroke="currentColor" strokeWidth="1.5" />
-      <line x1="8" y1={lineY} x2="16" y2={lineY} stroke="currentColor" strokeWidth="1.5" />
-      {align === 'top' && (
-        <>
-          <line x1="12" y1={boxY} x2="12" y2={boxY + 2.5} stroke="currentColor" strokeWidth="1.5" />
-          <polygon points={`12,${boxY - 1} 9.5,${boxY + 2} 14.5,${boxY + 2}`} fill="currentColor" />
-        </>
-      )}
-      {align === 'bottom' && (
-        <>
-          <line x1="12" y1={boxY + boxH} x2="12" y2={boxY + boxH - 2.5} stroke="currentColor" strokeWidth="1.5" />
-          <polygon points={`12,${boxY + boxH + 1} 9.5,${boxY + boxH - 2} 14.5,${boxY + boxH - 2}`} fill="currentColor" />
-        </>
-      )}
-    </svg>
   );
 }

@@ -24,6 +24,12 @@ import {
 } from '@ant-design/icons';
 import type { ColumnDef, ColumnType } from '@lingyi-doc/core';
 import { RATING_ICON_DEFS, getRatingItemColors } from '@lingyi-doc/core';
+import {
+  FIELD_TYPE_CATEGORIES,
+  FIELD_PALETTE_TYPES,
+  getFieldTypeMeta,
+} from './base/fieldTypeMeta';
+import { FieldTypeIcon } from './base/FieldTypeIcon';
 
 interface FieldConfigPanelProps {
   visible: boolean;
@@ -35,27 +41,6 @@ interface FieldConfigPanelProps {
   /** 已有字段列表，用于重名校验 */
   allFields?: ColumnDef[];
 }
-
-const FIELD_TYPES: Array<{ type: ColumnType; name: string; icon: string }> = [
-  { type: 'text', name: '文本', icon: 'Aa' },
-  { type: 'number', name: '数字', icon: '123' },
-  { type: 'select', name: '单选', icon: '◉' },
-  { type: 'multiSelect', name: '多选', icon: '☑' },
-  { type: 'date', name: '日期', icon: '📅' },
-  { type: 'datetime', name: '日期时间', icon: '📅' },
-  { type: 'boolean', name: '复选框', icon: '☑' },
-  { type: 'user', name: '人员', icon: '👤' },
-  { type: 'rating', name: '评分', icon: '★' },
-  { type: 'progress', name: '进度', icon: '▓' },
-  { type: 'link', name: '超链接', icon: '🔗' },
-  { type: 'email', name: 'Email', icon: '@' },
-  { type: 'phone', name: '电话号码', icon: '📞' },
-  { type: 'currency', name: '货币', icon: '¥' },
-  { type: 'percent', name: '百分比', icon: '%' },
-  { type: 'formula', name: '公式', icon: 'ƒ' },
-  { type: 'autoNumber', name: '自动编号', icon: '#' },
-  { type: 'attachment', name: '附件', icon: '📎' },
-];
 
 const OPTION_COLORS = [
   '#2196F3', '#FF9800', '#4CAF50', '#E91E63',
@@ -72,15 +57,7 @@ const DATE_FORMATS = [
 const RATING_ICONS = RATING_ICON_DEFS;
 const RATING_RANGE = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
-/** 字段面板内 Select 需挂到 body，并高于 ToolbarPopover (10001) */
-const FIELD_PANEL_SELECT_PROPS = {
-  getPopupContainer: () => document.body,
-  styles: {
-    popup: {
-      root: { zIndex: 10002 },
-    },
-  },
-} as const;
+import { baseSheetSelectProps } from './base/baseAntdConfig';
 
 function getDefaultPlaceholder(type: ColumnType): string {
   switch (type) {
@@ -137,13 +114,15 @@ const FieldConfigPanelInner: React.FC<FieldConfigPanelProps> = ({
     setDefaultValue(field?.defaultValue ?? '');
   }, [visible, fieldId]);
 
-  const selectedTypeInfo = FIELD_TYPES.find(t => t.type === selectedType);
+  const selectedTypeInfo = getFieldTypeMeta(selectedType);
 
   const fieldTypeOptions = useMemo(
-    () => FIELD_TYPES.map(item => ({
-      value: item.type,
-      label: item.name,
-      icon: item.icon,
+    () => FIELD_TYPE_CATEGORIES.map(cat => ({
+      label: cat.label,
+      options: FIELD_PALETTE_TYPES[cat.key].map(type => {
+        const meta = getFieldTypeMeta(type);
+        return { value: type, label: meta.name };
+      }),
     })),
     [],
   );
@@ -253,7 +232,7 @@ const FieldConfigPanelInner: React.FC<FieldConfigPanelProps> = ({
           onChange={value => setDefaultValue(value || '')}
           options={options.map(o => ({ value: o.id, label: o.name }))}
           style={{ width: '100%' }}
-          {...FIELD_PANEL_SELECT_PROPS}
+          {...baseSheetSelectProps}
         />
       );
     }
@@ -267,7 +246,7 @@ const FieldConfigPanelInner: React.FC<FieldConfigPanelProps> = ({
           onChange={value => setDefaultValue(value || '')}
           options={[{ value: 'today', label: '今天' }]}
           style={{ width: '100%' }}
-          {...FIELD_PANEL_SELECT_PROPS}
+          {...baseSheetSelectProps}
         />
       );
     }
@@ -293,7 +272,7 @@ const FieldConfigPanelInner: React.FC<FieldConfigPanelProps> = ({
           onChange={value => setDefaultValue(value || '')}
           options={[]}
           style={{ width: '100%' }}
-          {...FIELD_PANEL_SELECT_PROPS}
+          {...baseSheetSelectProps}
         />
       );
     }
@@ -410,23 +389,24 @@ const FieldConfigPanelInner: React.FC<FieldConfigPanelProps> = ({
               onChange={handleTypeChange}
               optionFilterProp="label"
               options={fieldTypeOptions}
-              {...FIELD_PANEL_SELECT_PROPS}
+              {...baseSheetSelectProps}
               labelRender={({ value }) => {
-                const info = FIELD_TYPES.find(t => t.type === value);
-                if (!info) return value;
+                const type = value as ColumnType;
+                const info = getFieldTypeMeta(type);
                 return (
                   <Space>
-                    <span>{info.icon}</span>
+                    <FieldTypeIcon type={type} size={16} />
                     <span>{info.name}</span>
                   </Space>
                 );
               }}
               optionRender={option => {
-                const info = FIELD_TYPES.find(t => t.type === option.value);
+                const type = option.value as ColumnType;
+                const info = getFieldTypeMeta(type);
                 return (
                   <Space>
-                    <span style={{ width: 20, textAlign: 'center' }}>{info?.icon}</span>
-                    <span>{option.label}</span>
+                    <FieldTypeIcon type={type} size={16} />
+                    <span>{info.name}</span>
                   </Space>
                 );
               }}
@@ -515,7 +495,7 @@ const FieldConfigPanelInner: React.FC<FieldConfigPanelProps> = ({
                 onChange={setDateFormat}
                 options={DATE_FORMATS}
                 style={{ width: '100%' }}
-                {...FIELD_PANEL_SELECT_PROPS}
+                {...baseSheetSelectProps}
               />
             </Form.Item>
           )}
@@ -564,7 +544,7 @@ const FieldConfigPanelInner: React.FC<FieldConfigPanelProps> = ({
                     }}
                     options={RATING_RANGE.map(n => ({ value: n, label: String(n) }))}
                     style={{ flex: 1 }}
-                    {...FIELD_PANEL_SELECT_PROPS}
+                    {...baseSheetSelectProps}
                   />
                   <Typography.Text type="secondary">~</Typography.Text>
                   <Select
@@ -575,7 +555,7 @@ const FieldConfigPanelInner: React.FC<FieldConfigPanelProps> = ({
                       label: String(n),
                     }))}
                     style={{ flex: 1 }}
-                    {...FIELD_PANEL_SELECT_PROPS}
+                    {...baseSheetSelectProps}
                   />
                 </Flex>
               </Form.Item>
@@ -663,8 +643,8 @@ const FieldConfigPanelInner: React.FC<FieldConfigPanelProps> = ({
         open={visible}
         title={(
           <Space>
-            <span>{selectedTypeInfo?.icon}</span>
-            <span>{selectedTypeInfo?.name}</span>
+            <FieldTypeIcon type={selectedType} size={18} />
+            <span>{selectedTypeInfo.name}</span>
           </Space>
         )}
         onCancel={onClose}

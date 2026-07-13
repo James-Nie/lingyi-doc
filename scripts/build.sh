@@ -21,28 +21,34 @@ if [[ "$NODE_MAJOR" -lt 18 ]]; then
 fi
 
 if [[ ! -d node_modules ]]; then
-  echo "1/7 安装依赖..."
+  echo "1/9 安装依赖..."
   npm install
 else
-  echo "1/7 依赖已存在，跳过 npm install"
+  echo "1/9 依赖已存在，跳过 npm install"
 fi
 
-echo "2/7 构建 @lingyi-doc/core..."
+echo "2/9 构建 @lingyi-doc/core..."
 npm -w @lingyi-doc/core run build
 
-echo "3/7 构建 @lingyi-doc/editor..."
+echo "3/9 构建 @lingyi-doc/mind-map..."
+npm -w @lingyi-doc/mind-map run build
+
+echo "4/9 构建 @lingyi-doc/mind-map-react..."
+npm -w @lingyi-doc/mind-map-react run build
+
+echo "5/9 构建 @lingyi-doc/editor..."
 npm -w @lingyi-doc/editor run build
 
-echo "4/7 构建 @lingyi-doc/web..."
+echo "6/9 构建 @lingyi-doc/web..."
 npm -w @lingyi-doc/web run build
 
-echo "5/7 构建 @lingyi-doc/admin..."
+echo "7/9 构建 @lingyi-doc/admin..."
 npm -w @lingyi-doc/admin run build
 
-echo "6/7 构建 @lingyi-doc/server..."
+echo "8/9 构建 @lingyi-doc/server..."
 npm -w @lingyi-doc/server run build
 
-echo "7/7 组装部署包..."
+echo "9/9 组装部署包..."
 bash "$ROOT_DIR/scripts/deploy/dev/assemble-release.sh"
 
 echo ""

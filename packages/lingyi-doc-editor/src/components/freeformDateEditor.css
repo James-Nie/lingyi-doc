@@ -63,6 +63,14 @@
   flex-shrink: 0;
 }
 
+.freeform-date-picker-popup .ant-picker-time-panel {
+  display: none !important;
+}
+
+.freeform-date-picker-popup .ant-picker-ranges {
+  display: none !important;
+}
+
 .freeform-date-picker-popup .ant-picker-panel {
   border: none;
 }

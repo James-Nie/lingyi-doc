@@ -49,6 +49,11 @@ export const FreeformDateEditor: React.FC<FreeformDateEditorProps> = ({
   const [reminder, setReminder] = useState(() => resolveInitialReminder(initialValue));
   const { open, handleOpenChange } = useEditorDropdownOpen();
   const latestRef = useRef({ value, includeTime, reminder });
+
+  const patchLatestRef = useCallback((patch: Partial<{ value: Dayjs | null; includeTime: boolean; reminder: boolean }>) => {
+    latestRef.current = { ...latestRef.current, ...patch };
+  }, []);
+
   latestRef.current = { value, includeTime, reminder };
 
   const displayText = useMemo(() => {
@@ -56,23 +61,35 @@ export const FreeformDateEditor: React.FC<FreeformDateEditorProps> = ({
     return formatFreeformDateCellText(value.valueOf(), includeTime);
   }, [value, includeTime]);
 
+  const buildCommitValue = useCallback((
+    current: Dayjs,
+    withTime: boolean,
+    withReminder: boolean,
+  ): CellValue => {
+    const hasClock = current.hour() !== 0
+      || current.minute() !== 0
+      || current.second() !== 0
+      || current.millisecond() !== 0;
+    const saveWithTime = withTime || hasClock;
+    const next = saveWithTime
+      ? current
+      : current.hour(0).minute(0).second(0).millisecond(0);
+    return {
+      type: 'date',
+      timestamp: next.valueOf(),
+      format: saveWithTime ? { kind: 'datetime' } : { kind: 'short' },
+      ...(allowReminder ? { reminder: withReminder } : {}),
+    };
+  }, [allowReminder]);
+
   const commitCurrent = useCallback(() => {
     const { value: current, includeTime: withTime, reminder: withReminder } = latestRef.current;
     if (!current) {
       onCommit({ type: 'empty' });
       return;
     }
-    let next = current;
-    if (!withTime) {
-      next = current.hour(0).minute(0).second(0).millisecond(0);
-    }
-    onCommit({
-      type: 'date',
-      timestamp: next.valueOf(),
-      format: withTime ? { kind: 'datetime' } : { kind: 'short' },
-      ...(allowReminder ? { reminder: withReminder } : {}),
-    });
-  }, [allowReminder, onCommit]);
+    onCommit(buildCommitValue(current, withTime, withReminder));
+  }, [buildCommitValue, onCommit]);
 
   const handleClose = useCallback(() => {
     commitCurrent();
@@ -102,7 +119,19 @@ export const FreeformDateEditor: React.FC<FreeformDateEditorProps> = ({
       <div className="freeform-date-panel-row">
         <Checkbox
           checked={includeTime}
-          onChange={e => setIncludeTime(e.target.checked)}
+          onChange={e => {
+            const checked = e.target.checked;
+            setIncludeTime(checked);
+            patchLatestRef({ includeTime: checked });
+            if (!checked) {
+              setValue(prev => {
+                if (!prev) return prev;
+                const nextVal = prev.hour(0).minute(0).second(0).millisecond(0);
+                patchLatestRef({ value: nextVal });
+                return nextVal;
+              });
+            }
+          }}
         >
           时间
         </Checkbox>
@@ -119,9 +148,12 @@ export const FreeformDateEditor: React.FC<FreeformDateEditorProps> = ({
               style={{ width: '100%' }}
               onChange={next => {
                 if (!next) return;
+                setIncludeTime(true);
                 setValue(prev => {
                   const base = prev ?? dayjs().startOf('day');
-                  return base.hour(next.hour()).minute(next.minute()).second(0).millisecond(0);
+                  const nextVal = base.hour(next.hour()).minute(next.minute()).second(0).millisecond(0);
+                  patchLatestRef({ value: nextVal, includeTime: true });
+                  return nextVal;
                 });
               }}
             />
@@ -132,7 +164,11 @@ export const FreeformDateEditor: React.FC<FreeformDateEditorProps> = ({
         <div className="freeform-date-panel-row">
           <Checkbox
             checked={reminder}
-            onChange={e => setReminder(e.target.checked)}
+            onChange={e => {
+              const checked = e.target.checked;
+              setReminder(checked);
+              patchLatestRef({ reminder: checked });
+            }}
           >
             提醒
           </Checkbox>
@@ -154,7 +190,7 @@ export const FreeformDateEditor: React.FC<FreeformDateEditorProps> = ({
         open={open}
         allowClear
         value={value}
-        format={includeTime ? 'YYYY/M/D H:mm:ss' : 'YYYY/M/D'}
+        format="YYYY/M/D"
         className="freeform-date-picker-hidden"
         classNames={{ popup: { root: 'freeform-date-picker-popup' } }}
         getPopupContainer={() => document.body}
@@ -171,15 +207,15 @@ export const FreeformDateEditor: React.FC<FreeformDateEditorProps> = ({
         onChange={nextValue => {
           if (!nextValue) {
             setValue(null);
+            patchLatestRef({ value: null });
             return;
           }
           setValue(prev => {
-            if (!prev || !includeTime) return nextValue.startOf('day');
-            return nextValue
-              .hour(prev.hour())
-              .minute(prev.minute())
-              .second(0)
-              .millisecond(0);
+            const nextVal = includeTime && prev
+              ? nextValue.hour(prev.hour()).minute(prev.minute()).second(0).millisecond(0)
+              : nextValue.startOf('day');
+            patchLatestRef({ value: nextVal });
+            return nextVal;
           });
         }}
         onOpenChange={nextOpen => handleOpenChange(nextOpen, handleClose)}

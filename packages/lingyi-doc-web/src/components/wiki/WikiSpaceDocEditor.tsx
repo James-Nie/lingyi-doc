@@ -4,20 +4,16 @@ import { EditorPage } from '../../pages/EditorPage';
 import { DocEditorPage } from '../../pages/DocEditorPage';
 import { MindNoteEditorPage } from '../../pages/MindNoteEditorPage';
 import { WhiteboardEditorPage } from '../../pages/WhiteboardEditorPage';
-import { useDocumentViewMode, type DocumentViewMode } from '../../utils/documentViewMode';
+import type { TopBarBreadcrumbItem } from '../layout/topBar';
+import { useDocumentViewMode } from '../../utils/documentViewMode';
 
 interface WikiSpaceDocEditorProps {
   docId: string;
-  onViewModeChange?: (state: {
-    readOnly: boolean;
-    canEdit: boolean;
-    effectiveViewMode: DocumentViewMode;
-    togglePreview: () => void;
-  }) => void;
+  breadcrumbItems?: TopBarBreadcrumbItem[];
 }
 
-/** 知识库空间内嵌文档编辑器（无 DocumentBar，由 WikiSpacePage 顶栏负责导航） */
-export const WikiSpaceDocEditor: React.FC<WikiSpaceDocEditorProps> = ({ docId, onViewModeChange }) => {
+/** 知识库空间内嵌文档编辑器（顶栏由 DocumentBar 统一渲染） */
+export const WikiSpaceDocEditor: React.FC<WikiSpaceDocEditorProps> = ({ docId, breadcrumbItems }) => {
   const [entry, setEntry] = React.useState<DocumentApiResponse | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [notFound, setNotFound] = React.useState(false);
@@ -50,16 +46,6 @@ export const WikiSpaceDocEditor: React.FC<WikiSpaceDocEditorProps> = ({ docId, o
     permission: entry?.permission,
   });
 
-  React.useEffect(() => {
-    if (!entry || !onViewModeChange) return;
-    onViewModeChange({
-      readOnly: access.readOnly,
-      canEdit: access.canEdit,
-      effectiveViewMode: access.effectiveViewMode,
-      togglePreview: access.togglePreview,
-    });
-  }, [entry, onViewModeChange, access.readOnly, access.canEdit, access.effectiveViewMode, access.togglePreview]);
-
   if (loading) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1, color: '#8f959e' }}>
@@ -81,6 +67,7 @@ export const WikiSpaceDocEditor: React.FC<WikiSpaceDocEditorProps> = ({ docId, o
     canEdit: access.canEdit,
     effectiveViewMode: access.effectiveViewMode,
     onTogglePreview: access.togglePreview,
+    breadcrumbItems,
   };
 
   const docType = entry.docType || 'freeform';

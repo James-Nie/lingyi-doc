@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { message } from 'antd';
 import {
   Workbook,
   CHART_COLOR_PALETTES,
@@ -8,18 +9,55 @@ import {
   getRatingColumnWidth,
   DocumentManager,
   SaveManager,
+  WorkbookCollabBridge,
   XlsxIO,
   exportActiveSheetAsPng,
+  printActiveSheet,
+  cellRefLabel,
+  isBaseSheet,
+  prepareGroupedRecordIndices,
+  type ActiveCellEditor,
+  type CollabConnectionState,
+  type CommentUpdatePayload,
   type DocumentApiResponse,
+  type DocumentPermission,
+  type DocCommentThread,
+  type OnlineUser,
+  buildSheetCommentAnchor,
+  buildFreeformCommentAnchor,
+  isSheetCommentAnchor,
+  isFreeformSheet,
+  filterCommentThreadsForSheet,
 } from '@lingyi-doc/core';
-import type { ChartType, ChartVariant, ChartInstance } from '@lingyi-doc/core';
-import { SheetContainer, Toolbar, BaseToolbar, FieldConfigPanel, FormulaBar, StatusBar, SheetTabs, useSheetStore, BASE_THEME, BaseViewSidebar, FormViewEditor, ensureFormView, activateBaseView, getActiveBaseView } from '@lingyi-doc/editor';
+import type { ChartType, ChartVariant, ChartInstance, SheetType } from '@lingyi-doc/core';
+import {
+  Toolbar, BaseToolbar, FieldConfigPanel, StatusBar, SheetTabs, useSheetStore, BASE_THEME,
+  ensureFormView, activateBaseView, getActiveBaseView, ensureActiveBaseView, applySheetStoreFromBaseView,
+  updateFormViewConfig, updateBaseViewGroupRules, updateBaseViewFilter, updateBaseViewSort,
+  FreeformSheetEditor, BaseSheetEditor, DocCommentPanel, useDocCommentController,
+} from '@lingyi-doc/editor';
+import type { FormSharePanelContext, SheetCommentRequest } from '@lingyi-doc/editor';
+import { FormSharePanel } from '../components/share/FormSharePanel';
+import type { GroupRule, FilterCondition, SortRule } from '@lingyi-doc/core';
 import { ChartInsertDialog, ChartEditor } from '@lingyi-doc/editor';
 import { DocumentBar } from '../components/DocumentBar';
+import { CollabStatusBar } from '../components/CollabStatusBar';
 import { commitPendingSheetEdits } from '../utils/commitPendingEdits';
 import { appPath } from '../utils/appPaths';
+import { authStore } from '../stores/authStore';
 import type { EditorAccessProps } from '../types/editorAccess';
 import type { DownloadFormat } from '../utils/downloadAs';
+import { BASE_SHEET_PRINT_MESSAGE } from '../utils/printMessages';
+import { fetchSystemFeatures } from '../api/system';
+import {
+  createDocumentComment,
+  deleteDocumentCommentReply,
+  editDocumentCommentReply,
+  likeDocumentCommentReply,
+  listDocumentComments,
+  replyDocumentComment,
+  resolveDocumentComment,
+} from '../api/documentComment';
 
 export const EditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiResponse; embedded?: boolean } & EditorAccessProps> = ({
   docId: docIdProp,
@@ -29,6 +67,7 @@ export const EditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiResp
   canEdit = true,
   effectiveViewMode = 'edit',
   onTogglePreview,
+  breadcrumbItems,
 }) => {
   const { docId: routeDocId } = useParams<{ docId: string }>();
   const docId = docIdProp ?? routeDocId;
@@ -45,7 +84,19 @@ export const EditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiResp
 
   const docTitleRef = useRef(docTitle);
   const saveManagerRef = useRef<SaveManager | null>(null);
+  const collabBridgeRef = useRef<WorkbookCollabBridge | null>(null);
   const titleDirtyByUserRef = useRef(false);
+  const docTypeRef = useRef('freeform');
+
+  const [collabUsers, setCollabUsers] = useState<OnlineUser[]>([]);
+  const [collabState, setCollabState] = useState<CollabConnectionState>('idle');
+  const [activeCellEditor, setActiveCellEditor] = useState<ActiveCellEditor | null>(null);
+  const myUserIdRef = useRef(authStore.getState().user?.id ?? '');
+
+  const collabViewOnly = !readOnly
+    && collabState === 'connected'
+    && activeCellEditor != null
+    && activeCellEditor.userId !== myUserIdRef.current;
 
   useEffect(() => {
     docTitleRef.current = docTitle;
@@ -57,16 +108,54 @@ export const EditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiResp
   const [showChartDialog, setShowChartDialog] = useState(false);
   const [selectedChartId, setSelectedChartId] = useState<string | null>(null);
   const [lastModified, setLastModified] = useState<number>(Date.now());
+  const [commentsEnabled, setCommentsEnabled] = useState(false);
+  const [docPermission, setDocPermission] = useState<DocumentPermission>('owner');
+  const [initialCommentThreads, setInitialCommentThreads] = useState<DocCommentThread[]>([]);
+  const [remoteCommentUpdate, setRemoteCommentUpdate] = useState<CommentUpdatePayload | null>(null);
+
+  const canComment = commentsEnabled && (
+    docPermission === 'comment'
+    || docPermission === 'edit'
+    || docPermission === 'manage'
+    || docPermission === 'owner'
+    || canEdit
+  );
+
+  const commentAuthor = useMemo(() => {
+    const user = authStore.getState().user;
+    return {
+      authorId: user?.id ?? 'local',
+      authorName: user?.displayName?.trim() || user?.email?.split('@')[0] || '当前用户',
+      authorAvatar: user?.avatarUrl ?? null,
+    };
+  }, []);
 
   const markDirty = useCallback(() => {
     if (readOnly) return;
     setDirty(true);
     saveManagerRef.current?.markDirty();
+    if (!collabBridgeRef.current?.isApplyingRemote()) {
+      collabBridgeRef.current?.scheduleBroadcast();
+    }
   }, [readOnly]);
 
   const attachWorkbookListeners = useCallback((wb: Workbook) => {
     workbookRef.current = wb;
   }, []);
+
+  const handleWorkbookReplace = useCallback((next: Workbook) => {
+    const prevActive = workbookRef.current?.activeSheetId;
+    if (prevActive && next.getSheet(prevActive)) {
+      next.switchSheet(prevActive);
+    }
+    attachWorkbookListeners(next);
+    setWorkbook(next);
+    setActiveSheetId(next.activeSheetId);
+    saveManagerRef.current?.markDirty();
+  }, [attachWorkbookListeners]);
+
+  const handleWorkbookReplaceRef = useRef(handleWorkbookReplace);
+  handleWorkbookReplaceRef.current = handleWorkbookReplace;
 
   useEffect(() => {
     if (!workbook) return;
@@ -76,6 +165,37 @@ export const EditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiResp
     }
     return () => unsubs.forEach(unsub => unsub());
   }, [workbook, activeSheetId, workbook?.sheets.length, markDirty]);
+
+  useEffect(() => {
+    if (readOnly) return;
+    let prevEditing = useSheetStore.getState().editingCell;
+    const unsub = useSheetStore.subscribe((state) => {
+      const nextEditing = state.editingCell;
+      const bridge = collabBridgeRef.current;
+      const sheetId = workbookRef.current?.activeSheetId;
+      if (!bridge || !sheetId) {
+        prevEditing = nextEditing;
+        return;
+      }
+
+      if (nextEditing && !prevEditing) {
+        if (!bridge.canStartCellEdit()) {
+          state.setEditingCell(null);
+          const holder = bridge.getRemoteCellEditor();
+          if (holder) {
+            state.setStatusText(`${holder.displayName} 正在编辑 ${cellRefLabel(holder.row, holder.col)}`);
+          }
+          prevEditing = null;
+          return;
+        }
+        bridge.startCellEdit(sheetId, nextEditing.row, nextEditing.col);
+      } else if (!nextEditing && prevEditing) {
+        bridge.endCellEdit();
+      }
+      prevEditing = nextEditing;
+    });
+    return unsub;
+  }, [readOnly, workbook]);
 
   useEffect(() => {
     if (!docId) {
@@ -88,13 +208,33 @@ export const EditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiResp
     async function load() {
       setLoading(true);
       try {
+        const features = await fetchSystemFeatures().catch(() => ({ collab: false, comments: false }));
+        if (cancelled) return;
+        setCommentsEnabled(features.comments);
+
         const result = await DocumentManager.load(docId!, prefetched);
         if (cancelled) return;
         if (!result) {
           navigate(appPath.home, { replace: true });
           return;
         }
+        const meta = prefetched ?? await DocumentManager.fetchDocument(docId!).catch(() => null);
+        if (cancelled) return;
+        if (meta?.permission) setDocPermission(meta.permission);
+
+        let threads: DocCommentThread[] = [];
+        if (features.comments) {
+          try {
+            threads = await listDocumentComments(docId!);
+          } catch {
+            threads = [];
+          }
+        }
+        if (cancelled) return;
+        setInitialCommentThreads(threads);
+
         attachWorkbookListeners(result.workbook);
+        docTypeRef.current = result.docType;
         if (!result.workbook.activeSheet) {
           result.workbook.addSheet('Sheet1');
         }
@@ -102,6 +242,12 @@ export const EditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiResp
         setDocTitle(result.title);
         setLastModified(Date.now());
         setActiveSheetId(result.workbook.activeSheetId);
+        const activeTable = result.workbook.activeSheet;
+        if (activeTable && isBaseSheet(activeTable.sheet)) {
+          applySheetStoreFromBaseView(activeTable.sheet);
+        } else {
+          useSheetStore.getState().setCurrentView('grid');
+        }
         setDirty(false);
         setSaveStatus('saved');
         titleDirtyByUserRef.current = false;
@@ -121,7 +267,13 @@ export const EditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiResp
               setSaveStatus(status);
               if (status === 'saved') setDirty(false);
             },
-            onSaved: () => setLastModified(Date.now()),
+            onSaved: () => {
+              setLastModified(Date.now());
+              const snap = workbookRef.current?.toJSON();
+              if (snap) {
+                collabBridgeRef.current?.syncSavedSnapshot(snap as Record<string, unknown>);
+              }
+            },
             onError: (err) => useSheetStore.getState().setStatusText(`保存失败: ${err.message}`),
           });
           manager.initialize(
@@ -130,9 +282,39 @@ export const EditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiResp
             result.title,
           );
           saveManagerRef.current = manager;
+
+          collabBridgeRef.current?.disconnect();
+          const bridge = new WorkbookCollabBridge({
+            docId: docId!,
+            docType: result.docType,
+            userId: authStore.getState().user?.id ?? '',
+            getToken: () => authStore.getAccessToken(),
+            getWorkbook: () => workbookRef.current ?? null,
+            isLocalEditing: () => useSheetStore.getState().editingCell != null,
+            onWorkbookReplace: (wb: Workbook) => handleWorkbookReplaceRef.current(wb),
+            onBeforeLocalFlush: () => commitPendingSheetEdits(workbookRef.current, useSheetStore.getState()),
+            onPresenceChange: setCollabUsers,
+            onCellEditingChange: setActiveCellEditor,
+            onStateChange: setCollabState,
+            onCommentUpdate: (senderId, payload) => {
+              if (senderId === authStore.getState().user?.id) return;
+              setRemoteCommentUpdate(payload);
+            },
+            onError: (err: Error) => {
+              if (err.message.includes('210009') || err.message.includes('正在编辑')) {
+                useSheetStore.getState().setEditingCell(null);
+              }
+              useSheetStore.getState().setStatusText(`协同: ${err.message}`);
+            },
+          });
+          bridge.initialize(result.workbook.toJSON() as Record<string, unknown>);
+          collabBridgeRef.current = bridge;
+          bridge.connect();
         } else {
           saveManagerRef.current?.dispose();
           saveManagerRef.current = null;
+          collabBridgeRef.current?.disconnect();
+          collabBridgeRef.current = null;
         }
         useSheetStore.getState().setEditingCell(null);
         useSheetStore.getState().setFormulaBarText('');
@@ -151,6 +333,11 @@ export const EditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiResp
     return () => {
       cancelled = true;
       saveManagerRef.current?.dispose();
+      collabBridgeRef.current?.disconnect();
+      collabBridgeRef.current = null;
+      setCollabState('idle');
+      setCollabUsers([]);
+      setActiveCellEditor(null);
     };
   }, [docId, navigate, attachWorkbookListeners, prefetched, readOnly]);
 
@@ -161,7 +348,110 @@ export const EditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiResp
   }, []);
 
   const activeTable = workbook?.activeSheet ?? null;
-  const isBase = activeTable?.sheet.type === 'base';
+  const isBase = activeTable ? isBaseSheet(activeTable.sheet) : false;
+
+  const commentCtrl = useDocCommentController({
+    enabled: commentsEnabled,
+    canComment,
+    commentAuthor,
+    initialThreads: initialCommentThreads,
+    remoteCommentUpdate,
+    filterThread: thread => (
+      !activeSheetId
+      || thread.anchor.sheetId === activeSheetId
+      || thread.anchor.blockId === `sheet:${activeSheetId}`
+    ),
+    onPersistCreate: commentsEnabled && canComment && docId
+      ? async ({ thread }) => {
+          const saved = await createDocumentComment(docId, {
+            id: thread.id,
+            anchor: thread.anchor,
+          });
+          return saved;
+        }
+      : undefined,
+    onPersistReply: commentsEnabled && canComment && docId
+      ? (threadId, text) => replyDocumentComment(docId, threadId, text)
+      : undefined,
+    onPersistResolve: commentsEnabled && canComment && docId
+      ? async (threadId) => { await resolveDocumentComment(docId, threadId); }
+      : undefined,
+    onPersistEdit: commentsEnabled && canComment && docId
+      ? (threadId, replyId, text) => editDocumentCommentReply(docId, threadId, replyId, text)
+      : undefined,
+    onPersistDelete: commentsEnabled && canComment && docId
+      ? (threadId, replyId) => deleteDocumentCommentReply(docId, threadId, replyId)
+      : undefined,
+    onPersistLike: commentsEnabled && docId
+      ? (threadId, replyId) => likeDocumentCommentReply(docId, threadId, replyId)
+      : undefined,
+  });
+
+  const activeSheetCommentThreads = useMemo(
+    () => (activeSheetId
+      ? filterCommentThreadsForSheet(commentCtrl.allCommentThreads, activeSheetId)
+      : []),
+    [commentCtrl.allCommentThreads, activeSheetId],
+  );
+
+  const focusSheetCell = useCallback((row: number, col: number) => {
+    if (!activeSheetId) return;
+    useSheetStore.getState().setSelection({
+      sheetId: activeSheetId,
+      start: { row, col },
+      end: { row, col },
+    }, { row, col });
+  }, [activeSheetId]);
+
+  const scrollToSheetComment = useCallback((threadId: string) => {
+    const thread = commentCtrl.allCommentThreads.find(t => t.id === threadId);
+    if (!thread || !isSheetCommentAnchor(thread.anchor) || !workbook) return;
+    if (thread.anchor.anchorType === 'freeform_cell') {
+      focusSheetCell(thread.anchor.start, thread.anchor.end);
+      return;
+    }
+    const table = workbook.getSheet(thread.anchor.sheetId ?? activeSheetId);
+    if (!table || !isBaseSheet(table.sheet)) return;
+    const recordIndex = table.sheet.rows.findIndex(r => r._id === thread.anchor.recordId);
+    if (recordIndex < 0) return;
+    let colIndex = 0;
+    if (thread.anchor.fieldId) {
+      const idx = table.sheet.columnDefs.findIndex(c => c.id === thread.anchor.fieldId);
+      if (idx >= 0) colIndex = idx;
+    }
+    focusSheetCell(recordIndex, colIndex);
+  }, [commentCtrl.allCommentThreads, workbook, activeSheetId, focusSheetCell]);
+
+  const handleSelectSheetComment = useCallback((id: string) => {
+    commentCtrl.handleSelectComment(id);
+    scrollToSheetComment(id);
+  }, [commentCtrl, scrollToSheetComment]);
+
+  const handleAddSheetComment = useCallback((request: SheetCommentRequest) => {
+    if (!activeSheetId || !activeTable) return;
+    if (isBaseSheet(activeTable.sheet)) {
+      if (!request.recordId) return;
+      const anchor = buildSheetCommentAnchor({
+        sheetId: activeSheetId,
+        recordId: request.recordId,
+        fieldId: request.fieldId,
+        viewId: activeTable.sheet.activeViewId,
+        quote: request.quote,
+      });
+      commentCtrl.requestAddComment(anchor);
+    } else if (isFreeformSheet(activeTable.sheet)) {
+      const anchor = buildFreeformCommentAnchor({
+        sheetId: activeSheetId,
+        row: request.rowIndex,
+        col: request.colIndex,
+        quote: request.quote,
+      });
+      commentCtrl.requestAddComment(anchor);
+    } else {
+      return;
+    }
+    focusSheetCell(request.rowIndex, request.colIndex);
+  }, [activeSheetId, activeTable, commentCtrl, focusSheetCell]);
 
   const handleDownloadAs = useCallback(async (format: DownloadFormat) => {
     if (!workbook || isBase) return;
@@ -176,6 +466,25 @@ export const EditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiResp
       }
     } catch (err) {
       useSheetStore.getState().setStatusText(`下载失败: ${(err as Error).message}`);
+    } finally {
+      setExporting(false);
+    }
+  }, [workbook, docTitle, isBase]);
+
+  const handlePrint = useCallback(async () => {
+    if (isBase) {
+      message.info(BASE_SHEET_PRINT_MESSAGE);
+      return;
+    }
+    if (!workbook) return;
+    setExporting(true);
+    const hide = message.loading('正在准备打印...', 0);
+    try {
+      await printActiveSheet(workbook, docTitle);
+      hide();
+    } catch (err) {
+      hide();
+      message.error(`打印失败: ${(err as Error).message}`);
     } finally {
       setExporting(false);
     }
@@ -201,15 +510,22 @@ export const EditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiResp
   const handleSwitchSheet = useCallback((sheetId: string) => {
     workbook?.switchSheet(sheetId);
     setActiveSheetId(sheetId);
+    const table = workbook?.getSheet(sheetId);
+    if (table && isBaseSheet(table.sheet)) {
+      applySheetStoreFromBaseView(table.sheet);
+    } else {
+      useSheetStore.getState().setCurrentView('grid');
+    }
     useSheetStore.getState().setEditingCell(null);
     useSheetStore.getState().setFormulaBarText('');
     useSheetStore.getState().setSelection(null, null);
   }, [workbook]);
 
-  const handleAddSheet = useCallback((type: 'freeform' | 'standard' | 'base') => {
+  const handleAddSheet = useCallback((type: SheetType) => {
     if (!workbook) return;
-    const sheetName = type === 'base' ? '多维表格' : '普通表格';
-    const newId = workbook.addSheet(sheetName, type === 'standard' ? 'freeform' : type);
+    const sheetType = type === 'base' ? 'base' : 'freeform';
+    const sheetName = sheetType === 'base' ? '多维表格' : '普通表格';
+    const newId = workbook.addSheet(sheetName, sheetType);
     workbook.switchSheet(newId);
     setActiveSheetId(newId);
     useSheetStore.getState().setEditingCell(null);
@@ -266,13 +582,13 @@ export const EditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiResp
   const sheetInfos = workbook?.sheets.map(s => ({ id: s.id, name: s.name, type: s.type })) || [];
 
   useEffect(() => {
-    if (!activeTable || !isBase) return;
+    if (!activeTable || !isBaseSheet(activeTable.sheet)) return;
     const view = getActiveBaseView(activeTable.sheet);
     if (view) useSheetStore.getState().setCurrentView(view.viewType);
   }, [activeTable, activeSheetId, isBase]);
 
   const handleGenerateForm = useCallback(() => {
-    if (!activeTable) return;
+    if (!activeTable || !isBaseSheet(activeTable.sheet)) return;
     const formView = ensureFormView(activeTable.sheet);
     activateBaseView(activeTable.sheet, formView.viewId);
     useSheetStore.getState().setCurrentView('form');
@@ -283,7 +599,7 @@ export const EditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiResp
   }, [activeTable, markDirty]);
 
   const handleSelectView = useCallback((viewId: string) => {
-    if (!activeTable) return;
+    if (!activeTable || !isBaseSheet(activeTable.sheet)) return;
     const view = activateBaseView(activeTable.sheet, viewId);
     if (view) {
       useSheetStore.getState().setCurrentView(view.viewType);
@@ -296,20 +612,42 @@ export const EditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiResp
     markDirty();
   }, [markDirty]);
 
-  const activeFormView = isBase && currentView === 'form'
-    ? activeTable?.sheet.views?.find(v => v.viewId === activeTable.sheet.activeViewId && v.viewType === 'form')
-      ?? activeTable?.sheet.views?.find(v => v.viewType === 'form')
-      ?? null
-    : null;
+  const activeFormView = (() => {
+    if (!isBase || !activeTable || !isBaseSheet(activeTable.sheet)) return null;
+    const sheet = activeTable.sheet;
+    return sheet.views?.find(v => v.viewId === sheet.activeViewId && v.viewType === 'form')
+      ?? sheet.views?.find(v => v.viewType === 'form')
+      ?? null;
+  })();
+
+  const renderFormSharePanel = useCallback((ctx: FormSharePanelContext) => {
+    if (!docId || !activeFormView || readOnly) return null;
+    return (
+      <FormSharePanel
+        docId={docId}
+        sheetId={activeSheetId}
+        formView={activeFormView}
+        anchorRef={ctx.anchorRef}
+        open={ctx.open}
+        onClose={ctx.onClose}
+        onConfigChange={(patch) => {
+          updateFormViewConfig(activeFormView, patch);
+          handleFormViewChange();
+        }}
+        onToast={msg => useSheetStore.getState().setStatusText(msg)}
+      />
+    );
+  }, [docId, activeSheetId, activeFormView, readOnly, handleFormViewChange]);
 
   const handleConfirmField = useCallback((fieldId: string | null, fieldData: Partial<import('@lingyi-doc/core').ColumnDef>) => {
-    if (!activeTable) return;
+    if (!activeTable || !isBaseSheet(activeTable.sheet)) return;
+    const sheet = activeTable.sheet;
     if (fieldId) {
-      const idx = activeTable.sheet.columnDefs.findIndex(c => c.id === fieldId);
+      const idx = sheet.columnDefs.findIndex(c => c.id === fieldId);
       if (idx >= 0) {
-        const existing = activeTable.sheet.columnDefs[idx];
+        const existing = sheet.columnDefs[idx];
         const updated = { ...existing, ...fieldData } as import('@lingyi-doc/core').ColumnDef;
-        activeTable.sheet.columnDefs[idx] = updated;
+        sheet.columnDefs[idx] = updated;
         if (updated.type === 'rating') {
           const width = getRatingColumnWidth(getRatingConfig(updated));
           updated.width = width;
@@ -318,7 +656,7 @@ export const EditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiResp
         useSheetStore.getState().setStatusText('字段已更新');
       }
     } else {
-      const colIndex = activeTable.sheet.columnDefs.length;
+      const colIndex = sheet.columnDefs.length;
       activeTable.insertColumns(colIndex, 1);
       const newField: import('@lingyi-doc/core').ColumnDef = {
         id: `col_${Date.now()}_${colIndex}`,
@@ -330,7 +668,7 @@ export const EditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiResp
       if (newField.type === 'rating') {
         newField.width = getRatingColumnWidth(getRatingConfig(newField));
       }
-      activeTable.sheet.columnDefs.push(newField);
+      sheet.columnDefs.push(newField);
       activeTable.setColumnWidth(colIndex, newField.width || 160);
       useSheetStore.getState().setStatusText(`已添加字段「${newField.name}」`);
     }
@@ -339,7 +677,7 @@ export const EditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiResp
   }, [activeTable]);
 
   const handleToggleFieldVisibility = useCallback((fieldId: string, visible: boolean) => {
-    if (!activeTable) return;
+    if (!activeTable || !isBaseSheet(activeTable.sheet)) return;
     const field = activeTable.sheet.columnDefs.find(c => c.id === fieldId);
     if (field) {
       field.hidden = !visible;
@@ -357,7 +695,7 @@ export const EditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiResp
   }, [activeTable]);
 
   const handleDeleteField = useCallback((fieldId: string) => {
-    if (!activeTable) return;
+    if (!activeTable || !isBaseSheet(activeTable.sheet)) return;
     const idx = activeTable.sheet.columnDefs.findIndex(c => c.id === fieldId);
     if (idx > 0) {
       activeTable.deleteColumns(idx, 1);
@@ -372,7 +710,7 @@ export const EditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiResp
   }, [handleConfirmField, editingFieldId]);
 
   const handleAddRecord = useCallback(() => {
-    if (!activeTable) return;
+    if (!activeTable || !isBaseSheet(activeTable.sheet)) return;
     const rowCount = activeTable.rowCount;
     activeTable.insertRows(rowCount, 1);
     const autoNumCol = activeTable.sheet.columnDefs.findIndex(c => c.type === 'autoNumber');
@@ -381,6 +719,61 @@ export const EditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiResp
     }
     useSheetStore.getState().setStatusText('已添加记录');
   }, [activeTable]);
+
+  const activeBaseView = isBase && activeTable && isBaseSheet(activeTable.sheet)
+    ? ensureActiveBaseView(activeTable.sheet)
+    : null;
+  const groupRules = activeBaseView?.group ?? [];
+  const filterConditions = activeBaseView?.filter ?? [];
+  const sortRules = activeBaseView?.sort ?? [];
+
+  const filteredRecordCount = useMemo(() => {
+    if (!activeTable || !isBaseSheet(activeTable.sheet)) return activeTable?.rowCount ?? 0;
+    if (!filterConditions.length) return activeTable.rowCount;
+    const sheet = activeTable.sheet;
+    return prepareGroupedRecordIndices({
+      rowCount: sheet.rowCount,
+      filter: filterConditions,
+      columnDefs: sheet.columnDefs,
+      getFieldValue: (row, fieldId) => {
+        const colIndex = sheet.columnDefs.findIndex(c => c.id === fieldId);
+        return colIndex >= 0 ? activeTable.getCell(row, colIndex)?.value : undefined;
+      },
+    }).length;
+  }, [activeTable, filterConditions]);
+
+  const handleGroupRulesChange = useCallback((rules: GroupRule[]) => {
+    if (!activeTable || !isBaseSheet(activeTable.sheet)) return;
+    const view = ensureActiveBaseView(activeTable.sheet);
+    updateBaseViewGroupRules(view, rules);
+    activeTable.notifyChange(null);
+    markDirty();
+    useSheetStore.getState().setStatusText(
+      rules.length > 0 ? `已设置 ${rules.length} 级分组` : '已取消分组',
+    );
+  }, [activeTable, markDirty]);
+
+  const handleFilterChange = useCallback((conditions: FilterCondition[]) => {
+    if (!activeTable || !isBaseSheet(activeTable.sheet)) return;
+    const view = ensureActiveBaseView(activeTable.sheet);
+    updateBaseViewFilter(view, conditions);
+    activeTable.notifyChange(null);
+    markDirty();
+    useSheetStore.getState().setStatusText(
+      conditions.length > 0 ? `已设置 ${conditions.length} 条筛选` : '已清除筛选',
+    );
+  }, [activeTable, markDirty]);
+
+  const handleSortChange = useCallback((rules: SortRule[]) => {
+    if (!activeTable || !isBaseSheet(activeTable.sheet)) return;
+    const view = ensureActiveBaseView(activeTable.sheet);
+    updateBaseViewSort(view, rules);
+    activeTable.notifyChange(null);
+    markDirty();
+    useSheetStore.getState().setStatusText(
+      rules.length > 0 ? `已设置 ${rules.length} 条排序` : '已清除排序',
+    );
+  }, [activeTable, markDirty]);
 
   if (loading) {
     return (
@@ -407,7 +800,7 @@ export const EditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiResp
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%', background: isBase ? BASE_THEME.pageBg : '#fff' }}>
-      {!embedded && (
+      {(!embedded || breadcrumbItems) && (
         <DocumentBar
           docId={docId || null}
           title={docTitle}
@@ -415,17 +808,26 @@ export const EditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiResp
           onTitleChange={handleTitleChange}
           lastModified={lastModified}
           docType={isBase ? 'base' : 'freeform'}
+          exporting={exporting}
           onDownloadAs={!isBase ? handleDownloadAs : undefined}
+          onPrint={handlePrint}
           canEdit={canEdit}
           effectiveViewMode={effectiveViewMode}
           onTogglePreview={onTogglePreview}
+          breadcrumbItems={breadcrumbItems}
         />
       )}
 
-      {!readOnly && !isBase && (
-        <Toolbar table={activeTable} onInsertChart={() => setShowChartDialog(true)} />
+      {!readOnly && !collabViewOnly && !isBase && (
+        <Toolbar
+          table={activeTable}
+          onInsertChart={() => setShowChartDialog(true)}
+          commentsEnabled={commentsEnabled}
+          commentPanelOpen={commentCtrl.showCommentPanel}
+          onToggleCommentPanel={() => commentCtrl.setShowCommentPanel(v => !v)}
+        />
       )}
-      {!readOnly && isBase && currentView !== 'form' && (
+      {!readOnly && !collabViewOnly && isBase && currentView !== 'form' && (
         <BaseToolbar
           table={activeTable}
           onToggleFieldVisibility={handleToggleFieldVisibility}
@@ -435,11 +837,16 @@ export const EditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiResp
           onAddRecord={handleAddRecord}
           onGenerateForm={handleGenerateForm}
           recordCount={activeTable.rowCount}
+          filteredRecordCount={filterConditions.length > 0 ? filteredRecordCount : undefined}
           selectedCount={selectedCount}
+          groupRules={groupRules}
+          onGroupRulesChange={handleGroupRulesChange}
+          filterConditions={filterConditions}
+          onFilterChange={handleFilterChange}
+          sortRules={sortRules}
+          onSortChange={handleSortChange}
         />
       )}
-      {!readOnly && !isBase && <FormulaBar />}
-
       <div style={{
         flex: 1,
         minHeight: 0,
@@ -449,55 +856,62 @@ export const EditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiResp
         background: isBase ? BASE_THEME.pageBg : '#fff',
         padding: isBase ? '12px 16px' : 0,
       }}>
-        {isBase && (
-          <div style={{
-            display: 'flex',
-            height: '100%',
-            flex: 1,
-            background: BASE_THEME.cardBg,
-            border: `1px solid ${BASE_THEME.cardBorder}`,
-            borderRadius: BASE_THEME.cardRadius,
-            overflow: 'hidden',
-          }}>
-            <BaseViewSidebar
-              views={activeTable.sheet.views || []}
-              activeViewId={activeTable.sheet.activeViewId}
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+          {isBase ? (
+            <BaseSheetEditor
+              table={activeTable}
+              previewMode={readOnly || collabViewOnly}
+              selectedChartId={selectedChartId}
+              onSelectChart={setSelectedChartId}
+              onOpenFieldConfig={fieldId => { setEditingFieldId(fieldId || null); setFieldConfigVisible(true); }}
+              onToggleFieldVisibility={handleToggleFieldVisibility}
+              onDeleteField={handleDeleteField}
+              containerKey={`${docId}-${activeSheetId}`}
+              currentView={currentView}
+              activeFormView={activeFormView}
               onSelectView={handleSelectView}
+              onFormViewChange={handleFormViewChange}
+              readOnly={readOnly}
+              renderFormSharePanel={renderFormSharePanel}
+              commentsEnabled={commentsEnabled && canComment}
+              onAddSheetComment={handleAddSheetComment}
+              sheetCommentThreads={activeSheetCommentThreads}
+              selectedCommentId={commentCtrl.selectedCommentId}
             />
-            <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-              {currentView === 'form' && activeFormView ? (
-                <FormViewEditor
-                  table={activeTable}
-                  formView={activeFormView}
-                  onChange={handleFormViewChange}
-                  onDeleteField={handleDeleteField}
-                  readOnly={readOnly}
-                />
-              ) : (
-                <SheetContainer
-                  key={`${docId}-${activeSheetId}`}
-                  table={activeTable}
-                  previewMode={readOnly}
-                  selectedChartId={selectedChartId}
-                  onSelectChart={setSelectedChartId}
-                  onOpenFieldConfig={fieldId => { setEditingFieldId(fieldId || null); setFieldConfigVisible(true); }}
-                  onToggleFieldVisibility={handleToggleFieldVisibility}
-                  onDeleteField={handleDeleteField}
-                />
-              )}
-            </div>
-          </div>
-        )}
-        {!isBase && (
-          <SheetContainer
-            key={`${docId}-${activeSheetId}`}
-            table={activeTable}
-            previewMode={readOnly}
-            selectedChartId={selectedChartId}
-            onSelectChart={setSelectedChartId}
-            onOpenFieldConfig={fieldId => { setEditingFieldId(fieldId || null); setFieldConfigVisible(true); }}
-            onToggleFieldVisibility={handleToggleFieldVisibility}
-            onDeleteField={handleDeleteField}
+          ) : (
+            <FreeformSheetEditor
+              table={activeTable}
+              previewMode={readOnly || collabViewOnly}
+              selectedChartId={selectedChartId}
+              onSelectChart={setSelectedChartId}
+              onOpenFieldConfig={fieldId => { setEditingFieldId(fieldId || null); setFieldConfigVisible(true); }}
+              onToggleFieldVisibility={handleToggleFieldVisibility}
+              onDeleteField={handleDeleteField}
+              containerKey={`${docId}-${activeSheetId}`}
+              showFormulaBar={!readOnly && !collabViewOnly}
+              commentsEnabled={commentsEnabled && canComment}
+              onAddSheetComment={handleAddSheetComment}
+              sheetCommentThreads={activeSheetCommentThreads}
+              selectedCommentId={commentCtrl.selectedCommentId}
+            />
+          )}
+        </div>
+
+        {commentsEnabled && commentCtrl.showCommentPanel && (
+          <DocCommentPanel
+            threads={commentCtrl.commentThreads}
+            selectedId={commentCtrl.selectedCommentId}
+            onSelect={handleSelectSheetComment}
+            onClose={() => commentCtrl.setShowCommentPanel(false)}
+            onResolve={commentCtrl.handleCommentResolve}
+            onReply={commentCtrl.handleCommentReply}
+            onEditReply={commentCtrl.handleCommentEdit}
+            onDeleteReply={commentCtrl.handleCommentDelete}
+            onLikeReply={commentCtrl.handleCommentLike}
+            canComment={canComment}
+            currentAuthorId={commentCtrl.commentAuthor.authorId}
+            currentAuthorName={commentCtrl.commentAuthor.authorName}
+            currentAuthorAvatar={commentCtrl.commentAuthor.authorAvatar}
           />
         )}
       </div>
@@ -511,8 +925,16 @@ export const EditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiResp
         onDelete={readOnly ? () => {} : handleDeleteSheet}
       />
       {!readOnly && <StatusBar table={activeTable} />}
+      {!readOnly && (
+        <CollabStatusBar
+          collabState={collabState}
+          collabUsers={collabUsers}
+          collabViewOnly={collabViewOnly}
+          activeCellEditor={activeCellEditor}
+        />
+      )}
 
-      {!readOnly && isBase && (
+      {!readOnly && isBase && isBaseSheet(activeTable.sheet) && (
         <FieldConfigPanel
           visible={fieldConfigVisible}
           field={editingFieldId ? activeTable.sheet.columnDefs.find(c => c.id === editingFieldId) || null : null}

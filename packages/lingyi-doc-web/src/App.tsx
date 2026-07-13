@@ -1,5 +1,5 @@
 import React, { useEffect, useSyncExternalStore } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useNavigate, useParams } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { message } from 'antd';
 import { SheetAntdProvider } from '@lingyi-doc/editor';
 import { configureDocumentManager } from '@lingyi-doc/core';
@@ -19,9 +19,11 @@ import { HomeRoute } from './components/HomeRoute';
 import { ShareLegacyRedirectPage } from './pages/ShareLegacyRedirectPage';
 import { CollaboratorJoinPage, PublicLinkJoinPage } from './pages/CollaboratorJoinPage';
 import { DocPublicEditorPage } from './pages/DocPublicEditorPage';
+import { PublicFormFillPage } from './pages/PublicFormFillPage';
 import { authStore } from './stores/authStore';
 import { documentLibraryStore } from './stores/documentLibraryStore';
 import { appPath, RESERVED_PATH_ROOTS } from './utils/appPaths';
+import { parseFormShareParams } from './utils/formShareLink';
 
 configureDocumentManager({
   getAccessToken: () => authStore.getAccessToken(),
@@ -58,12 +60,17 @@ const LegacyDocRedirect: React.FC = () => {
 
 const DocPublicRoute: React.FC = () => {
   const { spaceSlug = '' } = useParams<{ spaceSlug: string }>();
+  const [searchParams] = useSearchParams();
+  const { isFormFill } = parseFormShareParams(searchParams);
   const authed = useSyncExternalStore(
     authStore.subscribe,
     () => authStore.isAuthenticated(),
   );
   if (RESERVED_PATH_ROOTS.has(spaceSlug)) {
     return <Navigate to="/" replace />;
+  }
+  if (isFormFill) {
+    return <PublicFormFillPage />;
   }
   if (authed) {
     return (

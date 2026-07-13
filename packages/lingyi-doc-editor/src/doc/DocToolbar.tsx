@@ -34,8 +34,10 @@ type MenuKey = 'style' | 'size' | 'align' | 'ordered' | 'indent' | 'textColor' |
 interface DocToolbarProps {
   state: ToolbarState;
   showOutline: boolean;
+  showComments?: boolean;
   onAction: (action: ToolbarAction) => void;
   onToggleOutline: () => void;
+  onToggleComments?: () => void;
   onToggleFullscreen: () => void;
   onInsertImage?: () => void;
   insertMenuAnchorRef?: React.RefObject<HTMLButtonElement>;
@@ -44,8 +46,10 @@ interface DocToolbarProps {
 export const DocToolbar: React.FC<DocToolbarProps> = ({
   state,
   showOutline,
+  showComments = false,
   onAction,
   onToggleOutline,
+  onToggleComments,
   onToggleFullscreen,
   onInsertImage,
   insertMenuAnchorRef,
@@ -168,7 +172,11 @@ export const DocToolbar: React.FC<DocToolbarProps> = ({
         open={openMenu === 'ordered'}
         active={state.listType === 'ordered'}
         onToggle={() => toggle('ordered')}
-        onSelect={() => { onAction({ type: 'list', listType: 'ordered' }); closeAll(); }}
+        onSelect={styleIndex => {
+          const styles = ['multiLevel', 'chinese', 'hierarchical'] as const;
+          onAction({ type: 'list', listType: 'ordered', orderedStyle: styles[styleIndex] });
+          closeAll();
+        }}
       />
 
       <IndentDropdown
@@ -188,8 +196,18 @@ export const DocToolbar: React.FC<DocToolbarProps> = ({
 
       <DocIconBtn label="插入图片" onClick={() => onInsertImage?.()}><IconImage /></DocIconBtn>
 
-      <div style={toolbarDivider} />
+      {onToggleComments && (
+        <>
+          <div style={toolbarDivider} />
+          <DocIconBtn label="评论" active={showComments} onClick={onToggleComments}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
+            </svg>
+          </DocIconBtn>
+        </>
+      )}
 
+      <div style={toolbarDivider} />
       <DocIconBtn label="大纲" active={showOutline} onClick={onToggleOutline}><IconOutline /></DocIconBtn>
       <DocIconBtn label="全屏" onClick={onToggleFullscreen}><IconFullscreen /></DocIconBtn>
     </div>
@@ -275,7 +293,7 @@ function AlignDropdown({ open, align, AlignIcon, onToggle, onSelect }: {
 }
 
 function OrderedListDropdown({ open, active, onToggle, onSelect }: {
-  open: boolean; active: boolean; onToggle: () => void; onSelect: () => void;
+  open: boolean; active: boolean; onToggle: () => void; onSelect: (styleIndex: number) => void;
 }) {
   const anchorRef = useRef<HTMLDivElement>(null);
   const pos = useFloatingPos(anchorRef, open);
@@ -302,7 +320,7 @@ function OrderedListDropdown({ open, active, onToggle, onSelect }: {
           border: `1px solid ${DOC_COLORS.border}`, zIndex: 10000, display: 'flex', gap: 8,
         }}>
           {styles.map((st, i) => (
-            <button key={i} type="button" onClick={() => { setSel(i); onSelect(); }}
+            <button key={i} type="button" onClick={() => { setSel(i); onSelect(i); }}
               onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)}
               style={{
                 width: 100, padding: '8px 10px', borderRadius: 8, cursor: 'pointer', textAlign: 'left',

@@ -7,6 +7,12 @@ export interface MindNode {
   bold?: boolean;
   italic?: boolean;
   underline?: boolean;
+  /** 中划线 */
+  lineThrough?: boolean;
+  /** 文字水平对齐 */
+  textAlign?: 'left' | 'center' | 'right';
+  /** 文字垂直对齐 */
+  textVerticalAlign?: 'top' | 'center' | 'bottom';
   /** 文字颜色 */
   color?: string;
   /** 节点描述/备注 */
@@ -33,6 +39,8 @@ export interface MindNode {
   fillOpacity?: number;
   /** 画板思维导图：边框不透明度 0-100 */
   borderOpacity?: number;
+  /** 主节点一级子节点的扩展方向（左右/上下布局手动指定，不自动分配） */
+  branchDir?: 'left' | 'right' | 'up' | 'down';
   children: MindNode[];
 }
 
@@ -80,6 +88,8 @@ export interface MindMapLayoutNode {
   isRoot: boolean;
   style: MindMapNodeStyle;
   side?: 'left' | 'right';
+  /** 上下结构：子节点扩展方向 */
+  vertDir?: 'up' | 'down';
 }
 
 export interface MindMapPath {
@@ -94,6 +104,13 @@ export interface MindMapEdge {
   y1: number;
   x2: number;
   y2: number;
+}
+
+/** 思维导图布局测量选项（主题字号等与渲染保持一致） */
+export interface MindMapMeasureOptions {
+  getFontSize?: (node: MindNode, depth: number, style: MindMapNodeStyle) => number;
+  getFontWeight?: (node: MindNode, depth: number, style: MindMapNodeStyle) => number | string;
+  getLineHeight?: (fontSize: number, depth: number, style: MindMapNodeStyle) => number;
 }
 
 export interface MindMapLayout {

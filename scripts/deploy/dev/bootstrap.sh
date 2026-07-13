@@ -21,7 +21,7 @@ export DEBIAN_FRONTEND=noninteractive
 
 echo "1/7 更新系统包..."
 apt-get update -qq
-apt-get install -y -qq curl git rsync nginx ca-certificates gnupg lsb-release
+apt-get install -y -qq curl git rsync nginx openssl ca-certificates gnupg lsb-release
 
 echo "2/7 安装 Node.js ${NODE_MAJOR}.x..."
 if ! command -v node >/dev/null 2>&1 || [[ "$(node -p "process.versions.node.split('.')[0]")" -lt "$NODE_MAJOR" ]]; then
@@ -67,8 +67,7 @@ if command -v ufw >/dev/null 2>&1 && ufw status | grep -q "Status: active"; then
   ufw allow 22/tcp
   ufw allow 80/tcp
   ufw allow 443/tcp
-  ufw allow 8080/tcp
-  echo "   已放行 22/80/443/8080"
+  echo "   已放行 22/80/443"
 else
   echo "   未检测到 active ufw，请在阿里云安全组放行: 22, 80, (443)"
 fi
@@ -82,5 +81,5 @@ echo "  2. 配置 deploy/dev/.env（DB_HOST 填阿里云 RDS 地址，部署时�
 echo "  3. 在本地执行: npm run deploy:dev"
 echo ""
 echo "阿里云安全组建议:"
-echo "  - 入方向: TCP 22 (SSH), 80 (HTTP), 8080 (管理端，无独立域名时), 443 (HTTPS 可选)"
+echo "  - 入方向: TCP 22 (SSH), 80 (HTTP), 443 (HTTPS)"
 echo "  - MySQL 3306 勿对 0.0.0.0/0 开放"

@@ -3,7 +3,7 @@ import { DatePicker } from 'antd';
 import dayjs, { type Dayjs } from 'dayjs';
 import type { ColumnDef, FormDisplayCondition } from '@lingyi-doc/core';
 import { BASE_THEME, getSelectTagColors } from '@lingyi-doc/core';
-import { getFieldTypeMeta } from './fieldTypeMeta';
+import { FieldTypeIcon } from './FieldTypeIcon';
 import {
   createDefaultDisplayCondition,
   getOperatorLabel,
@@ -171,19 +171,16 @@ export const FormConditionalEditor: React.FC<FormConditionalEditorProps> = ({
   onChange,
 }) => {
   const fieldOptions = useMemo(
-    () => precedingFields.map(field => {
-      const meta = getFieldTypeMeta(field.type);
-      return {
+    () => precedingFields.map(field => ({
         value: field.id,
         searchText: field.name,
         label: (
           <>
-            <span style={{ fontSize: 14, width: 18, textAlign: 'center', flexShrink: 0 }}>{meta.icon}</span>
+            <FieldTypeIcon type={field.type} size={16} style={{ flexShrink: 0 }} />
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{field.name}</span>
           </>
         ),
-      };
-    }),
+      })),
     [precedingFields],
   );
 
@@ -231,10 +228,9 @@ export const FormConditionalEditor: React.FC<FormConditionalEditorProps> = ({
                   if (!selected) return null;
                   const col = precedingFields.find(f => f.id === selected.value);
                   if (!col) return selected.label;
-                  const meta = getFieldTypeMeta(col.type);
                   return (
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-                      <span>{meta.icon}</span>
+                      <FieldTypeIcon type={col.type} size={16} />
                       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{col.name}</span>
                     </span>
                   );

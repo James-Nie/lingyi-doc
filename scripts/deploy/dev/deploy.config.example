@@ -14,9 +14,15 @@ DEPLOY_SSH_PORT=22
 DEPLOY_PATH=/opt/lingyi-doc
 
 # ===== 域名（无域名时可填 ECS 公网 IP）=====
-# C 端与管理端填同一 IP 时，管理端自动使用 8080 端口
+# C 端与管理端共用同一域名/IP 时，管理端通过 /admin 路径访问
 DESKTOP_DOMAIN=47.xxx.xxx.xxx
 ADMIN_DOMAIN=47.xxx.xxx.xxx
+
+# ===== HTTPS（证书放在 ECS /ssl/ 目录）=====
+#   /ssl/cert.pem  — 服务器证书（或 fullchain）
+#   /ssl/cert.key  — 私钥
+#   /ssl/cert.cer  — 链证书/CA（可选，用于 ssl_trusted_certificate）
+# 关闭 HTTPS: ENABLE_SSL=false
 
 # ===== MySQL（dev 部署使用阿里云 RDS，不用 ECS Docker MySQL）=====
 # 在 deploy/dev/.env 中配置 DB_HOST 为 RDS 地址（勿使用 127.0.0.1，除非 ECS 已安装本机 MySQL）

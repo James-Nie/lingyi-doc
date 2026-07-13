@@ -1,10 +1,20 @@
 import React from 'react';
 import type { ShapeKind } from '@lingyi-doc/core';
-import { PLUS_SHAPE_PATH_D } from './canvas/shapePaths';
+import { PLUS_SHAPE_PATH_D, bracePathD } from './canvas/shapePaths';
+import { DiagramShapeIcon } from './diagramShapeIcons';
+import { isExtendedDiagramKind } from './canvas/diagramShapePaths';
 
 const S = { fill: 'none', stroke: '#333', strokeWidth: 1.5, strokeLinejoin: 'round' as const };
 
 export function ShapeIcon({ kind }: { kind: ShapeKind }) {
+  if (isExtendedDiagramKind(kind)) {
+    return (
+      <svg width={22} height={22} viewBox="0 0 24 24" aria-hidden>
+        <DiagramShapeIcon kind={kind} />
+      </svg>
+    );
+  }
+
   const icon = (() => {
     switch (kind) {
       case 'roundRect':
@@ -69,19 +79,9 @@ export function ShapeIcon({ kind }: { kind: ShapeKind }) {
       case 'cloud':
         return <path d="M7 18h10a4 4 0 0 0 .5-8 5.5 5.5 0 0 0-10.6-1A3.5 3.5 0 0 0 7 18z" {...S} />;
       case 'braceLeft':
-        return (
-          <>
-            <path d="M19 4C13 4 12 8 14 12C12 16 13 20 19 20" {...S} strokeLinecap="round" />
-            <path d="M4 7H14M4 12H14M4 17H14" {...S} strokeLinecap="round" />
-          </>
-        );
+        return <path d={bracePathD('left')} {...S} strokeLinecap="butt" strokeLinejoin="round" />;
       case 'braceRight':
-        return (
-          <>
-            <path d="M5 4C11 4 12 8 10 12C12 16 11 20 5 20" {...S} strokeLinecap="round" />
-            <path d="M10 7H20M10 12H20M10 17H20" {...S} strokeLinecap="round" />
-          </>
-        );
+        return <path d={bracePathD('right')} {...S} strokeLinecap="butt" strokeLinejoin="round" />;
       case 'plus':
         return <path d={PLUS_SHAPE_PATH_D} {...S} />;
       case 'process':

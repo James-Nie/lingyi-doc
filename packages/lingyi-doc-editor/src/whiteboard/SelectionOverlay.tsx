@@ -2,16 +2,18 @@ import React from 'react';
 import type { ConnectorElement, WhiteboardElement, WhiteboardPoint } from '@lingyi-doc/core';
 import { WB_COLORS } from './styles';
 import { elementBounds, type ResizeHandle } from './viewportUtils';
+import { resizeHandleDomStyle, resizeHandleEdgeOffset, selectionCornerHalf } from './canvas/selectionUi';
 
+const handleOffset = resizeHandleEdgeOffset();
 const HANDLES: { id: ResizeHandle; style: React.CSSProperties }[] = [
-  { id: 'nw', style: { left: -5, top: -5, cursor: 'nwse-resize' } },
-  { id: 'n', style: { left: '50%', top: -5, marginLeft: -5, cursor: 'ns-resize' } },
-  { id: 'ne', style: { right: -5, top: -5, cursor: 'nesw-resize' } },
-  { id: 'e', style: { right: -5, top: '50%', marginTop: -5, cursor: 'ew-resize' } },
-  { id: 'se', style: { right: -5, bottom: -5, cursor: 'nwse-resize' } },
-  { id: 's', style: { left: '50%', bottom: -5, marginLeft: -5, cursor: 'ns-resize' } },
-  { id: 'sw', style: { left: -5, bottom: -5, cursor: 'nesw-resize' } },
-  { id: 'w', style: { left: -5, top: '50%', marginTop: -5, cursor: 'ew-resize' } },
+  { id: 'nw', style: { left: handleOffset, top: handleOffset, cursor: 'nwse-resize' } },
+  { id: 'n', style: { left: '50%', top: handleOffset, marginLeft: handleOffset, cursor: 'ns-resize' } },
+  { id: 'ne', style: { right: handleOffset, top: handleOffset, cursor: 'nesw-resize' } },
+  { id: 'e', style: { right: handleOffset, top: '50%', marginTop: handleOffset, cursor: 'ew-resize' } },
+  { id: 'se', style: { right: handleOffset, bottom: handleOffset, cursor: 'nwse-resize' } },
+  { id: 's', style: { left: '50%', bottom: handleOffset, marginLeft: handleOffset, cursor: 'ns-resize' } },
+  { id: 'sw', style: { left: handleOffset, bottom: handleOffset, cursor: 'nesw-resize' } },
+  { id: 'w', style: { left: handleOffset, top: '50%', marginTop: handleOffset, cursor: 'ew-resize' } },
 ];
 
 interface SelectionOverlayProps {
@@ -111,13 +113,8 @@ export const SelectionOverlay: React.FC<SelectionOverlayProps> = ({
               }}
               style={{
                 position: 'absolute',
-                width: 12,
-                height: 12,
-                borderRadius: 2,
-                background: '#fff',
-                border: `2px solid ${WB_COLORS.accent}`,
-                boxSizing: 'border-box',
                 pointerEvents: 'auto',
+                ...resizeHandleDomStyle(WB_COLORS.accent),
                 ...h.style,
               }}
             />
@@ -137,13 +134,10 @@ export const SelectionOverlay: React.FC<SelectionOverlayProps> = ({
                 }}
                 style={{
                   position: 'absolute',
-                  left: pt.x - 6,
-                  top: pt.y - 6,
-                  width: 12,
-                  height: 12,
+                  left: pt.x - selectionCornerHalf(),
+                  top: pt.y - selectionCornerHalf(),
+                  ...resizeHandleDomStyle(WB_COLORS.accent),
                   borderRadius: '50%',
-                  background: '#fff',
-                  border: `2px solid ${WB_COLORS.accent}`,
                   zIndex: 10000,
                   pointerEvents: 'auto',
                   cursor: 'crosshair',

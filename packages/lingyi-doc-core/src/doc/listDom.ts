@@ -94,8 +94,12 @@ export function extractListItemText(li: HTMLElement): string {
   return readListTextEl(getListTextEl(li));
 }
 
-function caretOffsetInContainer(container: HTMLElement, node: Node, nodeOffset: number): number {
-  if (!container.contains(node)) return readListTextEl(container).length;
+function caretOffsetInContainer(container: HTMLElement, node: Node, nodeOffset: number, li?: HTMLElement): number {
+  if (li) {
+    const marker = li.querySelector('[data-list-marker]');
+    if (marker && (marker === node || marker.contains(node))) return 0;
+  }
+  if (!container.contains(node)) return 0;
   const range = document.createRange();
   range.selectNodeContents(container);
   range.setEnd(node, nodeOffset);
@@ -118,8 +122,8 @@ export function getListCaretContext(listRoot: HTMLElement): ListCaretContext | n
   return {
     anchorItemIndex: getListItemIndex(anchorLi),
     focusItemIndex: getListItemIndex(focusLi),
-    anchorOffset: caretOffsetInContainer(anchorTextEl, sel.anchorNode!, sel.anchorOffset),
-    focusOffset: caretOffsetInContainer(focusTextEl, sel.focusNode!, sel.focusOffset),
+    anchorOffset: caretOffsetInContainer(anchorTextEl, sel.anchorNode!, sel.anchorOffset, anchorLi),
+    focusOffset: caretOffsetInContainer(focusTextEl, sel.focusNode!, sel.focusOffset, focusLi),
     collapsed: sel.isCollapsed,
     focusItemText: readListTextEl(focusTextEl),
   };
@@ -239,7 +243,9 @@ export function extractListItemsFromDom(listRoot: HTMLElement, existingItems: Li
 }
 
 function listMarkerText(block: ListBlock, items: ListItem[], index: number): string {
-  if (block.listType === 'ordered') return orderedListMarker(items, index);
+  if (block.listType === 'ordered') {
+    return orderedListMarker(items, index, block.orderedStyle ?? 'multiLevel');
+  }
   if (block.listType === 'task') return '';
   return getBulletMarkerForLevel(items[index]?.level ?? 1);
 }
@@ -336,6 +342,11 @@ export function syncListDom(
       marker.style.fontSize = '15px';
       marker.style.lineHeight = '1.7';
       marker.style.userSelect = 'none';
+      marker.addEventListener('mousedown', (e) => {
+        if (e.button !== 0 || e.shiftKey) return;
+        e.preventDefault();
+        setListItemCaret(listRoot, i, 0);
+      });
       li.appendChild(marker);
     }
 

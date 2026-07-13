@@ -7,11 +7,21 @@ import type {
   WhiteboardPoint,
 } from './types';
 import {
+  anchorOutwardVector,
   defaultElbowPoints,
   elbowPathD,
   elbowPathSegments,
   resolveElbowRoute,
+  type ResolveElbowRouteOpts,
 } from './elbowConnector';
+import {
+  curvePathDFromPoints,
+  curvePathSegments,
+  curvePathDFromEndpoints,
+  ensureCurvePathPoints,
+  initCurvePathPoints,
+  normalizePathPoint,
+} from './pathEditing';
 
 export const ANCHOR_IDS: AnchorId[] = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
 
@@ -65,22 +75,61 @@ export interface ConnectionSnap {
   point: WhiteboardPoint;
 }
 
-/** 查找光标附近可吸附的锚点 */
+export interface ConnectionSnapOpts {
+  excludeId?: string;
+  snapRadius?: number;
+  /** 连线来向（用于优先选对侧锚点） */
+  fromPoint?: WhiteboardPoint;
+}
+
+
+function scoreConnectionAnchor(
+  anchor: AnchorId,
+  anchorPoint: WhiteboardPoint,
+  cursor: WhiteboardPoint,
+  fromPoint: WhiteboardPoint | undefined,
+  snapRadius: number,
+): number {
+  const dist = Math.hypot(cursor.x - anchorPoint.x, cursor.y - anchorPoint.y);
+  if (dist > snapRadius) return -Infinity;
+  const distScore = 1 - dist / snapRadius;
+  if (!fromPoint) return distScore;
+
+  const approach = {
+    x: cursor.x - fromPoint.x,
+    y: cursor.y - fromPoint.y,
+  };
+  const approachLen = Math.hypot(approach.x, approach.y);
+  if (approachLen < 1e-6) return distScore;
+
+  const outward = anchorOutwardVector(anchor);
+  const align = -(approach.x / approachLen * outward.x + approach.y / approachLen * outward.y);
+  return distScore * 0.4 + Math.max(0, align) * 0.6;
+}
+
+/** 查找光标附近可吸附的锚点（综合距离与来向对齐） */
 export function findConnectionSnap(
   elements: WhiteboardElement[],
   pt: WhiteboardPoint,
-  opts?: { excludeId?: string; snapRadius?: number },
+  opts?: ConnectionSnapOpts,
 ): ConnectionSnap | null {
   const snapRadius = opts?.snapRadius ?? 40;
-  let best: (ConnectionSnap & { dist: number }) | null = null;
+  const fromPoint = opts?.fromPoint;
+  let best: (ConnectionSnap & { score: number }) | null = null;
 
   for (const el of elements) {
     if (!isConnectable(el) || el.id === opts?.excludeId) continue;
     if (!pointInElement(pt, el, 20)) continue;
     for (const a of getElementAnchors(el)) {
-      const d = Math.hypot(pt.x - a.x, pt.y - a.y);
-      if (d <= snapRadius && (!best || d < best.dist)) {
-        best = { elementId: el.id, anchor: a.id, point: { x: a.x, y: a.y }, dist: d };
+      const score = scoreConnectionAnchor(a.id, a, pt, fromPoint, snapRadius);
+      if (score <= -Infinity) continue;
+      if (!best || score > best.score) {
+        best = {
+          elementId: el.id,
+          anchor: a.id,
+          point: { x: a.x, y: a.y },
+          score,
+        };
       }
     }
   }
@@ -118,13 +167,23 @@ export function getConnectorEndpoints(
   return [start, end];
 }
 
+function elbowRouteOpts(conn: ConnectorElement): ResolveElbowRouteOpts | undefined {
+  if (!conn.startBind || !conn.endBind) return undefined;
+  return {
+    startAnchor: conn.startBind.anchor,
+    endAnchor: conn.endBind.anchor,
+  };
+}
+
 export function syncBoundConnectors(elements: WhiteboardElement[]): WhiteboardElement[] {
   return elements.map(el => {
     if (el.type !== 'connector') return el;
     const [start, end] = getConnectorEndpoints(el, elements);
     const points = el.style === 'elbow'
-      ? resolveElbowRoute(el.points, start, end)
-      : [start, end];
+      ? resolveElbowRoute(el.points, start, end, elbowRouteOpts(el))
+      : el.style === 'curve'
+        ? ensureCurvePathPoints(el.points, start, end)
+        : [start, end];
     const xs = points.map(p => p.x);
     const ys = points.map(p => p.y);
     return {
@@ -144,7 +203,10 @@ export function getConnectorRoutePoints(
 ): WhiteboardPoint[] {
   const [start, end] = getConnectorEndpoints(conn, elements);
   if (conn.style === 'elbow') {
-    return resolveElbowRoute(conn.points, start, end);
+    return resolveElbowRoute(conn.points, start, end, elbowRouteOpts(conn));
+  }
+  if (conn.style === 'curve') {
+    return ensureCurvePathPoints(conn.points, start, end);
   }
   return [start, end];
 }
@@ -156,12 +218,20 @@ export function connectorPathD(
   route?: WhiteboardPoint[],
 ): string {
   if (style === 'elbow') {
-    const pts = route && route.length >= 2 ? route : defaultElbowPoints(a, b);
+    const pts = route && route.length >= 3
+      ? route
+      : defaultElbowPoints(a, b);
     return elbowPathD(pts);
   }
   if (style === 'curve') {
-    const cx = (a.x + b.x) / 2;
-    return `M ${a.x} ${a.y} Q ${cx} ${a.y} ${b.x} ${b.y}`;
+    if (route && route.length >= 2) {
+      const pathPoints = route.map((p, i) => normalizePathPoint(
+        p,
+        i === 0 || i === route.length - 1 ? 'corner' : 'smooth',
+      ));
+      return curvePathDFromPoints(pathPoints);
+    }
+    return curvePathDFromEndpoints(a, b);
   }
   return `M ${a.x} ${a.y} L ${b.x} ${b.y}`;
 }
@@ -173,25 +243,20 @@ function connectorPathSegments(
   route?: WhiteboardPoint[],
 ): [WhiteboardPoint, WhiteboardPoint][] {
   if (style === 'elbow') {
-    const pts = route && route.length >= 2 ? route : defaultElbowPoints(a, b);
+    const pts = route && route.length >= 3
+      ? route
+      : defaultElbowPoints(a, b);
     return elbowPathSegments(pts);
   }
   if (style === 'curve') {
-    const cx = (a.x + b.x) / 2;
-    const steps = 12;
-    const segments: [WhiteboardPoint, WhiteboardPoint][] = [];
-    let prev = a;
-    for (let i = 1; i <= steps; i++) {
-      const t = i / steps;
-      const u = 1 - t;
-      const pt = {
-        x: u * u * a.x + 2 * u * t * cx + t * t * b.x,
-        y: u * u * a.y + 2 * u * t * a.y + t * t * b.y,
-      };
-      segments.push([prev, pt]);
-      prev = pt;
+    if (route && route.length >= 2) {
+      const pathPoints = route.map((p, i) => normalizePathPoint(
+        p,
+        i === 0 || i === route.length - 1 ? 'corner' : 'smooth',
+      ));
+      return curvePathSegments(pathPoints);
     }
-    return segments;
+    return curvePathSegments(initCurvePathPoints(a, b));
   }
   return [[a, b]];
 }

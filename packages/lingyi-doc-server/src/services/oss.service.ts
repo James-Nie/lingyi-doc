@@ -101,4 +101,18 @@ export class OssService {
     const client = this.getClient();
     await client.delete(objectKey);
   }
+
+  /** 查询 OSS 对象大小（字节），失败时返回 null */
+  async headObjectSize(objectKey: string): Promise<number | null> {
+    if (!this.isEnabled()) return null;
+    try {
+      const result = await this.getClient().head(objectKey);
+      const headers = result.res?.headers as Record<string, string | number | undefined> | undefined;
+      const raw = headers?.['content-length'];
+      const size = raw != null ? Number(raw) : NaN;
+      return Number.isFinite(size) && size > 0 ? size : null;
+    } catch {
+      return null;
+    }
+  }
 }

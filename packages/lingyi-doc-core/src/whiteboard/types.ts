@@ -56,11 +56,81 @@ export type ShapeKind =
   | 'braceRight'
   | 'plus'
   | 'process'
-  | 'document';
+  | 'document'
+  // 直线
+  | 'lineSolid'
+  | 'lineDashed'
+  | 'lineArrow'
+  | 'lineArrowDouble'
+  // 泳道
+  | 'swimlaneV2'
+  | 'swimlaneH2'
+  | 'swimlaneV3'
+  // 流程图专用
+  | 'documentWavy'
+  | 'internalStorage'
+  | 'multiDocument'
+  | 'display'
+  | 'predefinedProcess'
+  | 'manualInput'
+  | 'flowDataFlow'
+  | 'flowOffPage'
+  | 'flowQueue'
+  // UML 类图
+  | 'umlClass3'
+  | 'umlClass2'
+  | 'umlInterface'
+  | 'umlPackage'
+  | 'umlNote'
+  | 'umlAggregation'
+  | 'umlComposition'
+  | 'umlGeneralization'
+  | 'umlRealization'
+  | 'umlDependency'
+  // 时序图
+  | 'seqActor'
+  | 'seqLifeline'
+  | 'seqDbLifeline'
+  | 'seqStorageLifeline'
+  | 'seqBoundaryLifeline'
+  | 'seqControlLifeline'
+  | 'seqEntityLifeline'
+  | 'seqMessage'
+  | 'seqActivation'
+  | 'seqFrame'
+  | 'seqAltFrame'
+  | 'seqNote'
+  // 数据流图
+  | 'dfdDataStore'
+  | 'dfdSubProcess'
+  | 'dfdStoreOpenRight'
+  | 'dfdStoreOpenLeft'
+  // 实体关系图
+  | 'erTable1'
+  | 'erTable2'
+  | 'erTable3'
+  | 'erTable4'
+  // 组件图
+  | 'compComponent'
+  | 'compComponentAlt'
+  | 'compProvided'
+  | 'compAssembly'
+  | 'compRequired'
+  // 状态图
+  | 'stateInitial'
+  | 'stateFinal'
+  | 'stateForkJoin'
+  // 其他
+  | 'star4'
+  | 'star6'
+  | 'calloutBurst'
+  | 'actorStick';
 
 export interface ShapeElement extends WhiteboardElementBase {
   type: 'shape';
   shapeKind: ShapeKind;
+  /** 图形库分类（用于「更改图形」时限定同分类可选） */
+  shapeCategoryId?: string;
   fill: string;
   stroke: string;
   strokeWidth: number;
@@ -77,6 +147,8 @@ export interface ShapeElement extends WhiteboardElementBase {
   textHighlight?: string;
   /** 按行文字高亮色，优先于 textHighlight */
   textLineHighlights?: string[];
+  /** 时序图生命线长度（虚线尾段，不含头部） */
+  seqLifelineLength?: number;
 }
 
 export interface TextElement extends WhiteboardElementBase {
@@ -102,6 +174,15 @@ export interface StickyElement extends WhiteboardElementBase {
 
 export type ConnectorStyle = 'straight' | 'arrow' | 'elbow' | 'curve';
 
+/** 连接线端点箭头样式 */
+export type ArrowHeadStyle = 'none' | 'open' | 'arrow' | 'triangle' | 'circle' | 'dot';
+
+/** 连接线描边线型 */
+export type ConnectorDashStyle = 'solid' | 'dashed' | 'dotted';
+
+/** 连接线标签相对路径的位置 */
+export type ConnectorLabelPosition = 'above' | 'on' | 'below';
+
 /** 连接锚点（图形四边 + 四角） */
 export type AnchorId = 'n' | 'e' | 's' | 'w' | 'nw' | 'ne' | 'se' | 'sw';
 
@@ -110,17 +191,41 @@ export interface ConnectorBind {
   anchor: AnchorId;
 }
 
+/** 曲线路径点类型：平滑点（对称手柄）/ 拐点（独立手柄） */
+export type PathPointKind = 'corner' | 'smooth';
+
+export interface ConnectorPathPoint extends WhiteboardPoint {
+  kind?: PathPointKind;
+  /** 入向贝塞尔控制点（绝对坐标）；null 表示自动推算 */
+  handleIn?: WhiteboardPoint | null;
+  /** 出向贝塞尔控制点（绝对坐标）；null 表示自动推算 */
+  handleOut?: WhiteboardPoint | null;
+}
+
 export interface ConnectorElement extends WhiteboardElementBase {
   type: 'connector';
   style: ConnectorStyle;
-  points: WhiteboardPoint[];
+  points: ConnectorPathPoint[];
   stroke: string;
   strokeWidth: number;
-  arrowEnd?: boolean;
+  /** 起点箭头样式；兼容旧数据默认 none */
+  arrowStart?: ArrowHeadStyle | boolean;
+  /** 终点箭头样式；兼容旧 boolean */
+  arrowEnd?: ArrowHeadStyle | boolean;
+  /** 描边线型，默认 solid */
+  strokeDash?: ConnectorDashStyle;
+  /** 描边不透明度 0–1，默认 1 */
+  strokeOpacity?: number;
   /** 起点绑定到图形锚点 */
   startBind?: ConnectorBind;
   /** 终点绑定到图形锚点 */
   endBind?: ConnectorBind;
+  /** 连接线标签文字 */
+  text?: string;
+  /** 标签相对连接线的位置 */
+  labelPosition?: ConnectorLabelPosition;
+  /** 路径模式：auto=随绑定自动路由，manual=保留用户编辑折点/手柄 */
+  pathMode?: 'auto' | 'manual';
 }
 
 export type SectionAspect = 'custom' | '16:9' | '4:3' | '1:1' | 'a4';
@@ -138,6 +243,19 @@ export interface TableElement extends WhiteboardElementBase {
   rows: number;
   cols: number;
   cells: string[][];
+  fontSize?: number;
+  color?: string;
+  fontWeight?: number;
+  fontStyle?: 'normal' | 'italic';
+  textUnderline?: boolean;
+  textLineThrough?: boolean;
+  textAlign?: 'left' | 'center' | 'right';
+  textVerticalAlign?: 'top' | 'center' | 'bottom';
+  textHighlight?: string;
+  /** 单元格边框色 */
+  stroke?: string;
+  /** 单元格背景色 */
+  fill?: string;
 }
 
 export type PenMode = 'pen' | 'highlighter' | 'eraser';
@@ -185,6 +303,10 @@ export interface ImageElement extends WhiteboardElementBase {
   type: 'image';
   src: string;
   alt?: string;
+  borderColor?: string;
+  borderWidth?: number;
+  /** 源图裁剪区域（像素，相对原图自然尺寸） */
+  cropSrc?: { x: number; y: number; width: number; height: number };
 }
 
 export type WhiteboardElement =

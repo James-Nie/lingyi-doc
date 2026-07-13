@@ -6,6 +6,7 @@ import { authStore } from '../stores/authStore';
 import { appPath } from '../utils/appPaths';
 import { DocShareModal } from './share/DocShareModal';
 import { DocInfoModal } from './docInfo/DocInfoModal';
+import { MoveDocumentModal } from './MoveDocumentModal';
 import {
   AppTopBar,
   TopBarBreadcrumbs,
@@ -15,6 +16,8 @@ import {
 } from './layout/topBar';
 import type { DocumentViewMode } from '../utils/documentViewMode';
 import { appendDownloadMenuItem, parseDownloadFormat, type DownloadFormat, type EditorDocType } from '../utils/downloadAs';
+import { documentLibraryStore } from '../stores/documentLibraryStore';
+import { resolveMoveDocumentSource, type MoveDocumentSource } from '../utils/moveDocument';
 
 interface DocumentBarProps {
   docId: string | null;
@@ -28,7 +31,8 @@ interface DocumentBarProps {
   exporting?: boolean;
   onExport?: (format: 'xlsx' | 'csv') => void;
   docType?: EditorDocType;
-  onDownloadAs?: (format: DownloadFormat) => void;
+  onDownloadAs?: (format: DownloadFormat) => void | Promise<void>;
+  onPrint?: () => void;
   lastModified?: number;
   onStub?: (name: string) => void;
   moreMenuItems?: DocumentMoreMenuItem[];
@@ -52,6 +56,7 @@ export const DocumentBar: React.FC<DocumentBarProps> = ({
   onExport,
   docType,
   onDownloadAs,
+  onPrint,
   lastModified,
   onStub,
   moreMenuItems,
@@ -70,6 +75,7 @@ export const DocumentBar: React.FC<DocumentBarProps> = ({
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [docInfoOpen, setDocInfoOpen] = useState(false);
+  const [moveSource, setMoveSource] = useState<MoveDocumentSource | null>(null);
   const exportMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -109,10 +115,17 @@ export const DocumentBar: React.FC<DocumentBarProps> = ({
 
   const resolvedTitleEditable = titleEditable ?? (canEdit && !isPreview && showTitle);
 
-  const crumbs = breadcrumbItems ?? [
-    { label: workspaceName, onClick: () => navigate(appPath.home) },
-    ...(showTitle ? [] : [{ label: title || '未命名文档' }]),
-  ];
+  const crumbs = useMemo(() => {
+    if (breadcrumbItems) {
+      return showTitle
+        ? breadcrumbItems
+        : [...breadcrumbItems, { label: title || '未命名文档' }];
+    }
+    return [
+      { label: workspaceName, onClick: () => navigate(appPath.home) },
+      ...(showTitle ? [] : [{ label: title || '未命名文档' }]),
+    ];
+  }, [breadcrumbItems, showTitle, title, workspaceName, navigate]);
 
   const stub = useCallback((name: string) => {
     if (onStub) onStub(name);
@@ -120,21 +133,34 @@ export const DocumentBar: React.FC<DocumentBarProps> = ({
 
   const resolvedMoreMenuItems = useMemo(() => {
     const baseItems = moreMenuItems ?? DEFAULT_DOCUMENT_MORE_ITEMS;
-    return docType ? appendDownloadMenuItem(baseItems, docType) : baseItems;
-  }, [moreMenuItems, docType]);
+    if (!docType || !onDownloadAs) return baseItems;
+    return appendDownloadMenuItem(baseItems, docType);
+  }, [moreMenuItems, docType, onDownloadAs]);
 
   const handleMoreAction = useCallback((key: string) => {
     const downloadFormat = parseDownloadFormat(key);
     if (downloadFormat && onDownloadAs) {
-      onDownloadAs(downloadFormat);
+      if (exporting) return;
+      void onDownloadAs(downloadFormat);
+      return;
+    }
+    if (key === 'print' && onPrint) {
+      onPrint();
       return;
     }
     if (key === 'docInfo' && docId) {
       setDocInfoOpen(true);
       return;
     }
+    if (key === 'moveTo' && docId) {
+      void resolveMoveDocumentSource({
+        docId,
+        title: title || '未命名文档',
+      }).then(setMoveSource);
+      return;
+    }
     stub(key);
-  }, [docId, onDownloadAs, stub]);
+  }, [docId, exporting, onDownloadAs, onPrint, stub, title]);
 
   const exportExtra = showExport ? (
     <div ref={exportMenuRef} style={{ position: 'relative', marginRight: 4 }}>
@@ -289,6 +315,18 @@ export const DocumentBar: React.FC<DocumentBarProps> = ({
           tenantId={tenantId}
           onClose={() => setShareOpen(false)}
           onToast={msg => message.success(msg)}
+        />
+      )}
+      {docId && (
+        <MoveDocumentModal
+          open={moveSource !== null}
+          source={moveSource}
+          onClose={() => setMoveSource(null)}
+          onMoved={() => {
+            message.success('已移动');
+            documentLibraryStore.bump();
+          }}
+          onError={msg => message.error(`移动失败: ${msg}`)}
         />
       )}
     </>

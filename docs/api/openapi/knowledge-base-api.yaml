@@ -1,0 +1,110 @@
+openapi: 3.0.0
+info:
+  title: 知识库 API
+  description: 知识库管理相关接口
+  version: 1.0.0
+
+paths:
+  /api/knowledge-bases:
+    get:
+      summary: 获取知识库列表
+      responses:
+        '200':
+          description: 知识库列表获取成功
+    post:
+      summary: 创建知识库
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                icon:
+                  type: string
+      responses:
+        '201':
+          description: 知识库创建成功
+
+  /api/knowledge-bases/{knowledgeBaseId}:
+    get:
+      summary: 获取知识库详情
+      parameters:
+        - name: knowledgeBaseId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 知识库详情获取成功
+    put:
+      summary: 更新知识库
+      parameters:
+        - name: knowledgeBaseId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+      responses:
+        '200':
+          description: 知识库更新成功
+    delete:
+      summary: 删除知识库
+      parameters:
+        - name: knowledgeBaseId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 知识库删除成功
+
+  /api/knowledge-bases/{knowledgeBaseId}/documents:
+    get:
+      summary: 获取知识库文档列表
+      parameters:
+        - name: knowledgeBaseId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 文档列表获取成功
+    post:
+      summary: 向知识库添加文档
+      parameters:
+        - name: knowledgeBaseId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                documentId:
+                  type: string
+      responses:
+        '201':
+          description: 文档添加成功

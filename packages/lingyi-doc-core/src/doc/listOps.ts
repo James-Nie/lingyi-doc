@@ -1,4 +1,4 @@
-import type { DocBlock, ListBlock, ListItem, ListType, ParagraphBlock, TextMark } from './types';
+import type { DocBlock, ListBlock, ListItem, ListType, OrderedListStyle, ParagraphBlock, TextMark } from './types';
 import { createEmptyParagraph, genBlockId, getOrderedNumFmtForLevel, splitMarks, stripLeadingNewlines } from './utils';
 
 /** 飞书式有序列表固定 3 级 */
@@ -28,31 +28,41 @@ export function normalizeBulletListItems(items: ListItem[]): ListItem[] {
   return items.map(normalizeBulletListItem);
 }
 
-export function normalizeOrderedListItem(item: ListItem): ListItem {
-  return { ...item, numFmt: getOrderedNumFmtForLevel(item.level) };
+export function normalizeOrderedListItem(item: ListItem, orderedStyle: OrderedListStyle = 'multiLevel'): ListItem {
+  return { ...item, level: clampListLevel(item.level), numFmt: getOrderedNumFmtForLevel(item.level, orderedStyle) };
 }
 
-export function normalizeOrderedListItems(items: ListItem[]): ListItem[] {
-  return items.map(normalizeOrderedListItem);
+export function normalizeOrderedListItems(items: ListItem[], orderedStyle: OrderedListStyle = 'multiLevel'): ListItem[] {
+  return items.map(item => normalizeOrderedListItem(item, orderedStyle));
 }
 
-export function indentListItem(items: ListItem[], index: number, listType: ListType): ListItem[] {
+export function indentListItem(
+  items: ListItem[],
+  index: number,
+  listType: ListType,
+  orderedStyle: OrderedListStyle = 'multiLevel',
+): ListItem[] {
   const next = items.map(it => ({ ...it, marks: [...(it.marks ?? [])] }));
   const item = next[index];
   if (!item || item.level >= MAX_LIST_LEVEL) return next;
   const updated = { ...item, level: item.level + 1 };
-  if (listType === 'ordered') next[index] = normalizeOrderedListItem(updated);
+  if (listType === 'ordered') next[index] = normalizeOrderedListItem(updated, orderedStyle);
   else if (listType === 'bullet') next[index] = normalizeBulletListItem(updated);
   else next[index] = updated;
   return next;
 }
 
-export function outdentListItem(items: ListItem[], index: number, listType: ListType): ListItem[] {
+export function outdentListItem(
+  items: ListItem[],
+  index: number,
+  listType: ListType,
+  orderedStyle: OrderedListStyle = 'multiLevel',
+): ListItem[] {
   const next = items.map(it => ({ ...it, marks: [...(it.marks ?? [])] }));
   const item = next[index];
   if (!item || item.level <= 1) return next;
   const updated = { ...item, level: item.level - 1 };
-  if (listType === 'ordered') next[index] = normalizeOrderedListItem(updated);
+  if (listType === 'ordered') next[index] = normalizeOrderedListItem(updated, orderedStyle);
   else if (listType === 'bullet') next[index] = normalizeBulletListItem(updated);
   else next[index] = updated;
   return next;
@@ -69,6 +79,7 @@ export function splitListItemOnEnter(
   cursorOffset: number,
   fullText: string,
   listType: ListType,
+  orderedStyle: OrderedListStyle = 'multiLevel',
 ): { items: ListItem[]; focusIndex: number } | { cancel: true } {
   if (isListItemTextEmpty(fullText)) return { cancel: true };
 
@@ -90,7 +101,7 @@ export function splitListItemOnEnter(
     itemIndex + 1,
     0,
     listType === 'ordered'
-      ? normalizeOrderedListItem(newItem)
+      ? normalizeOrderedListItem(newItem, orderedStyle)
       : listType === 'bullet'
         ? normalizeBulletListItem(newItem)
         : newItem,
@@ -125,7 +136,7 @@ export function listItemToParagraphBlocks(block: ListBlock, itemIndex: number): 
     result.push({
       ...block,
       items: block.listType === 'ordered'
-        ? normalizeOrderedListItems(before)
+        ? normalizeOrderedListItems(before, block.orderedStyle)
         : block.listType === 'bullet'
           ? normalizeBulletListItems(before)
           : before,
@@ -137,7 +148,7 @@ export function listItemToParagraphBlocks(block: ListBlock, itemIndex: number): 
       ...block,
       id: genBlockId(),
       items: block.listType === 'ordered'
-        ? normalizeOrderedListItems(after)
+        ? normalizeOrderedListItems(after, block.orderedStyle)
         : block.listType === 'bullet'
           ? normalizeBulletListItems(after)
           : after,
@@ -165,14 +176,19 @@ export function removeListItemAt(
   const items = block.items.map(it => ({ ...it, marks: [...(it.marks ?? [])] }));
   items.splice(itemIndex, 1);
   const normalized = block.listType === 'ordered'
-    ? normalizeOrderedListItems(items)
+    ? normalizeOrderedListItems(items, block.orderedStyle)
     : block.listType === 'bullet'
       ? normalizeBulletListItems(items)
       : items;
   return { kind: 'list', block: { ...block, items: normalized } };
 }
 
-export function textToListItems(text: string, marks: TextMark[], listType: ListType): ListItem[] {
+export function textToListItems(
+  text: string,
+  marks: TextMark[],
+  listType: ListType,
+  orderedStyle: OrderedListStyle = 'multiLevel',
+): ListItem[] {
   const lines = text.split('\n');
   return lines.map(line => {
     const item: ListItem = {
@@ -182,7 +198,7 @@ export function textToListItems(text: string, marks: TextMark[], listType: ListT
       checked: listType === 'task' ? false : undefined,
     };
     return listType === 'ordered'
-      ? normalizeOrderedListItem(item)
+      ? normalizeOrderedListItem(item, orderedStyle)
       : listType === 'bullet'
         ? normalizeBulletListItem(item)
         : item;
@@ -207,6 +223,7 @@ export function mergeBlocksToListBlock(
   blocks: DocBlock[],
   listType: ListType,
   preserveId?: string,
+  orderedStyle: OrderedListStyle = 'multiLevel',
 ): ListBlock {
   const items: ListItem[] = [];
   blocks.forEach(b => {
@@ -215,11 +232,11 @@ export function mergeBlocksToListBlock(
     } else if (b.type === 'paragraph' || b.type === 'quote' || b.type === 'heading') {
       const text = 'text' in b ? b.text : '';
       const marks = 'marks' in b ? b.marks : [];
-      items.push(...textToListItems(text, marks, listType));
+      items.push(...textToListItems(text, marks, listType, orderedStyle));
     }
   });
   const normalized = listType === 'ordered'
-    ? normalizeOrderedListItems(items)
+    ? normalizeOrderedListItems(items, orderedStyle)
     : listType === 'bullet'
       ? normalizeBulletListItems(items)
       : items;
@@ -228,5 +245,6 @@ export function mergeBlocksToListBlock(
     id: preserveId ?? genBlockId(),
     listType,
     items: normalized.length ? normalized : [{ text: '', level: 1, marks: [] }],
+    orderedStyle: listType === 'ordered' ? orderedStyle : undefined,
   };
 }

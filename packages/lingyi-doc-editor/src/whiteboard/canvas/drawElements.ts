@@ -1,4 +1,5 @@
 import type {
+  ArrowHeadStyle,
   ConnectorElement,
   PenElement,
   SectionElement,
@@ -9,8 +10,21 @@ import type {
   WhiteboardElement,
   WhiteboardPoint,
 } from '@lingyi-doc/core';
-import { connectorPathD } from '@lingyi-doc/core';
-import { getBoardConnectorEndpoints, getBoardConnectorRoute } from '../boardConnector';
+import {
+  CONNECTOR_LABEL_FONT_SIZE,
+  CONNECTOR_LABEL_PAD_X,
+  CONNECTOR_LABEL_PAD_Y,
+  connectorDashPattern,
+  connectorEndArrow,
+  connectorPathD,
+  connectorStartArrow,
+  ensureCurvePathPoints,
+  getCurvePathTangent,
+  getConnectorLabelAnchor,
+  isSeqLifelineKind,
+  resolveSeqLifelineLength,
+} from '@lingyi-doc/core';
+import { getBoardConnectorEndpoints, getBoardConnectorLabelLayout, getBoardConnectorRoute, resolveConnectorEndTipDirection, resolveConnectorStartTipDirection } from '../boardConnector';
 import { WB_COLORS } from '../styles';
 import { getCachedImage } from './imageCache';
 import { drawShapeBody, getShapeTextBounds, getShapeVisualBounds } from './shapePaths';
@@ -27,6 +41,8 @@ export interface DrawElementOptions {
   hovered?: boolean;
   allElements?: WhiteboardElement[];
   hideShapeText?: boolean;
+  hideConnectorLabel?: boolean;
+  hideTableCell?: { row: number; col: number } | null;
 }
 
 export function drawElement(
@@ -34,14 +50,21 @@ export function drawElement(
   element: WhiteboardElement,
   opts: DrawElementOptions = {},
 ): void {
-  const { selected = false, hovered = false, allElements = [], hideShapeText = false } = opts;
+  const {
+    selected = false,
+    hovered = false,
+    allElements = [],
+    hideShapeText = false,
+    hideConnectorLabel = false,
+    hideTableCell = null,
+  } = opts;
 
   if (element.type === 'mindmap') {
     return;
   }
 
   if (element.type === 'connector') {
-    drawConnector(ctx, element as ConnectorElement, allElements, selected, hovered);
+    drawConnector(ctx, element as ConnectorElement, allElements, selected, hovered, hideConnectorLabel);
     return;
   }
 
@@ -81,7 +104,7 @@ export function drawElement(
       drawSection(ctx, element as SectionElement);
       break;
     case 'table':
-      drawTable(ctx, element as TableElement);
+      drawTable(ctx, element as TableElement, hideTableCell);
       break;
     case 'image':
       drawImageEl(ctx, element as { x: number; y: number; width: number; height: number; src: string });
@@ -108,7 +131,10 @@ function applyElementTransform(
 
 function drawShape(ctx: CanvasRenderingContext2D, el: ShapeElement, hideText = false) {
   const { x, y, width: w, height: h } = el;
-  drawShapeBody(ctx, el.shapeKind, x, y, w, h, el.fill, el.stroke, el.strokeWidth);
+  const drawOpts = isSeqLifelineKind(el.shapeKind)
+    ? { seqLifelineLength: resolveSeqLifelineLength(el) }
+    : undefined;
+  drawShapeBody(ctx, el.shapeKind, x, y, w, h, el.fill, el.stroke, el.strokeWidth, drawOpts);
 
   if (el.text && !hideText) {
     const tb = getShapeTextBounds(el.shapeKind, x, y, w, h);
@@ -237,35 +263,84 @@ function drawSection(ctx: CanvasRenderingContext2D, el: SectionElement) {
   ctx.fillText(el.title, el.x + 12, el.y + 8);
 }
 
-function drawTable(ctx: CanvasRenderingContext2D, el: TableElement) {
+function drawTable(ctx: CanvasRenderingContext2D, el: TableElement, hideCell?: { row: number; col: number } | null) {
   const rows = el.cells.length;
   const cols = el.cells[0]?.length ?? 1;
   const cellH = el.height / rows;
   const cellW = el.width / cols;
-  ctx.strokeStyle = '#dee0e3';
+  const stroke = el.stroke ?? '#dee0e3';
+  const fill = el.fill ?? '#ffffff';
+  const fontSize = el.fontSize ?? 14;
+  const color = el.color ?? '#1f2329';
+  const fontWeight = el.fontWeight ?? 400;
+  const fontStyle = el.fontStyle ?? 'normal';
+  const textAlign = el.textAlign ?? 'left';
+
+  ctx.strokeStyle = stroke;
   ctx.lineWidth = 1;
-  ctx.font = '12px -apple-system, sans-serif';
-  ctx.fillStyle = '#1f2329';
-  ctx.textAlign = 'left';
+  ctx.font = `${fontStyle} ${fontWeight} ${fontSize}px -apple-system, sans-serif`;
+  ctx.fillStyle = color;
   ctx.textBaseline = 'middle';
+
   for (let ri = 0; ri < rows; ri++) {
     for (let ci = 0; ci < cols; ci++) {
       const cx = el.x + ci * cellW;
       const cy = el.y + ri * cellH;
+      ctx.fillStyle = fill;
+      ctx.fillRect(cx, cy, cellW, cellH);
+      ctx.strokeStyle = stroke;
       ctx.strokeRect(cx, cy, cellW, cellH);
+      if (hideCell && hideCell.row === ri && hideCell.col === ci) continue;
       const cell = el.cells[ri][ci];
-      if (cell) ctx.fillText(cell, cx + 6, cy + cellH / 2, cellW - 12);
+      if (!cell) continue;
+      ctx.fillStyle = color;
+      ctx.textAlign = textAlign;
+      const pad = 6;
+      const textX = textAlign === 'center'
+        ? cx + cellW / 2
+        : textAlign === 'right'
+          ? cx + cellW - pad
+          : cx + pad;
+      ctx.fillText(cell, textX, cy + cellH / 2, cellW - pad * 2);
     }
   }
 }
 
 function drawImageEl(
   ctx: CanvasRenderingContext2D,
-  el: { x: number; y: number; width: number; height: number; src: string },
+  el: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    src: string;
+    borderColor?: string;
+    borderWidth?: number;
+    cropSrc?: { x: number; y: number; width: number; height: number };
+  },
 ) {
   const img = getCachedImage(el.src);
   if (img) {
-    ctx.drawImage(img, el.x, el.y, el.width, el.height);
+    const nw = img.naturalWidth || el.width;
+    const nh = img.naturalHeight || el.height;
+    const crop = el.cropSrc ?? { x: 0, y: 0, width: nw, height: nh };
+    ctx.drawImage(
+      img,
+      crop.x,
+      crop.y,
+      crop.width,
+      crop.height,
+      el.x,
+      el.y,
+      el.width,
+      el.height,
+    );
+    const borderWidth = el.borderWidth ?? 0;
+    if (borderWidth > 0) {
+      ctx.strokeStyle = el.borderColor ?? '#dee0e3';
+      ctx.lineWidth = borderWidth;
+      ctx.strokeRect(el.x, el.y, el.width, el.height);
+    }
   } else {
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(el.x, el.y, el.width, el.height);
@@ -280,6 +355,7 @@ function drawConnector(
   allElements: WhiteboardElement[],
   selected: boolean,
   hovered: boolean,
+  hideLabel = false,
 ) {
   const [a, b] = getBoardConnectorEndpoints(conn, allElements);
   if (!a || !b) return;
@@ -287,46 +363,115 @@ function drawConnector(
   const pathD = connectorPathD(conn.style, a, b, route);
   const p = new Path2D(pathD);
 
+  const lineJoin = conn.style === 'elbow' ? 'round' : conn.style === 'curve' ? 'round' : 'miter';
   if (selected) {
     ctx.strokeStyle = `${WB_COLORS.selectBorder}55`;
     ctx.lineWidth = conn.strokeWidth + 6;
-    ctx.lineJoin = conn.style === 'elbow' ? 'round' : 'miter';
+    ctx.lineJoin = lineJoin;
+    ctx.setLineDash(connectorDashPattern(conn.strokeDash, conn.strokeWidth));
+    ctx.globalAlpha = conn.strokeOpacity ?? 1;
     ctx.stroke(p);
+    ctx.setLineDash([]);
+    ctx.globalAlpha = 1;
   }
   ctx.strokeStyle = hovered ? WB_COLORS.accent : conn.stroke;
   ctx.lineWidth = conn.strokeWidth;
-  ctx.lineJoin = conn.style === 'elbow' ? 'round' : 'miter';
+  ctx.lineJoin = lineJoin;
+  ctx.setLineDash(connectorDashPattern(conn.strokeDash, conn.strokeWidth));
+  ctx.globalAlpha = conn.strokeOpacity ?? 1;
   ctx.stroke(p);
+  ctx.setLineDash([]);
+  ctx.globalAlpha = 1;
 
-  if (conn.arrowEnd) {
-    const tipDir = connectorTipDirection(conn, route);
-    drawArrowHead(ctx, tipDir.from, tipDir.to, conn.stroke, conn.strokeWidth);
+  const startHead = connectorStartArrow(conn);
+  const endHead = connectorEndArrow(conn);
+  if (startHead !== 'none') {
+    const tipDir = connectorStartTipDirection(conn, route);
+    drawArrowHeadStyle(ctx, tipDir.from, tipDir.to, conn.stroke, conn.strokeWidth, startHead, tipDir.tipAt);
   }
+  if (endHead !== 'none') {
+    const tipDir = connectorTipDirection(conn, route);
+    drawArrowHeadStyle(ctx, tipDir.from, tipDir.to, conn.stroke, conn.strokeWidth, endHead, tipDir.tipAt);
+  }
+
+  drawConnectorLabel(ctx, conn, allElements, hideLabel);
 }
 
-/** 连接线箭头方向：折线/曲线取末段切线方向 */
+function drawConnectorLabel(
+  ctx: CanvasRenderingContext2D,
+  conn: ConnectorElement,
+  allElements: WhiteboardElement[],
+  hideLabel: boolean,
+) {
+  const text = conn.text?.trim();
+  if (!text || hideLabel) return;
+
+  const layout = getBoardConnectorLabelLayout(conn, allElements);
+  if (!layout) return;
+
+  const fontSize = CONNECTOR_LABEL_FONT_SIZE;
+  ctx.save();
+  ctx.font = `${fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+  const textW = ctx.measureText(text).width;
+  const textH = fontSize * 1.2;
+  const anchor = getConnectorLabelAnchor(layout.frame, layout.position, textH);
+  const bgX = anchor.x - textW / 2 - CONNECTOR_LABEL_PAD_X;
+  const bgY = anchor.y - textH / 2 - CONNECTOR_LABEL_PAD_Y;
+  const bgW = textW + CONNECTOR_LABEL_PAD_X * 2;
+  const bgH = textH + CONNECTOR_LABEL_PAD_Y * 2;
+
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(bgX, bgY, bgW, bgH);
+  ctx.fillStyle = '#1f2329';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, anchor.x, anchor.y);
+  ctx.restore();
+}
+
+/** 连接线起点箭头方向 */
+function connectorStartTipDirection(
+  conn: ConnectorElement,
+  route: WhiteboardPoint[],
+): { from: WhiteboardPoint; to: WhiteboardPoint; tipAt: 'from' | 'to' } {
+  const start = route[0];
+  if (conn.startBind) {
+    return resolveConnectorStartTipDirection(conn.startBind.anchor, start);
+  }
+  if (conn.style === 'elbow' && route.length >= 2) {
+    const next = route[1];
+    return { from: start, to: next, tipAt: 'from' };
+  }
+  if (conn.style === 'curve' && route.length >= 2) {
+    const [a, b] = [route[0], route[route.length - 1]];
+    const pathPoints = ensureCurvePathPoints(route, a, b);
+    const tangent = getCurvePathTangent(pathPoints, 'start');
+    return { from: tangent.from, to: tangent.to, tipAt: 'to' };
+  }
+  const end = route[route.length - 1];
+  return { from: start, to: end, tipAt: 'from' };
+}
+
+/** 连接线箭头方向：折线/曲线取末段切线方向；绑定时沿锚点内法线 */
 function connectorTipDirection(
   conn: ConnectorElement,
   route: WhiteboardPoint[],
-): { from: WhiteboardPoint; to: WhiteboardPoint } {
+): { from: WhiteboardPoint; to: WhiteboardPoint; tipAt: 'from' | 'to' } {
   const end = route[route.length - 1];
+  if (conn.endBind) {
+    return resolveConnectorEndTipDirection(conn.endBind.anchor, end);
+  }
   if (conn.style === 'elbow' && route.length >= 2) {
     const prev = route[route.length - 2];
-    return { from: prev, to: end };
+    return { from: prev, to: end, tipAt: 'to' };
   }
-  if (conn.style === 'curve') {
-    const a = route[0];
-    const b = end;
-    const cx = (a.x + b.x) / 2;
-    const t = 0.92;
-    const u = 1 - t;
-    const near = {
-      x: u * u * a.x + 2 * u * t * cx + t * t * b.x,
-      y: u * u * a.y + 2 * u * t * a.y + t * t * b.y,
-    };
-    return { from: near, to: b };
+  if (conn.style === 'curve' && route.length >= 2) {
+    const [a, b] = [route[0], route[route.length - 1]];
+    const pathPoints = ensureCurvePathPoints(route, a, b);
+    const tangent = getCurvePathTangent(pathPoints, 'end');
+    return { from: tangent.from, to: tangent.to, tipAt: 'to' };
   }
-  return { from: route[0], to: end };
+  return { from: route[0], to: end, tipAt: 'to' };
 }
 
 function drawPen(
@@ -355,6 +500,63 @@ function drawPen(
   ctx.globalAlpha = pen.mode === 'highlighter' ? 0.5 : 1;
   ctx.stroke();
   ctx.globalAlpha = 1;
+}
+
+function drawArrowHeadStyle(
+  ctx: CanvasRenderingContext2D,
+  from: WhiteboardPoint,
+  to: WhiteboardPoint,
+  color: string,
+  size: number,
+  style: ArrowHeadStyle,
+  tipAt: 'from' | 'to' = 'to',
+) {
+  if (style === 'none') return;
+  const angle = Math.atan2(to.y - from.y, to.x - from.x);
+  const tip = tipAt === 'to' ? to : from;
+  const len = Math.max(10, size * 3.2);
+  const wing = 0.42;
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+  ctx.lineWidth = Math.max(1.5, size);
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  if (style === 'open') {
+    ctx.beginPath();
+    ctx.moveTo(tip.x - len * Math.cos(angle - wing), tip.y - len * Math.sin(angle - wing));
+    ctx.lineTo(tip.x, tip.y);
+    ctx.lineTo(tip.x - len * Math.cos(angle + wing), tip.y - len * Math.sin(angle + wing));
+    ctx.stroke();
+    return;
+  }
+
+  if (style === 'circle') {
+    const r = Math.max(3, size * 1.1);
+    ctx.beginPath();
+    ctx.arc(tip.x, tip.y, r, 0, Math.PI * 2);
+    ctx.stroke();
+    return;
+  }
+
+  if (style === 'dot') {
+    const r = Math.max(3, size * 1.1);
+    ctx.beginPath();
+    ctx.arc(tip.x, tip.y, r, 0, Math.PI * 2);
+    ctx.fill();
+    return;
+  }
+
+  ctx.beginPath();
+  ctx.moveTo(tip.x - len * Math.cos(angle - wing), tip.y - len * Math.sin(angle - wing));
+  ctx.lineTo(tip.x, tip.y);
+  ctx.lineTo(tip.x - len * Math.cos(angle + wing), tip.y - len * Math.sin(angle + wing));
+  if (style === 'triangle' || style === 'arrow') {
+    ctx.closePath();
+    ctx.fill();
+  } else {
+    ctx.stroke();
+  }
 }
 
 function drawArrowHead(

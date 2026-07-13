@@ -2,9 +2,11 @@ import type {
   WhiteboardElement,
   WhiteboardJSON,
   WhiteboardViewport,
+  WhiteboardPoint,
   ConnectorBind,
+  ConnectorLabelPosition,
 } from './types';
-import { normalizeMindNode } from '../mindnote/utils';
+import { normalizeMindNode, WHITEBOARD_MIND_BRANCH_STYLE_DEFAULT } from '../mindnote/utils';
 
 let idCounter = 0;
 
@@ -96,9 +98,12 @@ function normalizeElement(raw: unknown, index: number): WhiteboardElement {
         type: 'connector',
         style: (e as { style?: string }).style || 'arrow',
         points: Array.isArray((e as { points?: unknown }).points)
-          ? (e as { points: { x?: number; y?: number }[] }).points.map(p => ({
+          ? (e as { points: { x?: number; y?: number; kind?: string; handleIn?: WhiteboardPoint | null; handleOut?: WhiteboardPoint | null }[] }).points.map((p, i, arr) => ({
             x: p.x ?? 0,
             y: p.y ?? 0,
+            kind: p.kind as import('./types').PathPointKind | undefined,
+            handleIn: p.handleIn ?? null,
+            handleOut: p.handleOut ?? null,
           }))
           : [{ x: base.x, y: base.y }, { x: base.x + base.width, y: base.y + base.height }],
         stroke: (e as { stroke?: string }).stroke ?? '#1f2329',
@@ -106,6 +111,8 @@ function normalizeElement(raw: unknown, index: number): WhiteboardElement {
         arrowEnd: (e as { arrowEnd?: boolean }).arrowEnd !== false,
         startBind: (e as { startBind?: ConnectorBind }).startBind,
         endBind: (e as { endBind?: ConnectorBind }).endBind,
+        text: (e as { text?: string }).text,
+        labelPosition: (e as { labelPosition?: string }).labelPosition as ConnectorLabelPosition | undefined,
       } as WhiteboardElement;
     case 'section':
       return {
@@ -123,7 +130,18 @@ function normalizeElement(raw: unknown, index: number): WhiteboardElement {
       const normalizedCells = cells?.length
         ? cells
         : Array.from({ length: rows }, () => Array.from({ length: cols }, () => ''));
-      return { ...base, type: 'table', rows, cols, cells: normalizedCells } as WhiteboardElement;
+      return {
+        ...base,
+        type: 'table',
+        rows,
+        cols,
+        cells: normalizedCells,
+        fontSize: (e as { fontSize?: number }).fontSize ?? 14,
+        color: (e as { color?: string }).color ?? '#1f2329',
+        textAlign: (e as { textAlign?: string }).textAlign ?? 'left',
+        stroke: (e as { stroke?: string }).stroke ?? '#dee0e3',
+        fill: (e as { fill?: string }).fill ?? '#ffffff',
+      } as WhiteboardElement;
     }
     case 'pen':
       return {
@@ -145,7 +163,9 @@ function normalizeElement(raw: unknown, index: number): WhiteboardElement {
         type: 'mindmap',
         layout: (e as { layout?: string }).layout || 'right',
         root: normalizeMindNode((e as { root?: unknown }).root),
-        branchStyle: (e as { branchStyle?: string }).branchStyle === 'curve' ? 'curve' : 'straight',
+        branchStyle: (e as { branchStyle?: string }).branchStyle === 'straight'
+          ? 'straight'
+          : WHITEBOARD_MIND_BRANCH_STYLE_DEFAULT,
         zoom: typeof (e as { zoom?: number }).zoom === 'number' ? (e as { zoom: number }).zoom : 100,
       } as WhiteboardElement;
     case 'image':

@@ -8,6 +8,7 @@ import {
   type MindNoteJSON,
   type WhiteboardJSON,
   type ToolbarState,
+  isBaseSheet,
 } from '@lingyi-doc/core';
 import {
   RichDocEditor,
@@ -172,7 +173,7 @@ function SheetPreview({ title, docType, data }: { title: string; docType: string
   }, []);
 
   const activeTable = workbook.activeSheet;
-  const isBase = activeTable?.sheet.type === 'base';
+  const isBase = activeTable ? isBaseSheet(activeTable.sheet) : false;
   const sheetInfos = useMemo(
     () => workbook.sheets.map(s => ({ id: s.id, name: s.name, type: s.type })),
     [workbook, activeSheetId],

@@ -32,6 +32,7 @@ import { AuthService } from '../../services/auth.service';
 import { DashboardService } from '../../services/dashboard.service';
 import { StorageService } from '../../services/storage.service';
 import { HealthService } from '../health/health.service';
+import { CollabService } from '../collab/collab.service';
 import type { DemoRequestStatus, UserStatus } from '../../types/database';
 import { ConfigService } from '@nestjs/config';
 
@@ -50,6 +51,7 @@ export class AdminController {
     private readonly storageService: StorageService,
     private readonly dashboardService: DashboardService,
     private readonly healthService: HealthService,
+    private readonly collabService: CollabService,
     private readonly authService: AuthService,
     private readonly config: ConfigService,
   ) {}
@@ -81,13 +83,16 @@ export class AdminController {
       const activeConsumers = await this.userRepository.countActiveConsumers(7);
       const totalAdmins = await this.userRepository.countByType('admin');
       const totalDocs = this.storageService.isReady() ? await this.storageService.countDocuments() : 0;
-      const wsStats = { rooms: 0, connections: 0 };
+      const wsStats = this.collabService.getStats();
       const dbOk = await this.healthService.pingDatabase();
 
       return {
         users: { totalConsumers, activeConsumers, totalAdmins },
         documents: { total: totalDocs },
-        collaboration: wsStats,
+        collaboration: {
+          enabled: this.collabService.isEnabled(),
+          ...wsStats,
+        },
         system: {
           uptime: process.uptime(),
           databaseConnected: dbOk,
@@ -294,6 +299,7 @@ export class AdminController {
         items: result.items.map(row => ({
           id: row.id,
           operatorId: row.operator_id,
+          operatorName: row.operator_name ?? null,
           action: row.action,
           targetType: row.target_type,
           targetId: row.target_id,

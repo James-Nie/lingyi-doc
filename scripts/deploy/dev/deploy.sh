@@ -45,7 +45,7 @@ remote() {
 echo "=== 部署到开发环境 ==="
 echo "目标: ${SSH_TARGET}:${DEPLOY_PATH}"
 echo "C 端域名: ${DESKTOP_DOMAIN}"
-echo "管理端域名: ${ADMIN_DOMAIN}"
+echo "管理端路径: /admin"
 echo ""
 
 if [[ "$BUILD_LOCALLY" == "true" ]]; then

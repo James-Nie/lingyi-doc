@@ -7,7 +7,6 @@ export const RESERVED_PATH_ROOTS = new Set([
   'login',
   'register',
   'share',
-  'g',
   'recycle-bin',
   'account',
   'api',

@@ -19,6 +19,18 @@ export async function fetchPublishedTemplates(params: {
   typeFilter?: 'all' | TemplateDocType;
   query?: string;
 }): Promise<{ templates: DocTemplate[]; source: TemplateCatalogSource }> {
+  // 问卷、思维导图、流程图为本地模板类型，服务端 docType 仍为 base / whiteboard
+  if (params.typeFilter === 'questionnaire' || params.typeFilter === 'mindmap' || params.typeFilter === 'flowchart') {
+    return {
+      templates: filterTemplates(DOC_TEMPLATES, {
+        category: params.category ?? 'recommended',
+        typeFilter: 'questionnaire',
+        query: params.query ?? '',
+      }),
+      source: 'fallback',
+    };
+  }
+
   try {
     const res = await TemplateApi.list({
       category: params.category,

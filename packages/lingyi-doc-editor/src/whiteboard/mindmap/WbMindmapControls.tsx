@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import type { MindmapLayout, MindNoteBranchStyle } from '@lingyi-doc/core';
+import { MindmapLayoutIcon } from './MindmapLayoutIcon';
+import { MindmapLayoutPicker } from './MindmapLayoutPicker';
 import { WB_MM_UI } from './types';
 
 interface WbMindmapControlsProps {
@@ -9,18 +11,6 @@ interface WbMindmapControlsProps {
   onBranchStyleChange: (style: MindNoteBranchStyle) => void;
   onRecenter: () => void;
 }
-
-const STRUCTURE_LABELS: Record<MindmapLayout, string> = {
-  right: '向右',
-  left: '向左',
-  balanced: '平衡',
-  vertical: '向下',
-  treeRight: '向右',
-  treeLeft: '向左',
-  treeBalanced: '左右',
-  timelineH: '横向',
-  timelineV: '纵向',
-};
 
 export const WbMindmapControls: React.FC<WbMindmapControlsProps> = ({
   layout,
@@ -60,7 +50,7 @@ export const WbMindmapControls: React.FC<WbMindmapControlsProps> = ({
           <span style={{ fontSize: 14 }}>◎</span>
         </IconBtn>
         <IconBtn title="结构与分支线" active={panelOpen} onClick={() => setPanelOpen(v => !v)}>
-          <span style={{ fontSize: 13 }}>⊞</span>
+          <MindmapLayoutIcon layout={layout} size={24} />
         </IconBtn>
       </div>
 
@@ -70,53 +60,14 @@ export const WbMindmapControls: React.FC<WbMindmapControlsProps> = ({
           borderRadius: WB_MM_UI.radius,
           boxShadow: WB_MM_UI.panelShadow,
           padding: '12px 14px',
-          minWidth: 220,
         }}>
-          <div style={{ fontSize: 12, color: WB_MM_UI.muted, marginBottom: 8, fontWeight: 500 }}>结构</div>
-          <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
-            {(['right', 'left', 'balanced', 'vertical'] as MindmapLayout[]).map(s => (
-              <button
-                key={s}
-                type="button"
-                title={STRUCTURE_LABELS[s]}
-                onClick={() => onLayoutChange(s)}
-                style={{
-                  width: 36,
-                  height: 36,
-                  border: `1px solid ${layout === s ? WB_MM_UI.accent : '#dee0e3'}`,
-                  borderRadius: 6,
-                  background: layout === s ? WB_MM_UI.selectBg : '#fff',
-                  cursor: 'pointer',
-                  fontSize: 11,
-                  color: layout === s ? WB_MM_UI.accent : WB_MM_UI.muted,
-                }}
-              >
-                {STRUCTURE_LABELS[s].slice(0, 1)}
-              </button>
-            ))}
-          </div>
-          <div style={{ fontSize: 12, color: WB_MM_UI.muted, marginBottom: 8, fontWeight: 500 }}>分支线</div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            {(['straight', 'curve'] as MindNoteBranchStyle[]).map(s => (
-              <button
-                key={s}
-                type="button"
-                onClick={() => onBranchStyleChange(s)}
-                style={{
-                  flex: 1,
-                  height: 32,
-                  border: `1px solid ${branchStyle === s ? WB_MM_UI.accent : '#dee0e3'}`,
-                  borderRadius: 6,
-                  background: branchStyle === s ? WB_MM_UI.selectBg : '#fff',
-                  cursor: 'pointer',
-                  fontSize: 12,
-                  color: branchStyle === s ? WB_MM_UI.accent : WB_MM_UI.muted,
-                }}
-              >
-                {s === 'straight' ? '折线' : '曲线'}
-              </button>
-            ))}
-          </div>
+          <MindmapLayoutPicker
+            layout={layout}
+            branchStyle={branchStyle}
+            showBranchStyle
+            onLayoutChange={onLayoutChange}
+            onBranchStyleChange={onBranchStyleChange}
+          />
         </div>
       )}
     </div>

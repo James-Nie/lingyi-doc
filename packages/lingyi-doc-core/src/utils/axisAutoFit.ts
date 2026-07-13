@@ -8,6 +8,7 @@ import {
 } from '../types/index';
 import { resolveColumnWidth } from './columnLayout';
 import type { FreeTable } from '../model/index';
+import { isBaseSheet } from '../types/sheetGuards';
 
 const CELL_PADDING = 8;
 const MIN_COL_WIDTH = 40;
@@ -80,7 +81,7 @@ export function computeColumnAutoWidth(table: FreeTable, col: number): number {
 
   const sheet = table.sheet;
   let maxW = 0;
-  const colDef = sheet.columnDefs[col];
+  const colDef = isBaseSheet(sheet) ? sheet.columnDefs[col] : undefined;
   const headerFont = '11px Arial, sans-serif';
   const headerText = colDef?.name || colToName(col);
   const headerExtra = colDef ? 14 + 8 : 8;

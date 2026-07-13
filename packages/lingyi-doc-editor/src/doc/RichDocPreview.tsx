@@ -168,7 +168,14 @@ function PreviewList({ block, index }: { block: ListBlock; index: number }) {
   return (
     <Tag style={{ margin: '8px 0', paddingLeft: 0, listStyle: 'none' }} data-block-index={index}>
       {block.items.map((item, i) => (
-        <PreviewListItem key={i} item={item} listType={block.listType} items={block.items} index={i} />
+        <PreviewListItem
+          key={i}
+          item={item}
+          listType={block.listType}
+          orderedStyle={block.orderedStyle}
+          items={block.items}
+          index={i}
+        />
       ))}
     </Tag>
   );
@@ -177,17 +184,19 @@ function PreviewList({ block, index }: { block: ListBlock; index: number }) {
 function PreviewListItem({
   item,
   listType,
+  orderedStyle,
   items,
   index,
 }: {
   item: ListItem;
   listType: ListBlock['listType'];
+  orderedStyle?: ListBlock['orderedStyle'];
   items: ListItem[];
   index: number;
 }) {
   const indent = (item.level - 1) * 24;
   const bullet = listType === 'ordered'
-    ? orderedListMarker(items, index)
+    ? orderedListMarker(items, index, orderedStyle ?? 'multiLevel')
     : listType === 'task'
       ? null
       : getBulletMarkerForLevel(item.level);

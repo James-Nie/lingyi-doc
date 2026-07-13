@@ -9,6 +9,8 @@ import {
 } from '../whiteboard/index';
 import type { PatchRequest, PatchResult } from './patch/types';
 import { DocumentPatchConflictError } from './patch/types';
+import { deriveWorkbookDocType } from '../utils/sheetType';
+import type { ActiveSheetType } from '../types/index';
 
 export interface DocumentListItem {
   id: string;
@@ -365,7 +367,7 @@ export class DocumentManager {
   static async create(
     title: string,
     workbook: Workbook,
-    docType: 'freeform' | 'standard' | 'base' = 'freeform',
+    docType: ActiveSheetType = 'freeform',
   ): Promise<string> {
     const data = await request<{ id: string }>('/docs', {
       method: 'POST',
@@ -378,8 +380,7 @@ export class DocumentManager {
   /** 保存文档 */
   static async save(docId: string, title: string, workbook: Workbook): Promise<{ version: number }> {
     workbook.prepareForSave();
-    const activeType = workbook.activeSheet?.sheet.type || 'freeform';
-    const docType = activeType === 'base' ? 'base' : activeType === 'standard' ? 'standard' : 'freeform';
+    const docType = deriveWorkbookDocType(workbook.sheets.map(s => s.type));
     const result = await request<{ version?: number }>(`/docs/${docId}`, {
       method: 'PUT',
       body: JSON.stringify({ title, docType, data: workbook.toJSON() }),
@@ -400,9 +401,10 @@ export class DocumentManager {
       if (!doc?.data) return null;
       const workbook = Workbook.fromJSON(doc.data);
       workbook.normalizeAfterLoad(doc.docType);
+      const docType = deriveWorkbookDocType(workbook.sheets.map(s => s.type));
       return {
         title: doc.title,
-        docType: doc.docType || 'freeform',
+        docType,
         version: doc.version ?? 0,
         workbook,
       };
@@ -489,9 +491,7 @@ export class DocumentManager {
 
     const workbook = Workbook.fromJSON(doc.data);
     workbook.normalizeAfterLoad(docType);
-    const sheetDocType = (docType === 'base' || docType === 'standard')
-      ? docType
-      : 'freeform';
+    const sheetDocType = deriveWorkbookDocType(workbook.sheets.map(s => s.type));
     return DocumentManager.create(title, workbook, sheetDocType);
   }
 
@@ -626,6 +626,47 @@ export class DocumentManager {
     };
 
     return uploadOnce();
+  }
+
+  /** 拉取图片/附件并转为 data URL，供 Word/PDF 导出内嵌 */
+  static async fetchAssetAsDataUrl(url: string): Promise<string> {
+    if (!url) return url;
+    if (url.startsWith('data:')) return url;
+
+    const blobToDataUrl = (blob: Blob): Promise<string> => new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result ?? url));
+      reader.onerror = () => reject(new Error('读取图片失败'));
+      reader.readAsDataURL(blob);
+    });
+
+    if (url.startsWith('blob:')) {
+      const blob = await fetch(url).then(res => {
+        if (!res.ok) throw new Error(`资源加载失败 (${res.status})`);
+        return res.blob();
+      });
+      return blobToDataUrl(blob);
+    }
+
+    const absolute = url.startsWith('http://') || url.startsWith('https://')
+      ? url
+      : `${typeof window !== 'undefined' ? window.location.origin : ''}${url.startsWith('/') ? url : `/${url}`}`;
+
+    const fetchOnce = async (retried = false): Promise<Blob> => {
+      const res = await fetch(absolute, { headers: authHeaders() });
+      if (!res.ok) {
+        if (!retried && refreshAccessToken && res.status === 401) {
+          const refreshed = await refreshAccessToken();
+          if (refreshed) return fetchOnce(true);
+          onSessionExpired?.();
+        }
+        throw new Error(`资源加载失败 (${res.status})`);
+      }
+      return res.blob();
+    };
+
+    const blob = await fetchOnce();
+    return blobToDataUrl(blob);
   }
 }
 

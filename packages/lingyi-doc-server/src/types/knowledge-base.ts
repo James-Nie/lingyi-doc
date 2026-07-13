@@ -38,6 +38,10 @@ export interface KbNodeDto {
   updatedAt: string;
 }
 
+export interface KbNodeTreeDto extends KbNodeDto {
+  children: KbNodeTreeDto[];
+}
+
 export interface KbMemberDto {
   id: string;
   kbId: string;

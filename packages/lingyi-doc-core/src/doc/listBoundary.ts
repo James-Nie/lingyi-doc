@@ -124,7 +124,7 @@ export function mergeFollowingBlockIntoList(
     const splitAt = lastItem.text.length;
     items[lastIdx] = { ...lastItem, text: lastItem.text + following.text };
     const normalized = listBlock.listType === 'ordered'
-      ? normalizeOrderedListItems(items)
+      ? normalizeOrderedListItems(items, listBlock.orderedStyle)
       : listBlock.listType === 'bullet'
         ? normalizeBulletListItems(items)
         : items;
@@ -160,7 +160,7 @@ export function mergeTextBlockIntoPrecedingList(
   const splitAt = items[lastIdx].text.length;
   items[lastIdx] = { ...items[lastIdx], text: items[lastIdx].text + curr.text };
   const normalized = prev.listType === 'ordered'
-    ? normalizeOrderedListItems(items)
+    ? normalizeOrderedListItems(items, prev.orderedStyle)
     : prev.listType === 'bullet'
       ? normalizeBulletListItems(items)
       : items;

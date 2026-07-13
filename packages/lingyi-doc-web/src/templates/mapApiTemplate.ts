@@ -34,6 +34,8 @@ export function mapApiDetailToDocTemplate(item: ApiTemplateDetail): DocTemplate 
     case 'mindnote':
       return { ...base, mindNoteJson: item.contentJson as MindNoteJSON };
     case 'whiteboard':
+    case 'mindmap':
+    case 'flowchart':
       return { ...base, whiteboardJson: item.contentJson as WhiteboardJSON };
     case 'freeform':
     case 'base': {
@@ -61,7 +63,9 @@ export function needsTemplateHydration(template: DocTemplate): boolean {
   if (template.isBlank) return false;
   if (template.docType === 'richtext') return !template.richDocument;
   if (template.docType === 'mindnote') return !template.mindNoteJson;
-  if (template.docType === 'whiteboard') return !template.whiteboardJson;
+  if (template.docType === 'whiteboard' || template.docType === 'mindmap' || template.docType === 'flowchart') {
+    return !template.whiteboardJson;
+  }
   if (template.docType === 'freeform' || template.docType === 'base') return !template.buildWorkbook;
   return false;
 }

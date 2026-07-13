@@ -72,7 +72,9 @@ export const ColumnFilterDropdown: React.FC<ColumnFilterDropdownProps> = ({
 }) => {
   const setStatusText = useSheetStore(s => s.setStatusText);
   const filterEnabled = table.isColumnFilterEnabled();
-  const activeCount = getFilteredColumnIndices(table.sheet.columnFilters ?? []).length;
+  const activeCount = getFilteredColumnIndices(
+    table.sheet.type === 'freeform' ? (table.sheet.columnFilters ?? []) : [],
+  ).length;
 
   const close = useCallback(() => onOpenChange(false), [onOpenChange]);
 

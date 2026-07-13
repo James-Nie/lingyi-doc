@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
+import { ensureSchemaPatches } from '../db-cli/ensureSchema';
 import { AdminRoleRepository } from '../repositories/admin-role.repository';
 import { SystemConfigRepository } from '../repositories/system-config.repository';
 
@@ -18,6 +19,7 @@ export class AppBootstrapService implements OnModuleInit {
     try {
       if (!this.dataSource.isInitialized) return;
       await this.dataSource.query('SELECT 1');
+      await ensureSchemaPatches();
       await this.adminRoleRepository.seedDefaults();
       await this.systemConfigRepository.seedDefaults();
       this.logger.log('RBAC 与系统配置种子数据已就绪');

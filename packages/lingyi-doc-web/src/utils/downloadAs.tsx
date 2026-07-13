@@ -3,9 +3,26 @@ import type { DocumentMoreMenuItem } from '../components/layout/topBar/DocumentM
 
 export type RichDocDownloadFormat = 'word' | 'pdf' | 'markdown';
 export type SheetDownloadFormat = 'xlsx' | 'png' | 'csv';
-export type DownloadFormat = RichDocDownloadFormat | SheetDownloadFormat;
+export type WhiteboardDownloadFormat = 'png';
+export type DownloadFormat = RichDocDownloadFormat | SheetDownloadFormat | WhiteboardDownloadFormat;
 
-export type EditorDocType = 'richtext' | 'freeform' | 'base' | 'mindnote';
+const RICH_DOC_FORMATS = new Set<string>(['word', 'pdf', 'markdown']);
+const SHEET_FORMATS = new Set<string>(['xlsx', 'png', 'csv']);
+const WHITEBOARD_FORMATS = new Set<string>(['png']);
+
+export function isRichDocDownloadFormat(format: DownloadFormat): format is RichDocDownloadFormat {
+  return RICH_DOC_FORMATS.has(format);
+}
+
+export function isSheetDownloadFormat(format: DownloadFormat): format is SheetDownloadFormat {
+  return SHEET_FORMATS.has(format);
+}
+
+export function isWhiteboardDownloadFormat(format: DownloadFormat): format is WhiteboardDownloadFormat {
+  return WHITEBOARD_FORMATS.has(format);
+}
+
+export type EditorDocType = 'richtext' | 'freeform' | 'base' | 'mindnote' | 'whiteboard';
 
 const SUBMENU_PANEL: React.CSSProperties = {
   background: '#fff',
@@ -58,9 +75,9 @@ function FileIcon({ bg, label, color = '#fff' }: { bg: string; label: string; co
 }
 
 const RICH_DOC_ITEMS = [
-  { key: 'word', label: 'Word' },
-  { key: 'pdf', label: 'PDF' },
-  { key: 'markdown', label: 'Markdown' },
+  { key: 'word', label: 'Word (.doc)', icon: <FileIcon bg="#2b579a" label="W" /> },
+  { key: 'pdf', label: 'PDF', icon: <FileIcon bg="#e74c3c" label="P" /> },
+  { key: 'markdown', label: 'Markdown (.md)', icon: <FileIcon bg="#6c757d" label="M" /> },
 ] as const;
 
 const SHEET_GROUPS = [
@@ -79,11 +96,16 @@ const SHEET_GROUPS = [
   },
 ] as const;
 
+const WHITEBOARD_ITEMS = [
+  { key: 'png', label: '图片(.png)', icon: <FileIcon bg="#f5a623" label="🖼" color="#fff" /> },
+] as const;
+
 export function buildDownloadSubmenu(docType: EditorDocType): DocumentMoreMenuItem['submenu'] {
   if (docType === 'richtext') {
     return RICH_DOC_ITEMS.map(item => ({
       key: `downloadAs:${item.key}`,
       label: item.label,
+      icon: item.icon,
     }));
   }
   if (docType === 'freeform') {
@@ -93,6 +115,13 @@ export function buildDownloadSubmenu(docType: EditorDocType): DocumentMoreMenuIt
       group: group.title,
       icon: item.icon,
     })));
+  }
+  if (docType === 'whiteboard') {
+    return WHITEBOARD_ITEMS.map(item => ({
+      key: `downloadAs:${item.key}`,
+      label: item.label,
+      icon: item.icon,
+    }));
   }
   return undefined;
 }

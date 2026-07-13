@@ -1,11 +1,11 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import type { BaseView, CellValue, ColumnDef, ColumnType, FreeTable } from '@lingyi-doc/core';
-import { BASE_THEME, getRatingConfig, getRatingColumnWidth } from '@lingyi-doc/core';
+import { BASE_THEME, findFirstEmptyRecordRow, getRatingConfig, getRatingColumnWidth, isBaseSheet } from '@lingyi-doc/core';
 import { useSheetStore } from '../../store/sheetStore';
 import { FormFieldCard } from './FormFieldCard';
 import { FormFieldDeleteDialog } from './FormFieldDeleteDialog';
 import { FormFieldPalette } from './FormFieldPalette';
-import { FormViewToolbar } from './FormViewToolbar';
+import { FormViewToolbar, type FormSharePanelContext } from './FormViewToolbar';
 import {
   addAllFieldsToForm,
   addFieldToForm,
@@ -26,6 +26,7 @@ interface FormViewEditorProps {
   onChange: () => void;
   onDeleteField?: (fieldId: string) => void;
   readOnly?: boolean;
+  renderFormSharePanel?: (ctx: FormSharePanelContext) => React.ReactNode;
 }
 
 const DROP_PLACEHOLDER_STYLE: React.CSSProperties = {
@@ -37,7 +38,9 @@ const DROP_PLACEHOLDER_STYLE: React.CSSProperties = {
   boxSizing: 'border-box',
 };
 
-export const FormViewEditor: React.FC<FormViewEditorProps> = ({ table, formView, onChange, onDeleteField, readOnly = false }) => {
+export const FormViewEditor: React.FC<FormViewEditorProps> = ({
+  table, formView, onChange, onDeleteField, readOnly = false, renderFormSharePanel,
+}) => {
   const formEditorTab = useSheetStore(s => s.formEditorTab);
   const setFormEditorTab = useSheetStore(s => s.setFormEditorTab);
   const setStatusText = useSheetStore(s => s.setStatusText);
@@ -49,7 +52,11 @@ export const FormViewEditor: React.FC<FormViewEditorProps> = ({ table, formView,
   const [formRevision, setFormRevision] = useState(0);
   const [deleteTarget, setDeleteTarget] = useState<{ fieldId: string; name: string } | null>(null);
 
-  const sheet = table.sheet;
+  const sheetModel = table.sheet;
+  if (!isBaseSheet(sheetModel)) {
+    return null;
+  }
+  const sheet = sheetModel;
   const columnDefs = sheet.columnDefs;
   const formItems = useMemo(() => getFormFieldItems(formView), [formView, formRevision]);
 
@@ -73,7 +80,7 @@ export const FormViewEditor: React.FC<FormViewEditorProps> = ({ table, formView,
       updated.width = width;
       table.setColumnWidth(idx, width);
     }
-    table.sheet.columnDefs[idx] = updated;
+    sheet.columnDefs[idx] = updated;
     table.syncColumnLayout();
     persist();
   }, [columnDefs, table, persist]);
@@ -99,7 +106,7 @@ export const FormViewEditor: React.FC<FormViewEditorProps> = ({ table, formView,
     const colIndex = columnDefs.length;
     const newField = createDefaultColumnDef(type, colIndex);
     table.insertColumns(colIndex, 1);
-    table.sheet.columnDefs.push(newField);
+    sheet.columnDefs.push(newField);
     table.setColumnWidth(colIndex, newField.width || 160);
     table.syncColumnLayout();
     addFieldToForm(formView, newField);
@@ -156,8 +163,15 @@ export const FormViewEditor: React.FC<FormViewEditorProps> = ({ table, formView,
       }
     }
 
-    const rowIndex = table.rowCount;
-    table.insertRows(rowIndex, 1);
+    const formColIndices = formItems
+      .map(item => columnDefs.findIndex(c => c.id === item.fieldId))
+      .filter(colIndex => colIndex >= 0);
+    const getFieldValue = (recordRow: number, col: number) => table.getCell(recordRow, col)?.value;
+    let rowIndex = findFirstEmptyRecordRow(table.rowCount, formColIndices, getFieldValue);
+    if (rowIndex >= table.rowCount) {
+      table.insertRows(table.rowCount, 1);
+      rowIndex = table.rowCount - 1;
+    }
     for (const item of formItems) {
       const colIndex = columnDefs.findIndex(c => c.id === item.fieldId);
       if (colIndex < 0) continue;
@@ -171,15 +185,21 @@ export const FormViewEditor: React.FC<FormViewEditorProps> = ({ table, formView,
     setStatusText('表单提交成功，已添加一条记录');
   }, [formItems, fillValues, table, columnDefs, setStatusText]);
 
-  const title = formView.config.formTitle || '表单';
-  const description = formView.config.formDescription || '';
+  const title = formView.config.formTitle ?? '表单';
+  const description = formView.config.formDescription ?? '';
   const isDragging = dragState !== null;
 
   const isFillMode = readOnly || formEditorTab === 'fill';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, background: isFillMode ? '#E8EDF5' : '#EEF1F6' }}>
-      {!readOnly && <FormViewToolbar tab={formEditorTab} onTabChange={setFormEditorTab} />}
+      {!readOnly && (
+        <FormViewToolbar
+          tab={formEditorTab}
+          onTabChange={setFormEditorTab}
+          renderFormSharePanel={renderFormSharePanel}
+        />
+      )}
       <div style={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden' }}>
         {!readOnly && formEditorTab === 'edit' && (
           <FormFieldPalette
@@ -214,8 +234,9 @@ export const FormViewEditor: React.FC<FormViewEditorProps> = ({ table, formView,
             <div style={{
               background: '#fff', borderRadius: 12, boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
               marginTop: isFillMode ? -56 : -40,
-              padding: isFillMode ? '36px 40px 32px' : '32px 36px 28px',
+              padding: isFillMode ? '56px 40px 32px' : '32px 36px 28px',
               position: 'relative',
+              zIndex: 1,
             }}>
               {readOnly || formEditorTab !== 'edit' ? (
                 <div style={{ textAlign: 'center', marginBottom: 32 }}>

@@ -23,9 +23,11 @@ export const WB_PANEL = {
 export const WB_Z_INDEX = {
   controls: 60,
   topToolbar: 70,
+  shapeLibraryPanel: 75,
   mindmapLayer: 10000,
   shapeToolbar: 10070,
   inlineEditor: 10080,
   contextMenuBackdrop: 10190,
   contextMenu: 10200,
+  commentPin: 10065,
 } as const;

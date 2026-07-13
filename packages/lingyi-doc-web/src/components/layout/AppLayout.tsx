@@ -42,6 +42,7 @@ export const AppShellFrame: React.FC<{ children: React.ReactNode }> = ({ childre
     <TemplatePickerProvider
       onError={showToast}
       onDuplicateTitle={setDuplicateTitle}
+      onToast={showToast}
     >
       <div style={{
         display: 'flex',

@@ -6,6 +6,7 @@ import {
   getRatingColumnWidth,
   getRatingConfig,
   BASE_THEME,
+  isBaseSheet,
 } from '@lingyi-doc/core';
 import { SheetContainer } from '../components/SheetContainer';
 import { FieldManagePopover } from '../components/FieldManagePopover';
@@ -82,6 +83,7 @@ export const DocBaseBlock: React.FC<DocBaseBlockProps> = ({
   }, [block.sheetData, historyRevision]);
 
   const table = tableRef.current!;
+  const sheet = isBaseSheet(table.sheet) ? table.sheet : null;
   void tableVersion;
 
   useEffect(() => {
@@ -105,8 +107,8 @@ export const DocBaseBlock: React.FC<DocBaseBlockProps> = ({
       store.setSelection(null, null);
       store.setScrollPosition(0, 0);
       store.setCurrentView(block.activeViewType);
-      const view = table.sheet.views?.find(v => v.viewType === block.activeViewType);
-      if (view) table.sheet.activeViewId = view.viewId;
+      const view = sheet?.views?.find(v => v.viewType === block.activeViewType);
+      if (view && sheet) sheet.activeViewId = view.viewId;
       return;
     }
 
@@ -137,9 +139,9 @@ export const DocBaseBlock: React.FC<DocBaseBlockProps> = ({
   }, [onChange, readOnly]);
 
   const switchView = useCallback((viewType: BaseEmbedViewType) => {
-    const view = table.sheet.views?.find(v => v.viewType === viewType);
-    if (!view) return;
-    table.sheet.activeViewId = view.viewId;
+    const view = sheet?.views?.find(v => v.viewType === viewType);
+    if (!view || !sheet) return;
+    sheet.activeViewId = view.viewId;
     useSheetStore.getState().setCurrentView(viewType);
     persistBlock({
       activeViewType: viewType,
@@ -153,11 +155,11 @@ export const DocBaseBlock: React.FC<DocBaseBlockProps> = ({
   const handleConfirmField = useCallback((fieldId: string | null, fieldData: Partial<ColumnDef>) => {
     if (readOnly) return;
     if (fieldId) {
-      const idx = table.sheet.columnDefs.findIndex(c => c.id === fieldId);
+      const idx = sheet!.columnDefs.findIndex(c => c.id === fieldId);
       if (idx >= 0) {
-        const existing = table.sheet.columnDefs[idx];
+        const existing = sheet!.columnDefs[idx];
         const updated = { ...existing, ...fieldData } as ColumnDef;
-        table.sheet.columnDefs[idx] = updated;
+        sheet!.columnDefs[idx] = updated;
         if (updated.type === 'rating') {
           const width = getRatingColumnWidth(getRatingConfig(updated));
           updated.width = width;
@@ -165,7 +167,7 @@ export const DocBaseBlock: React.FC<DocBaseBlockProps> = ({
         }
       }
     } else {
-      const colIndex = table.sheet.columnDefs.length;
+      const colIndex = sheet!.columnDefs.length;
       table.insertColumns(colIndex, 1);
       const newField: ColumnDef = {
         id: `col_${Date.now()}_${colIndex}`,
@@ -177,7 +179,7 @@ export const DocBaseBlock: React.FC<DocBaseBlockProps> = ({
       if (newField.type === 'rating') {
         newField.width = getRatingColumnWidth(getRatingConfig(newField));
       }
-      table.sheet.columnDefs.push(newField);
+      sheet!.columnDefs.push(newField);
       table.setColumnWidth(colIndex, newField.width || 160);
     }
     table.syncColumnLayout();
@@ -186,7 +188,7 @@ export const DocBaseBlock: React.FC<DocBaseBlockProps> = ({
 
   const handleToggleFieldVisibility = useCallback((fieldId: string, visible: boolean) => {
     if (readOnly) return;
-    const field = table.sheet.columnDefs.find(c => c.id === fieldId);
+    const field = sheet!.columnDefs.find(c => c.id === fieldId);
     if (field) {
       field.hidden = !visible;
       table.applyColumnVisibility();
@@ -202,7 +204,7 @@ export const DocBaseBlock: React.FC<DocBaseBlockProps> = ({
 
   const handleDeleteField = useCallback((fieldId: string) => {
     if (readOnly) return;
-    const idx = table.sheet.columnDefs.findIndex(c => c.id === fieldId);
+    const idx = sheet!.columnDefs.findIndex(c => c.id === fieldId);
     if (idx > 0) {
       table.deleteColumns(idx, 1);
       table.notifyChange(null);
@@ -397,7 +399,7 @@ export const DocBaseBlock: React.FC<DocBaseBlockProps> = ({
             }
           >
             <FieldManagePopover
-              columnDefs={table.sheet.columnDefs}
+              columnDefs={sheet!.columnDefs}
               onToggleFieldVisibility={handleToggleFieldVisibility}
               onReorderFields={handleReorderFields}
               onConfirmField={handleConfirmField}
@@ -468,8 +470,8 @@ export const DocBaseBlock: React.FC<DocBaseBlockProps> = ({
       {!readOnly && (
       <FieldConfigPanel
         visible={fieldConfigVisible}
-        field={editingFieldId ? table.sheet.columnDefs.find(c => c.id === editingFieldId) || null : null}
-        allFields={table.sheet.columnDefs}
+        field={editingFieldId ? sheet!.columnDefs.find(c => c.id === editingFieldId) || null : null}
+        allFields={sheet!.columnDefs}
         onClose={() => {
           setFieldConfigVisible(false);
           setEditingFieldId(null);

@@ -1,5 +1,10 @@
 import type { CellData } from '@lingyi-doc/core';
-import { getCellAlign, resolveFormatMenuKeyFromValue } from '@lingyi-doc/core';
+import {
+  getCellAlign,
+  resolveFormatMenuKeyFromValue,
+  DEFAULT_BORDER_SIDE,
+  pickCellBorderSide,
+} from '@lingyi-doc/core';
 import { useSheetStore } from '../store/sheetStore';
 
 const DEFAULT_FONT_COLOR = '#333333';
@@ -18,6 +23,9 @@ export function syncToolbarFromCell(cellData: CellData | undefined): void {
   store.setFontFamily(style?.fontFamily ?? 'Arial');
   store.setFontColor(style?.fontColor ?? DEFAULT_FONT_COLOR);
   store.setBackgroundColor(style?.backgroundColor ?? DEFAULT_BG_COLOR);
+  const borderSide = pickCellBorderSide(style);
+  store.setBorderColor(borderSide?.color ?? DEFAULT_BORDER_SIDE.color);
+  store.setBorderLineStyle(borderSide?.style ?? DEFAULT_BORDER_SIDE.style);
   store.setHorizontalAlign(
     style?.horizontalAlign ?? (cellData?.value ? getCellAlign(cellData.value) : 'left') ?? 'left',
   );

@@ -4,19 +4,19 @@ import { selectionBounds } from './elementActions';
 
 const EXPORT_PADDING = 16;
 
-export async function copyElementsAsImage(
+export async function renderSelectionToPngBlob(
   elements: WhiteboardElement[],
   ids: string[],
-): Promise<boolean> {
+): Promise<Blob | null> {
   const bounds = selectionBounds(elements, ids);
-  if (!bounds || bounds.w < 1 || bounds.h < 1) return false;
+  if (!bounds || bounds.w < 1 || bounds.h < 1) return null;
 
   const selected = new Set(ids);
   const sorted = [...elements]
     .filter(e => selected.has(e.id) && e.type !== 'mindmap' && e.type !== 'connector')
     .sort((a, b) => a.zIndex - b.zIndex);
 
-  if (!sorted.length) return false;
+  if (!sorted.length) return null;
 
   const w = Math.ceil(bounds.w + EXPORT_PADDING * 2);
   const h = Math.ceil(bounds.h + EXPORT_PADDING * 2);
@@ -24,7 +24,7 @@ export async function copyElementsAsImage(
   canvas.width = w;
   canvas.height = h;
   const ctx = canvas.getContext('2d');
-  if (!ctx) return false;
+  if (!ctx) return null;
 
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, 0, w, h);
@@ -34,9 +34,16 @@ export async function copyElementsAsImage(
     drawElement(ctx, el, { allElements: elements });
   }
 
-  const blob = await new Promise<Blob | null>(resolve => {
+  return new Promise<Blob | null>(resolve => {
     canvas.toBlob(resolve, 'image/png');
   });
+}
+
+export async function copyElementsAsImage(
+  elements: WhiteboardElement[],
+  ids: string[],
+): Promise<boolean> {
+  const blob = await renderSelectionToPngBlob(elements, ids);
   if (!blob) return false;
 
   if (!navigator.clipboard?.write) return false;

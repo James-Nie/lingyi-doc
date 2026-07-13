@@ -53,6 +53,10 @@ export interface KbNode {
   updatedAt: string;
 }
 
+export interface KbNodeTree extends KbNode {
+  children: KbNodeTree[];
+}
+
 export interface KbMember {
   id: string;
   kbId: string;
@@ -66,6 +70,12 @@ export interface KbMember {
 export interface ListResponse<T> {
   items: T[];
   total: number;
+}
+
+export interface KbNodeListResponse {
+  items: KbNodeTree[];
+  total: number;
+  home: KbNode | null;
 }
 
 export interface CreateKnowledgeBaseInput {
@@ -130,8 +140,9 @@ export interface ListKnowledgeBasesQuery {
 // ─── 兼容现有 localStorage Store 的映射工具 ───────────────────────────────
 
 /** 将 API 节点类型映射为现有 Wiki UI 使用的类型 */
-export function mapKbNodeTypeToWiki(node: KbNode): 'page' | 'sheet' | 'doc' {
+export function mapKbNodeTypeToWiki(node: KbNode): 'page' | 'sheet' | 'doc' | 'folder' {
   if (node.nodeType === 'page') return 'page';
+  if (node.nodeType === 'folder') return 'folder';
   if (node.docType === 'freeform' || node.docType === 'standard') return 'sheet';
   return 'doc';
 }
@@ -158,10 +169,25 @@ export function mapKbNodeToLegacy(node: KbNode) {
     title: node.title,
     type: mapKbNodeTypeToWiki(node),
     docId: node.docId ?? undefined,
+    parentId: node.parentId,
+    sortOrder: node.sortOrder,
     isHome: node.isHome,
     createdAt: Date.parse(node.createdAt),
     updatedAt: Date.parse(node.updatedAt),
   };
+}
+
+/** 将 API 返回的树形节点展平为列表 */
+export function flattenKbNodeTree(tree: KbNodeTree[]): KbNode[] {
+  const result: KbNode[] = [];
+  const walk = (nodes: KbNodeTree[]) => {
+    for (const { children, ...node } of nodes) {
+      result.push(node);
+      if (children.length > 0) walk(children);
+    }
+  };
+  walk(tree);
+  return result;
 }
 
 // ─── API 方法 ─────────────────────────────────────────────────────────────
@@ -203,7 +229,7 @@ export const KnowledgeBaseApi = {
   },
 
   /** GET /knowledge-bases/:kbId/nodes */
-  listNodes(kbId: string): Promise<ListResponse<KbNode>> {
+  listNodes(kbId: string): Promise<KbNodeListResponse> {
     return authFetch(`${BASE}/${kbId}/nodes`);
   },
 

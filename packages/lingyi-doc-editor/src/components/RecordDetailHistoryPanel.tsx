@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { Flex, Space } from 'antd';
 import type { FreeTable, RecordRow } from '@lingyi-doc/core';
-import { buildRecordHistoryDisplayRows } from '@lingyi-doc/core';
+import { buildRecordHistoryDisplayRows, isBaseSheet } from '@lingyi-doc/core';
 
 const FIELD_ICONS: Record<string, string> = {
   text: 'A≡', number: '123', select: '◉', multiSelect: '☑', date: '📅',
@@ -45,10 +45,11 @@ export const RecordDetailHistoryPanel: React.FC<RecordDetailHistoryPanelProps> =
   revision = 0,
   style,
 }) => {
-  const historyRows = useMemo(
-    () => buildRecordHistoryDisplayRows(record, table.sheet.columnDefs),
-    [record, table.sheet.columnDefs, revision],
-  );
+  const historyRows = useMemo(() => {
+    const sheet = table.sheet;
+    if (!isBaseSheet(sheet)) return [];
+    return buildRecordHistoryDisplayRows(record, sheet.columnDefs);
+  }, [record, table.sheet, revision]);
 
   return (
     <div style={style}>

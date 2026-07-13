@@ -1,10 +1,17 @@
-import type { AnchorId, ShapeKind } from '@lingyi-doc/core';
-import { ANCHOR_IDS } from '@lingyi-doc/core';
+import type { AnchorId, ShapeElement, ShapeKind } from '@lingyi-doc/core';
+import { ANCHOR_IDS, getShapeRegistry, getSeqFullBounds, isSeqLifelineKind } from '@lingyi-doc/core';
 import {
   SHAPE_DEFAULT_FILL,
   SHAPE_DEFAULT_STROKE,
   SHAPE_DEFAULT_STROKE_WIDTH,
 } from '@lingyi-doc/core';
+import {
+  appendExtendedDiagramPath,
+  drawExtendedDiagramBody,
+  getExtendedDiagramOutlinePoints,
+  isExtendedDiagramKind,
+  type SeqDrawOptions,
+} from './diagramShapePaths';
 
 type Box = { x: number; y: number; w: number; h: number };
 
@@ -17,6 +24,7 @@ export {
 };
 
 type Pt = [number, number];
+type CanvasPoint = { x: number; y: number };
 
 const POLYGON_POINTS: Partial<Record<ShapeKind, [number, number][]>> = {
   diamond: [[12, 4], [20, 12], [12, 20], [4, 12]],
@@ -37,6 +45,8 @@ const POLYGON_POINTS: Partial<Record<ShapeKind, [number, number][]>> = {
 const STROKE_ONLY = new Set<ShapeKind>(['braceLeft', 'braceRight']);
 
 export function isStrokeOnlyShape(kind: ShapeKind): boolean {
+  const meta = getShapeRegistry().getShape(kind);
+  if (meta?.strokeOnly !== undefined) return meta.strokeOnly;
   return STROKE_ONLY.has(kind);
 }
 
@@ -242,6 +252,20 @@ function boundsFromPoints(points: Pt[]): Box {
   return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
 }
 
+function boundsFromCanvasPoints(points: CanvasPoint[]): Box {
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const p of points) {
+    minX = Math.min(minX, p.x);
+    maxX = Math.max(maxX, p.x);
+    minY = Math.min(minY, p.y);
+    maxY = Math.max(maxY, p.y);
+  }
+  return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+}
+
 function plusArmThickness(bw: number, bh: number): number {
   return Math.min(bw, bh) * 0.34;
 }
@@ -341,16 +365,21 @@ export function buildPlusSvgPathD(size = 24): string {
 export const PLUS_SHAPE_PATH_D = buildPlusSvgPathD();
 
 function cloudVisualBounds(b: Box): Box {
-  const { x, y, w, h } = b;
-  return {
-    x: x - w * 0.02,
-    y: y + h * 0.02,
-    w: w * 1.02,
-    h: h * 0.96,
-  };
+  const pts = cloudOutlinePoints(b);
+  return pts.length ? boundsFromCanvasPoints(pts) : b;
 }
 
-/** 图形实际绘制区域（用于选中框、控制点、命中检测） */
+const SPEECH_BUBBLE_RECT_VB_POINTS: [number, number][] = [
+  [3.5, 6], [20.5, 6], [20.5, 14.8], [3.5, 14.8], [15.3, 18],
+];
+
+const SPEECH_BUBBLE_OVAL_VB_POINTS: [number, number][] = [
+  [4.2, 10], [19.8, 10], [12, 4.5], [12, 15.5], [5.2, 18.2],
+];
+
+export type DrawShapeOptions = SeqDrawOptions;
+
+/** 图形实际绘制区域（用于选中框、控制点）；时序图仅含头部 */
 export function getShapeVisualBounds(
   kind: ShapeKind,
   x: number,
@@ -372,15 +401,279 @@ export function getShapeVisualBounds(
     return { x, y: y + ry, w, h: Math.max(h - ry * 2, 0) };
   }
   if (kind === 'cloud') return cloudVisualBounds(b);
-  if (kind === 'braceLeft' || kind === 'braceRight') return b;
-  if (kind === 'speechBubble' || kind === 'speechBubbleRect') {
-    return speechBubbleBounds(b);
-  }
+  if (kind === 'braceLeft') return getBraceVisualBounds({ x, y, w, h }, 'left');
+  if (kind === 'braceRight') return getBraceVisualBounds({ x, y, w, h }, 'right');
+  if (kind === 'speechBubble') return speechBubbleBounds(b, 'speechBubble');
+  if (kind === 'speechBubbleRect') return speechBubbleBounds(b, 'speechBubbleRect');
   return b;
 }
 
+/** 命中与布局使用的完整包围盒（时序图含生命线） */
+export function getShapeInteractionBounds(el: ShapeElement): Box {
+  if (isSeqLifelineKind(el.shapeKind)) {
+    return getSeqFullBounds(el);
+  }
+  return getShapeVisualBounds(el.shapeKind, el.x, el.y, el.width, el.height);
+}
+
+/** 视觉包围盒与元素包围盒非线性映射（依赖 min(w,h) 或中心缩放） */
+const UNIFORM_SCALED_SHAPE_KINDS = new Set<ShapeKind>(['star', 'circle', 'plus']);
+
+const SQUARE_VISUAL_SHAPE_KINDS = new Set<ShapeKind>(['circle']);
+
+type ShapeResizeHandle = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w';
+
+const RESIZE_MIN_SIZE = 24;
+
+export function isUniformScaledShapeKind(kind: ShapeKind): boolean {
+  const meta = getShapeRegistry().getShape(kind);
+  if (meta?.uniformScaled !== undefined) return meta.uniformScaled;
+  return UNIFORM_SCALED_SHAPE_KINDS.has(kind);
+}
+
+function resizeBoxByHandle(
+  origin: Box,
+  handle: ShapeResizeHandle,
+  dx: number,
+  dy: number,
+  lockAspect = false,
+): Box {
+  let { x, y, w, h } = origin;
+
+  if (handle.includes('e')) w = Math.max(RESIZE_MIN_SIZE, origin.w + dx);
+  if (handle.includes('s')) h = Math.max(RESIZE_MIN_SIZE, origin.h + dy);
+  if (handle.includes('w')) {
+    const nextW = Math.max(RESIZE_MIN_SIZE, origin.w - dx);
+    x = origin.x + origin.w - nextW;
+    w = nextW;
+  }
+  if (handle.includes('n')) {
+    const nextH = Math.max(RESIZE_MIN_SIZE, origin.h - dy);
+    y = origin.y + origin.h - nextH;
+    h = nextH;
+  }
+
+  if (lockAspect && origin.w > 0 && origin.h > 0) {
+    const ratio = origin.w / origin.h;
+    if (handle === 'e' || handle === 'w') {
+      h = w / ratio;
+      if (handle.includes('n')) y = origin.y + origin.h - h;
+    } else if (handle === 'n' || handle === 's') {
+      w = h * ratio;
+      if (handle.includes('w')) x = origin.x + origin.w - w;
+    } else {
+      h = w / ratio;
+      if (handle.includes('n')) y = origin.y + origin.h - h;
+      if (handle.includes('w')) x = origin.x + origin.w - w;
+    }
+  }
+
+  return { x, y, w, h };
+}
+
+function pickUniformResizeScale(
+  handle: ShapeResizeHandle,
+  scaleX: number,
+  scaleY: number,
+): number {
+  if (handle === 'e' || handle === 'w') return scaleX;
+  if (handle === 'n' || handle === 's') return scaleY;
+  const growing = scaleX > 1 || scaleY > 1;
+  return growing ? Math.max(scaleX, scaleY) : Math.min(scaleX, scaleY);
+}
+
+function scaleBoxFromAnchor(
+  origin: Box,
+  handle: ShapeResizeHandle,
+  scale: number,
+  forceSquare = false,
+): Box {
+  const size = Math.max(RESIZE_MIN_SIZE, origin.w * scale);
+  const newW = forceSquare ? size : Math.max(RESIZE_MIN_SIZE, origin.w * scale);
+  const newH = forceSquare ? size : Math.max(RESIZE_MIN_SIZE, origin.h * scale);
+
+  let x = origin.x;
+  let y = origin.y;
+
+  switch (handle) {
+    case 'nw':
+      x = origin.x + origin.w - newW;
+      y = origin.y + origin.h - newH;
+      break;
+    case 'ne':
+      y = origin.y + origin.h - newH;
+      break;
+    case 'sw':
+      x = origin.x + origin.w - newW;
+      break;
+    case 'se':
+      break;
+    case 'e':
+      y = origin.y + (origin.h - newH) / 2;
+      break;
+    case 'w':
+      x = origin.x + origin.w - newW;
+      y = origin.y + (origin.h - newH) / 2;
+      break;
+    case 'n':
+      x = origin.x + (origin.w - newW) / 2;
+      y = origin.y + origin.h - newH;
+      break;
+    case 's':
+      x = origin.x + (origin.w - newW) / 2;
+      break;
+  }
+
+  return { x, y, w: newW, h: newH };
+}
+
+function elementBoxFromUniformVisual(
+  kind: ShapeKind,
+  visual: Box,
+  elementOrigin: Box,
+): Box {
+  const prevVisual = getShapeVisualBounds(
+    kind,
+    elementOrigin.x,
+    elementOrigin.y,
+    elementOrigin.w,
+    elementOrigin.h,
+  );
+  if (prevVisual.w <= 1e-6 || prevVisual.h <= 1e-6) return elementOrigin;
+
+  const scaleX = visual.w / prevVisual.w;
+  const scaleY = visual.h / prevVisual.h;
+  const scale = SQUARE_VISUAL_SHAPE_KINDS.has(kind)
+    ? scaleX
+    : (scaleX + scaleY) / 2;
+
+  const aspect = elementOrigin.w / elementOrigin.h;
+  const newMin = Math.min(elementOrigin.w, elementOrigin.h) * scale;
+
+  let ew: number;
+  let eh: number;
+  if (aspect >= 1) {
+    eh = newMin;
+    ew = newMin * aspect;
+  } else {
+    ew = newMin;
+    eh = newMin / aspect;
+  }
+
+  const cx = visual.x + visual.w / 2;
+  const cy = visual.y + visual.h / 2;
+  return { x: cx - ew / 2, y: cy - eh / 2, w: ew, h: eh };
+}
+
+/** 吸附后重新约束视觉包围盒形状（圆形/星星必须保持正方形） */
+export function normalizeUniformScaledVisualBox(
+  kind: ShapeKind,
+  visualOrigin: Box,
+  visualBox: Box,
+  handle: ShapeResizeHandle,
+): Box {
+  if (!SQUARE_VISUAL_SHAPE_KINDS.has(kind)) return visualBox;
+  const scaleX = visualBox.w / visualOrigin.w;
+  const scaleY = visualBox.h / visualOrigin.h;
+  const scale = pickUniformResizeScale(handle, scaleX, scaleY);
+  return scaleBoxFromAnchor(visualOrigin, handle, scale, true);
+}
+
+/** 计算星星/圆形/十字形缩放后的视觉包围盒（用于吸附） */
+export function computeUniformScaledVisualBox(
+  kind: ShapeKind,
+  visualOrigin: Box,
+  handle: ShapeResizeHandle,
+  dx: number,
+  dy: number,
+): Box {
+  const raw = resizeBoxByHandle(visualOrigin, handle, dx, dy, false);
+  const scale = pickUniformResizeScale(
+    handle,
+    raw.w / visualOrigin.w,
+    raw.h / visualOrigin.h,
+  );
+  return scaleBoxFromAnchor(visualOrigin, handle, scale, SQUARE_VISUAL_SHAPE_KINDS.has(kind));
+}
+
+function solveElementForTargetVisual(
+  kind: ShapeKind,
+  targetVisual: Box,
+  elementOrigin: Box,
+  handle: ShapeResizeHandle,
+): Box {
+  const prevVisual = getShapeVisualBounds(
+    kind,
+    elementOrigin.x,
+    elementOrigin.y,
+    elementOrigin.w,
+    elementOrigin.h,
+  );
+  const scale = pickUniformResizeScale(
+    handle,
+    targetVisual.w / prevVisual.w,
+    targetVisual.h / prevVisual.h,
+  );
+  let elem = scaleBoxFromAnchor(elementOrigin, handle, scale, false);
+
+  for (let i = 0; i < 12; i++) {
+    const current = getShapeVisualBounds(kind, elem.x, elem.y, elem.w, elem.h);
+    const dx = targetVisual.x - current.x;
+    const dy = targetVisual.y - current.y;
+    const dw = targetVisual.w - current.w;
+    const dh = targetVisual.h - current.h;
+    if (Math.abs(dx) < 0.01 && Math.abs(dy) < 0.01 && Math.abs(dw) < 0.01 && Math.abs(dh) < 0.01) {
+      break;
+    }
+    const s = ((targetVisual.w / current.w) + (targetVisual.h / current.h)) / 2;
+    elem = {
+      x: elem.x + dx,
+      y: elem.y + dy,
+      w: Math.max(RESIZE_MIN_SIZE, elem.w * s),
+      h: Math.max(RESIZE_MIN_SIZE, elem.h * s),
+    };
+  }
+
+  return elem;
+}
+
+/** 由等比缩放后的视觉包围盒反算元素包围盒 */
+export function elementBoxFromUniformScaledVisual(
+  kind: ShapeKind,
+  visualBox: Box,
+  _visualOrigin: Box,
+  elementOrigin: Box,
+  handle: ShapeResizeHandle,
+): Box {
+  if (kind === 'circle') {
+    return elementBoxFromUniformVisual(kind, visualBox, elementOrigin);
+  }
+  return solveElementForTargetVisual(kind, visualBox, elementOrigin, handle);
+}
+
+/** 星星/圆形/十字形：等比缩放视觉包围盒并反算元素包围盒 */
+export function resizeUniformScaledShapeBox(
+  kind: ShapeKind,
+  visualOrigin: Box,
+  elementOrigin: Box,
+  handle: ShapeResizeHandle,
+  dx: number,
+  dy: number,
+): Box {
+  const targetVisual = computeUniformScaledVisualBox(kind, visualOrigin, handle, dx, dy);
+  return elementBoxFromUniformScaledVisual(kind, targetVisual, visualOrigin, elementOrigin, handle);
+}
+
 /** 由视觉包围盒反算元素包围盒（缩放控制点用） */
-export function elementBoxFromVisualBounds(kind: ShapeKind, visual: Box): Box {
+export function elementBoxFromVisualBounds(
+  kind: ShapeKind,
+  visual: Box,
+  prevElement?: Box,
+): Box {
+  if (prevElement && UNIFORM_SCALED_SHAPE_KINDS.has(kind)) {
+    return elementBoxFromUniformVisual(kind, visual, prevElement);
+  }
+
   const ref = getShapeVisualBounds(kind, 0, 0, 100, 100);
   const mxl = ref.x / 100;
   const myt = ref.y / 100;
@@ -457,6 +750,267 @@ function blockArrowPath(ctx: CanvasRenderingContext2D, b: Box, dir: 'left' | 'ri
   polygonFromPoints(ctx, b, [[4, 12], [8, 8], [8, 10], [16, 10], [16, 8], [20, 12], [16, 16], [16, 14], [8, 14], [8, 16]]);
 }
 
+/**
+ * 竖版花括号（SVG 圆弧方案，参考 100×200 标准路径参数化）
+ *
+ * 纵向 3 锚点：
+ * - top：(stemX, topY)
+ * - mid：(tipX, midY) 尖角
+ * - bottom：(stemX, botY)
+ *
+ * 单条连续路径（从上外端起笔）：
+ * 小钩弧 → 竖直线 → 平滑贝塞尔至尖点 → 平滑贝塞尔 → 竖直线 → 小钩弧
+ */
+const BRACE_ARC = {
+  /** 参考 SVG 有效宽 / 半高 = 75/100，超出后不再横向拉伸 */
+  maxWidthHalfHRatio: 75 / 100,
+  /** 最小有效宽 / 半高，防止过窄时钩弧重叠 */
+  minWidthHalfHRatio: 0.28,
+  /** 内侧竖线 x，参考 SVG 50/75（相对有效宽 geomW） */
+  stemXRatio: 50 / 75,
+  /** 尖点水平凸出上限（相对半高，参考 SVG 50/100=0.5，收紧以保比例） */
+  maxCuspHalfHRatio: 0.38,
+  /** 两侧竖直段：衔接点距中线（相对半高，参考 SVG 50/100） */
+  sideArcJoinRatio: 0.5,
+  /** 中间尖点区：衔接点距中线（相对半高） */
+  cuspArcJoinRatio: 0.38,
+  /** 钩弧前竖直段长度（相对半高）参考 SVG 25/100 */
+  hookStemRatio: 0.25,
+  /** 钩弧半径（相对半高）参考 SVG 25/100 */
+  hookArcRatio: 0.25,
+  /** 尖角区：竖直切线控制点偏移（相对 arcJoin→mid 跨度） */
+  cuspStemPull: 0.52,
+  /** 尖角区：尖点接近控制点偏移（相对 arcJoin→mid 跨度） */
+  cuspTipPull: 0.12,
+} as const;
+
+/** 工具栏图标包围盒（宽高比 ≈ 75:200） */
+const BRACE_ICON_BOX: Box = { x: 8, y: 2, w: 8, h: 20 };
+
+/** 纵向 3 锚点 */
+export interface BraceVerticalAnchors {
+  top: CanvasPoint;
+  mid: CanvasPoint;
+  bottom: CanvasPoint;
+}
+
+interface BraceArcLayout {
+  topY: number;
+  midY: number;
+  botY: number;
+  outerX: number;
+  tipX: number;
+  stemXSide: number;
+  halfH: number;
+  geomW: number;
+  rHook: number;
+  arcJoinYSide: number;
+  arcJoinBotYSide: number;
+  arcJoinYCusp: number;
+  arcJoinBotYCusp: number;
+  hookTopY: number;
+  hookBotY: number;
+  cuspDepth: number;
+}
+
+type BracePathSegment =
+  | { t: 'M' | 'L'; x: number; y: number }
+  | { t: 'A'; rx: number; ry: number; rot: number; large: 0 | 1; sweep: 0 | 1; x: number; y: number }
+  | { t: 'C'; x1: number; y1: number; x2: number; y2: number; x: number; y: number };
+
+/** 花括号有效横向宽度：随高度等比，clamp 到 [min, max] */
+function resolveBraceGeomWidth(w: number, halfH: number): number {
+  const maxW = halfH * BRACE_ARC.maxWidthHalfHRatio;
+  const minW = halfH * BRACE_ARC.minWidthHalfHRatio;
+  return Math.min(w, Math.max(minW, maxW));
+}
+
+function resolveBraceArcLayout(b: Box, side: 'left' | 'right'): BraceArcLayout {
+  const { x, y, w, h } = b;
+  const halfH = h / 2;
+  const geomW = resolveBraceGeomWidth(w, halfH);
+  const isLeft = side === 'left';
+  const midY = y + halfH;
+  const sideJoinOffset = halfH * BRACE_ARC.sideArcJoinRatio;
+  const cuspJoinOffset = halfH * BRACE_ARC.cuspArcJoinRatio;
+  const hookOffset = halfH * BRACE_ARC.hookStemRatio;
+  const arcJoinYSide = midY - sideJoinOffset;
+  const arcJoinBotYSide = midY + sideJoinOffset;
+  const arcJoinYCusp = midY - cuspJoinOffset;
+  const arcJoinBotYCusp = midY + cuspJoinOffset;
+  const stemOffsetSide = geomW * BRACE_ARC.stemXRatio;
+  const maxCuspDepth = halfH * BRACE_ARC.maxCuspHalfHRatio;
+  const cuspDepth = Math.min(stemOffsetSide, maxCuspDepth);
+
+  return {
+    topY: y,
+    midY,
+    botY: y + h,
+    outerX: isLeft ? x + geomW : x + w - geomW,
+    tipX: isLeft ? x : x + w,
+    stemXSide: isLeft ? x + stemOffsetSide : x + w - stemOffsetSide,
+    halfH,
+    geomW,
+    rHook: halfH * BRACE_ARC.hookArcRatio,
+    arcJoinYSide,
+    arcJoinBotYSide,
+    arcJoinYCusp,
+    arcJoinBotYCusp,
+    hookTopY: arcJoinYSide - hookOffset,
+    hookBotY: arcJoinBotYSide + hookOffset,
+    cuspDepth,
+  };
+}
+
+/** 花括号实际绘制包围盒（宽不超过高度推导的上限） */
+export function getBraceVisualBounds(b: Box, side: 'left' | 'right'): Box {
+  const halfH = b.h / 2;
+  const geomW = resolveBraceGeomWidth(b.w, halfH);
+  if (side === 'left') {
+    return { x: b.x, y: b.y, w: geomW, h: b.h };
+  }
+  return { x: b.x + b.w - geomW, y: b.y, w: geomW, h: b.h };
+}
+
+/** 解析纵向三等分语义锚点 */
+export function getBraceVerticalAnchors(b: Box, side: 'left' | 'right'): BraceVerticalAnchors {
+  const L = resolveBraceArcLayout(b, side);
+  return {
+    top: { x: L.stemXSide, y: L.topY },
+    mid: { x: L.tipX, y: L.midY },
+    bottom: { x: L.stemXSide, y: L.botY },
+  };
+}
+
+function buildBraceArcSegments(L: BraceArcLayout, side: 'left' | 'right'): BracePathSegment[] {
+  const isLeft = side === 'left';
+  const hookSweepTop: 0 | 1 = isLeft ? 0 : 1;
+  const hookSweepBot: 0 | 1 = isLeft ? 0 : 1;
+  const halfSpan = L.midY - L.arcJoinYCusp;
+  const stemPull = halfSpan * BRACE_ARC.cuspStemPull;
+  const tipPull = Math.min(halfSpan * BRACE_ARC.cuspTipPull, L.cuspDepth * 0.28);
+
+  const segments: BracePathSegment[] = [
+    { t: 'M', x: L.outerX, y: L.topY },
+    { t: 'A', rx: L.rHook, ry: L.rHook, rot: 0, large: 0, sweep: hookSweepTop, x: L.stemXSide, y: L.hookTopY },
+    { t: 'L', x: L.stemXSide, y: L.arcJoinYSide },
+  ];
+  // 同 x 竖直延伸至尖点区（禁止横向台阶）
+  if (Math.abs(L.arcJoinYSide - L.arcJoinYCusp) > 0.01) {
+    segments.push({ t: 'L', x: L.stemXSide, y: L.arcJoinYCusp });
+  }
+  segments.push(
+    {
+      t: 'C',
+      x1: L.stemXSide, y1: L.arcJoinYCusp + stemPull,
+      x2: L.tipX, y2: L.midY - tipPull,
+      x: L.tipX, y: L.midY,
+    },
+    {
+      t: 'C',
+      x1: L.tipX, y1: L.midY + tipPull,
+      x2: L.stemXSide, y2: L.arcJoinBotYCusp - stemPull,
+      x: L.stemXSide, y: L.arcJoinBotYCusp,
+    },
+  );
+  if (Math.abs(L.arcJoinBotYSide - L.arcJoinBotYCusp) > 0.01) {
+    segments.push({ t: 'L', x: L.stemXSide, y: L.arcJoinBotYSide });
+  }
+  segments.push(
+    { t: 'L', x: L.stemXSide, y: L.hookBotY },
+    { t: 'A', rx: L.rHook, ry: L.rHook, rot: 0, large: 0, sweep: hookSweepBot, x: L.outerX, y: L.botY },
+  );
+  return segments;
+}
+
+/** 圆形 SVG 弧（rx=ry）转 Canvas arc */
+function appendCircularSvgArc(
+  ctx: CanvasRenderingContext2D,
+  x0: number,
+  y0: number,
+  r: number,
+  large: 0 | 1,
+  sweep: 0 | 1,
+  x1: number,
+  y1: number,
+): void {
+  const dx = (x0 - x1) / 2;
+  const dy = (y0 - y1) / 2;
+  const rx = r;
+  const ry = r;
+  const rx2 = rx * rx;
+  const ry2 = ry * ry;
+  const dx2 = dx * dx;
+  const dy2 = dy * dy;
+  const lambda = dx2 / rx2 + dy2 / ry2;
+  const rad = lambda > 1 ? Math.sqrt(lambda) : 1;
+  const rxs = rx * rad;
+  const rys = ry * rad;
+  const rxs2 = rxs * rxs;
+  const rys2 = rys * rys;
+  const sign = large === sweep ? -1 : 1;
+  const num = Math.max(0, rxs2 * rys2 - rxs2 * dy2 - rys2 * dx2);
+  const den = rxs2 * dy2 + rys2 * dx2;
+  const coef = den === 0 ? 0 : sign * Math.sqrt(num / den);
+  const cxp = coef * ((rxs * dy) / rys);
+  const cyp = coef * (-(rys * dx) / rxs);
+  const cx = cxp + (x0 + x1) / 2;
+  const cy = cyp + (y0 + y1) / 2;
+  const start = Math.atan2((y0 - cy) / rys, (x0 - cx) / rxs);
+  const end = Math.atan2((y1 - cy) / rys, (x1 - cx) / rxs);
+  ctx.ellipse(cx, cy, rxs, rys, 0, start, end, sweep === 0);
+}
+
+function appendBraceSegmentsToCtx(ctx: CanvasRenderingContext2D, segments: BracePathSegment[]): void {
+  let cx0 = 0;
+  let cy0 = 0;
+  for (const seg of segments) {
+    if (seg.t === 'M') {
+      ctx.moveTo(seg.x, seg.y);
+      cx0 = seg.x;
+      cy0 = seg.y;
+    } else if (seg.t === 'L') {
+      ctx.lineTo(seg.x, seg.y);
+      cx0 = seg.x;
+      cy0 = seg.y;
+    } else if (seg.t === 'C') {
+      ctx.bezierCurveTo(seg.x1, seg.y1, seg.x2, seg.y2, seg.x, seg.y);
+      cx0 = seg.x;
+      cy0 = seg.y;
+    } else {
+      appendCircularSvgArc(ctx, cx0, cy0, seg.rx, seg.large, seg.sweep, seg.x, seg.y);
+      cx0 = seg.x;
+      cy0 = seg.y;
+    }
+  }
+}
+
+function formatBracePathCoord(n: number): string {
+  return Number(n.toFixed(2)).toString();
+}
+
+function segmentsToBracePathD(segments: BracePathSegment[]): string {
+  const f = formatBracePathCoord;
+  return segments.map((seg) => {
+    if (seg.t === 'M' || seg.t === 'L') return `${seg.t}${f(seg.x)} ${f(seg.y)}`;
+    if (seg.t === 'C') {
+      return `C${f(seg.x1)} ${f(seg.y1)} ${f(seg.x2)} ${f(seg.y2)} ${f(seg.x)} ${f(seg.y)}`;
+    }
+    return `A${f(seg.rx)} ${f(seg.ry)} ${seg.rot} ${seg.large} ${seg.sweep} ${f(seg.x)} ${f(seg.y)}`;
+  }).join(' ');
+}
+
+function buildBracePathDFromBox(b: Box, side: 'left' | 'right'): string {
+  return segmentsToBracePathD(buildBraceArcSegments(resolveBraceArcLayout(b, side), side));
+}
+
+export const BRACE_LEFT_PATH_D = buildBracePathDFromBox(BRACE_ICON_BOX, 'left');
+export const BRACE_RIGHT_PATH_D = buildBracePathDFromBox(BRACE_ICON_BOX, 'right');
+
+export function bracePathD(side: 'left' | 'right'): string {
+  return side === 'left' ? BRACE_LEFT_PATH_D : BRACE_RIGHT_PATH_D;
+}
+
 function drawBraceShape(
   ctx: CanvasRenderingContext2D,
   b: Box,
@@ -464,38 +1018,20 @@ function drawBraceShape(
   stroke: string,
   strokeWidth: number,
 ): void {
+  const d = buildBracePathDFromBox(b, side);
+  ctx.save();
   ctx.strokeStyle = stroke;
   ctx.lineWidth = Math.max(2, strokeWidth);
-  ctx.lineCap = 'round';
+  ctx.lineCap = 'butt';
   ctx.lineJoin = 'round';
-
-  withViewBox(ctx, b, 0, () => {
-    if (side === 'left') {
-      ctx.beginPath();
-      ctx.moveTo(19, 4);
-      ctx.bezierCurveTo(13, 4, 12, 8, 14, 12);
-      ctx.bezierCurveTo(12, 16, 13, 20, 19, 20);
-      ctx.stroke();
-      for (const y of [7, 12, 17]) {
-        ctx.beginPath();
-        ctx.moveTo(4, y);
-        ctx.lineTo(14, y);
-        ctx.stroke();
-      }
-    } else {
-      ctx.beginPath();
-      ctx.moveTo(5, 4);
-      ctx.bezierCurveTo(11, 4, 12, 8, 10, 12);
-      ctx.bezierCurveTo(12, 16, 11, 20, 5, 20);
-      ctx.stroke();
-      for (const y of [7, 12, 17]) {
-        ctx.beginPath();
-        ctx.moveTo(10, y);
-        ctx.lineTo(20, y);
-        ctx.stroke();
-      }
-    }
-  });
+  if (typeof Path2D !== 'undefined') {
+    ctx.stroke(new Path2D(d));
+  } else {
+    ctx.beginPath();
+    appendBraceSegmentsToCtx(ctx, buildBraceArcSegments(resolveBraceArcLayout(b, side), side));
+    ctx.stroke();
+  }
+  ctx.restore();
 }
 
 function cylinderPath(ctx: CanvasRenderingContext2D, b: Box) {
@@ -552,8 +1088,11 @@ function speechBubbleOvalPath(ctx: CanvasRenderingContext2D, b: Box) {
   });
 }
 
-function speechBubbleBounds(b: Box): Box {
-  return { x: b.x, y: b.y, w: b.w, h: b.h };
+function speechBubbleBounds(b: Box, kind: 'speechBubble' | 'speechBubbleRect'): Box {
+  const points = kind === 'speechBubbleRect'
+    ? SPEECH_BUBBLE_RECT_VB_POINTS
+    : SPEECH_BUBBLE_OVAL_VB_POINTS;
+  return boundsFromViewBoxPoints(b, points, 0);
 }
 
 function speechBubbleTextBounds(b: Box, kind: 'speechBubble' | 'speechBubbleRect'): Box {
@@ -573,6 +1112,25 @@ function speechBubbleTextBounds(b: Box, kind: 'speechBubble' | 'speechBubbleRect
   };
 }
 
+function triangleTextBounds(b: Box): Box {
+  // 内接于 viewBox [[12,5],[20,19],[4,19]] 的安全文字区
+  return {
+    x: b.x + b.w * (7 / VB),
+    y: b.y + b.h * (8 / VB),
+    w: b.w * (10 / VB),
+    h: b.h * (7 / VB),
+  };
+}
+
+function triangleRightTextBounds(b: Box): Box {
+  return {
+    x: b.x + b.w * (7 / VB),
+    y: b.y + b.h * (7 / VB),
+    w: b.w * (10 / VB),
+    h: b.h * (9 / VB),
+  };
+}
+
 /** 文字排版区域（气泡主体，不含尾巴） */
 export function getShapeTextBounds(
   kind: ShapeKind,
@@ -581,11 +1139,24 @@ export function getShapeTextBounds(
   w: number,
   h: number,
 ): Box {
+  const box = { x, y, w, h };
   if (kind === 'speechBubble' || kind === 'speechBubbleRect') {
-    return speechBubbleTextBounds({ x, y, w, h }, kind);
+    return speechBubbleTextBounds(box, kind);
+  }
+  if (kind === 'triangle') {
+    return triangleTextBounds(box);
+  }
+  if (kind === 'triangleRight') {
+    return triangleRightTextBounds(box);
   }
   if (kind === 'braceLeft' || kind === 'braceRight') {
     return { x, y, w, h };
+  }
+  if (kind === 'seqActor') {
+    return { x, y: y + h * 0.64, w, h: h * 0.32 };
+  }
+  if (kind === 'seqBoundaryLifeline' || kind === 'seqControlLifeline' || kind === 'seqEntityLifeline') {
+    return { x, y: y + h * 0.54, w, h: h * 0.4 };
   }
   return getShapeVisualBounds(kind, x, y, w, h);
 }
@@ -610,14 +1181,18 @@ export function pointInShapeBounds(
 }
 
 export function hitShapeElementAtPoint(
-  el: import('@lingyi-doc/core').ShapeElement,
+  el: ShapeElement,
   pt: { x: number; y: number },
   pad = 2,
 ): boolean {
-  return pointInShapeBounds(el.shapeKind, el.x, el.y, el.width, el.height, pt, pad);
+  const box = getShapeInteractionBounds(el);
+  return (
+    pt.x >= box.x - pad
+    && pt.x <= box.x + box.w + pad
+    && pt.y >= box.y - pad
+    && pt.y <= box.y + box.h + pad
+  );
 }
-
-type CanvasPoint = { x: number; y: number };
 
 function normalizeDir(dx: number, dy: number): CanvasPoint {
   const len = Math.hypot(dx, dy);
@@ -722,6 +1297,81 @@ function mapPolygonOutline(kind: ShapeKind, x: number, y: number, w: number, h: 
   return poly.map(([px, py]) => ({ x: mapX(px, inner), y: mapY(py, inner) }));
 }
 
+function dShapeOutlinePoints(x: number, y: number, w: number, h: number, arcSteps = 12): CanvasPoint[] {
+  const r = h / 2;
+  const arcCx = x + w - r;
+  const arcCy = y + h / 2;
+  const pts: CanvasPoint[] = [{ x, y }, { x: x + w - r, y }];
+  sampleArc(arcCx, arcCy, r, -Math.PI / 2, Math.PI / 2, arcSteps, pts);
+  pts.push({ x, y: y + h });
+  return pts;
+}
+
+function roundRectOutlinePoints(
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  cornerRadius: number,
+  arcSteps = 6,
+): CanvasPoint[] {
+  const r = Math.min(cornerRadius, w / 2, h / 2);
+  if (r <= 0) {
+    return [
+      { x, y },
+      { x: x + w, y },
+      { x: x + w, y: y + h },
+      { x, y: y + h },
+    ];
+  }
+  const pts: CanvasPoint[] = [];
+  pts.push({ x: x + r, y });
+  pts.push({ x: x + w - r, y });
+  sampleArc(x + w - r, y + r, r, -Math.PI / 2, 0, arcSteps, pts);
+  pts.push({ x: x + w, y: y + h - r });
+  sampleArc(x + w - r, y + h - r, r, 0, Math.PI / 2, arcSteps, pts);
+  pts.push({ x: x + r, y: y + h });
+  sampleArc(x + r, y + h - r, r, Math.PI / 2, Math.PI, arcSteps, pts);
+  pts.push({ x, y: y + r });
+  sampleArc(x + r, y + r, r, Math.PI, (3 * Math.PI) / 2, arcSteps, pts);
+  return pts;
+}
+
+/** 沿椭圆弧采样（非等比例 rx/ry） */
+function sampleEllipseArc(
+  cx: number,
+  cy: number,
+  rx: number,
+  ry: number,
+  start: number,
+  end: number,
+  steps: number,
+  out: CanvasPoint[],
+): void {
+  for (let i = 0; i <= steps; i++) {
+    const a = start + ((end - start) * i) / steps;
+    out.push({ x: cx + rx * Math.cos(a), y: cy + ry * Math.sin(a) });
+  }
+}
+
+function cylinderOutlinePoints(
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  arcSteps = 10,
+): CanvasPoint[] {
+  const ry = h * 0.11;
+  const cx = x + w / 2;
+  const rx = w / 2;
+  const pts: CanvasPoint[] = [];
+  sampleEllipseArc(cx, y + ry, rx, ry, Math.PI, 0, arcSteps, pts);
+  pts.push({ x: x + w, y: y + h - ry });
+  sampleEllipseArc(cx, y + h - ry, rx, ry, 0, Math.PI, arcSteps, pts);
+  pts.push({ x, y: y + ry });
+  return pts;
+}
+
 /** 图形外轮廓采样点（用于连接锚点射线求交） */
 export function getShapeOutlinePoints(
   kind: ShapeKind,
@@ -739,6 +1389,12 @@ export function getShapeOutlinePoints(
   if (kind === 'star') return starOutlinePoints(b);
   if (kind === 'cloud') return cloudOutlinePoints(b);
   if (kind === 'ellipse') return fullRoundRectOutlinePoints(x, y, w, h);
+  if (kind === 'dShape') return dShapeOutlinePoints(x, y, w, h);
+  if (kind === 'roundRect') return roundRectOutlinePoints(x, y, w, h, Math.min(12, w / 4, h / 4));
+  if (kind === 'process') return roundRectOutlinePoints(x, y, w, h, Math.min(20, h / 2));
+  if (kind === 'cylinder') return cylinderOutlinePoints(x, y, w, h);
+  const extended = getExtendedDiagramOutlinePoints(kind, x, y, w, h);
+  if (extended) return extended;
   return null;
 }
 
@@ -932,12 +1588,16 @@ export function appendShapePath(
       roundRectPath(ctx, x, y, w, h, Math.min(20, h / 2));
       break;
     default:
-      ctx.rect(x, y, w, h);
+      if (isExtendedDiagramKind(kind)) {
+        appendExtendedDiagramPath(ctx, kind, x, y, w, h);
+      } else {
+        ctx.rect(x, y, w, h);
+      }
       break;
   }
 }
 
-export function drawShapeBody(
+export function drawShapeBodyImpl(
   ctx: CanvasRenderingContext2D,
   kind: ShapeKind,
   x: number,
@@ -947,6 +1607,7 @@ export function drawShapeBody(
   fill: string,
   stroke: string,
   strokeWidth: number,
+  options?: DrawShapeOptions,
 ): void {
   const b: Box = { x, y, w, h };
 
@@ -964,6 +1625,11 @@ export function drawShapeBody(
     return;
   }
 
+  if (isExtendedDiagramKind(kind)) {
+    drawExtendedDiagramBody(ctx, kind, x, y, w, h, fill, stroke, strokeWidth, options);
+    return;
+  }
+
   ctx.fillStyle = fill;
   ctx.strokeStyle = stroke;
   ctx.lineWidth = strokeWidth;
@@ -971,4 +1637,28 @@ export function drawShapeBody(
   appendShapePath(ctx, kind, x, y, w, h);
   ctx.fill();
   ctx.stroke();
+}
+
+export function drawShapeBody(
+  ctx: CanvasRenderingContext2D,
+  kind: ShapeKind,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  fill: string,
+  stroke: string,
+  strokeWidth: number,
+  options?: DrawShapeOptions,
+): void {
+  if (isExtendedDiagramKind(kind)) {
+    drawShapeBodyImpl(ctx, kind, x, y, w, h, fill, stroke, strokeWidth, options);
+    return;
+  }
+  const registry = getShapeRegistry();
+  if (registry.hasCapability(kind, 'drawBody')) {
+    registry.invoke(kind, 'drawBody', ctx, x, y, w, h, fill, stroke, strokeWidth);
+    return;
+  }
+  drawShapeBodyImpl(ctx, kind, x, y, w, h, fill, stroke, strokeWidth, options);
 }

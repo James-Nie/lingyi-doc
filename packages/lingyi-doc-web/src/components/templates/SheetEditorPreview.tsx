@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Workbook } from '@lingyi-doc/core';
+import { Workbook, isBaseSheet } from '@lingyi-doc/core';
 import {
   SheetContainer,
   SheetTabs,
@@ -36,7 +36,7 @@ export const SheetEditorPreview: React.FC<SheetEditorPreviewProps> = ({ workbook
   }, [workbook]);
 
   const activeTable = workbook.activeSheet;
-  const isBase = activeTable?.sheet.type === 'base';
+  const isBase = activeTable ? isBaseSheet(activeTable.sheet) : false;
   const sheetInfos = useMemo(
     () => workbook.sheets.map(s => ({ id: s.id, name: s.name, type: s.type })),
     [workbook, activeSheetId],

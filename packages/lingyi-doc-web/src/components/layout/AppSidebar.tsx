@@ -4,12 +4,15 @@ import { DocumentManager } from '@lingyi-doc/core';
 import type { DocumentListItem } from '@lingyi-doc/core';
 import { SidebarDocContextMenu, type SidebarDocAction } from './SidebarDocContextMenu';
 import { RenameDocumentModal } from '../RenameDocumentModal';
-import { useTemplatePicker } from '../templates/TemplatePickerContext';
+import { MoveDocumentModal } from '../MoveDocumentModal';
+import { CreateDocSidebarTrigger } from '../createDoc';
+import { useCreateDocument } from '../../hooks/useCreateDocument';
 import { documentLibraryStore } from '../../stores/documentLibraryStore';
 import { appPath, isDocPublicPath } from '../../utils/appPaths';
 import { confirmDeleteToRecycleBin } from '../../utils/appDialog';
 import { DocumentShareApi } from '../../api/documentShare';
 import { navigateToDoc, openDocInNewTab } from '../../utils/navigateToDoc';
+import { resolveMoveDocumentSource, type MoveDocumentSource } from '../../utils/moveDocument';
 import { SidebarDirectorySection } from './sidebar/SidebarDirectorySection';
 import { SidebarIconBtn } from './sidebar/SidebarIconBtn';
 import { AppLogoWithName } from '../AppLogo';
@@ -93,13 +96,14 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({ onStub, onToast, workspa
   const location = useLocation();
   const { docId: routeDocId } = useParams<{ docId?: string }>();
   const [activeDocId, setActiveDocId] = useState<string | undefined>(routeDocId);
-  const { openTemplatePicker } = useTemplatePicker();
+  const createDoc = useCreateDocument();
   const [search, setSearch] = useState('');
   const [documents, setDocuments] = useState<DocumentListItem[]>([]);
   const [libraryExpanded, setLibraryExpanded] = useState(true);
   const [sortAsc, setSortAsc] = useState(true);
   const [busyDocId, setBusyDocId] = useState<string | null>(null);
   const [renameDoc, setRenameDoc] = useState<DocumentListItem | null>(null);
+  const [moveSource, setMoveSource] = useState<MoveDocumentSource | null>(null);
   const {
     hoveredItemId: hoveredDocId,
     setHoveredItemId: setHoveredDocId,
@@ -232,6 +236,14 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({ onStub, onToast, workspa
       setRenameDoc(doc);
       return;
     }
+    if (action === 'moveTo') {
+      closeMenu();
+      void resolveMoveDocumentSource({
+        docId: doc.id,
+        title: doc.title || '未命名文档',
+      }).then(setMoveSource);
+      return;
+    }
     if (action === 'delete') {
       closeMenu();
       const confirmed = await confirmDeleteToRecycleBin();
@@ -253,7 +265,6 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({ onStub, onToast, workspa
     closeMenu();
     const stubLabels: Partial<Record<SidebarDocAction, string>> = {
       share: '分享',
-      moveTo: '移动到',
       pin: '置顶',
       transfer: '转移所有权',
     };
@@ -360,9 +371,16 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({ onStub, onToast, workspa
             openMenuAt(id, new DOMRect(e.clientX, e.clientY, 0, 0));
           }}
           addAction={(
-            <SidebarIconBtn title="新建" onClick={() => openTemplatePicker()}>
-              +
-            </SidebarIconBtn>
+            <CreateDocSidebarTrigger
+              title="新建"
+              menuOpen={createDoc.menuOpen}
+              menuAnchor={createDoc.menuAnchor}
+              onToggle={createDoc.toggleMenuAt}
+              onClose={createDoc.closeMenu}
+              onCreate={createDoc.handlePickDocType}
+              onStub={stub}
+              onCreateKnowledgeBase={createDoc.openCreateKnowledgeBase}
+            />
           )}
         />
       </div>
@@ -394,6 +412,18 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({ onStub, onToast, workspa
             setBusyDocId(null);
           }
         }}
+      />
+
+      <MoveDocumentModal
+        open={moveSource !== null}
+        source={moveSource}
+        onClose={() => setMoveSource(null)}
+        onMoved={() => {
+          toast('已移动');
+          reloadDocs();
+          documentLibraryStore.bump();
+        }}
+        onError={msg => toast(`移动失败: ${msg}`)}
       />
 
       <SidebarResizeHandle

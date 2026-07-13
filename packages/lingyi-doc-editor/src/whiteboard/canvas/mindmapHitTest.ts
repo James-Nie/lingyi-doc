@@ -1,25 +1,29 @@
 import type { MindmapElement, WhiteboardPoint } from '@lingyi-doc/core';
-import { computeMindMapLayout } from '@lingyi-doc/core';
-import { SMM_EMBED_PADDING } from '../mindmap/syncMindmapBounds';
+import { WHITEBOARD_MIND_BRANCH_STYLE_DEFAULT } from '@lingyi-doc/core';
+import { getMindmapNodeRect, hitMindmapNode, MINDMAP_CONTENT_PADDING, type MindmapHitResult } from '@lingyi-doc/mind-map';
+
+export function hitMindmapAtPoint(
+  element: MindmapElement,
+  pt: WhiteboardPoint,
+): MindmapHitResult {
+  const localX = pt.x - element.x;
+  const localY = pt.y - element.y;
+  return hitMindmapNode(
+    element.root,
+    element.layout,
+    element.branchStyle ?? WHITEBOARD_MIND_BRANCH_STYLE_DEFAULT,
+    localX,
+    localY,
+    MINDMAP_CONTENT_PADDING,
+  );
+}
 
 export function hitMindmapNodeAtPoint(
   element: MindmapElement,
   pt: WhiteboardPoint,
 ): string | null {
-  const layout = computeMindMapLayout(
-    element.root,
-    element.layout,
-    element.branchStyle ?? 'straight',
-  );
-  const lx = pt.x - element.x - SMM_EMBED_PADDING;
-  const ly = pt.y - element.y - SMM_EMBED_PADDING;
-  const sorted = [...layout.nodes].sort((a, b) => b.depth - a.depth);
-  for (const n of sorted) {
-    if (lx >= n.x && lx <= n.x + n.width && ly >= n.y && ly <= n.y + n.height) {
-      return n.id;
-    }
-  }
-  return null;
+  const hit = hitMindmapAtPoint(element, pt);
+  return hit.kind === 'node' ? hit.nodeId ?? null : null;
 }
 
 export function getMindmapNodeScreenBounds(
@@ -27,17 +31,18 @@ export function getMindmapNodeScreenBounds(
   nodeId: string,
   viewport: { x: number; y: number; zoom: number },
 ): { x: number; y: number; w: number; h: number } | null {
-  const layout = computeMindMapLayout(
+  const rect = getMindmapNodeRect(
     element.root,
     element.layout,
-    element.branchStyle ?? 'straight',
+    element.branchStyle ?? WHITEBOARD_MIND_BRANCH_STYLE_DEFAULT,
+    nodeId,
+    MINDMAP_CONTENT_PADDING,
   );
-  const node = layout.nodes.find(n => n.id === nodeId);
-  if (!node) return null;
+  if (!rect) return null;
   return {
-    x: viewport.x + (element.x + SMM_EMBED_PADDING + node.x) * viewport.zoom,
-    y: viewport.y + (element.y + SMM_EMBED_PADDING + node.y) * viewport.zoom,
-    w: node.width * viewport.zoom,
-    h: node.height * viewport.zoom,
+    x: viewport.x + (element.x + rect.x) * viewport.zoom,
+    y: viewport.y + (element.y + rect.y) * viewport.zoom,
+    w: rect.width * viewport.zoom,
+    h: rect.height * viewport.zoom,
   };
 }

@@ -1,6 +1,12 @@
 export type WbMindmapAction =
   | 'sibling'
+  | 'siblingBefore'
+  | 'siblingAfter'
   | 'child'
+  | 'childLeft'
+  | 'childRight'
+  | 'childUp'
+  | 'childDown'
   | 'parent'
   | 'duplicate'
   | 'delete'

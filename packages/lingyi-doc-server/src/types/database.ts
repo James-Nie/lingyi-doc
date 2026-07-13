@@ -40,6 +40,7 @@ export interface DbAdminRole {
 export interface DbAuditLog {
   id: number;
   operator_id: string;
+  operator_name?: string | null;
   action: string;
   target_type: string | null;
   target_id: string | null;

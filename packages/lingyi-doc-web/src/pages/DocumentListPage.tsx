@@ -10,8 +10,8 @@ import { UploadCard } from '../components/UploadMenu';
 import { DuplicateTitleModal } from '../components/DuplicateTitleModal';
 import { confirmDeleteToRecycleBin } from '../utils/appDialog';
 import { isDocumentTitleTaken } from '../utils/documentTitle';
-import { CreateDocMenu, type CreateDocType } from '../components/CreateDocMenu';
-import { useTemplatePicker } from '../components/templates/TemplatePickerContext';
+import { CreateDocQuickCard, CreateDocTemplateLibraryCard } from '../components/createDoc';
+import { useCreateDocument } from '../hooks/useCreateDocument';
 import { PageTopBar } from '../components/layout/topBar';
 import { authStore } from '../stores/authStore';
 import { appPath } from '../utils/appPaths';
@@ -41,7 +41,7 @@ export const DocumentListPage: React.FC = () => {
   const navigate = useNavigate();
   const authState = useSyncExternalStore(authStore.subscribe, authStore.getState);
   const currentUserId = authState.user?.id ?? null;
-  const { openTemplatePicker } = useTemplatePicker();
+  const createDoc = useCreateDocument();
   const [documents, setDocuments] = useState<DocumentListItem[]>([]);
   const [sharedDocuments, setSharedDocuments] = useState<DocumentListItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -50,7 +50,6 @@ export const DocumentListPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabKey>('recent');
   const [importing, setImporting] = useState(false);
   const [uploadMenuOpen, setUploadMenuOpen] = useState(false);
-  const [createMenuOpen, setCreateMenuOpen] = useState(false);
   const [openMenuDocId, setOpenMenuDocId] = useState<string | null>(null);
   const [hoveredDocId, setHoveredDocId] = useState<string | null>(null);
   const [actionBusyDocId, setActionBusyDocId] = useState<string | null>(null);
@@ -106,11 +105,6 @@ export const DocumentListPage: React.FC = () => {
   const showDuplicateTitle = useCallback((title: string) => {
     setDuplicateTitle(title);
   }, []);
-
-  const handlePickDocType = useCallback((type: CreateDocType) => {
-    setCreateMenuOpen(false);
-    openTemplatePicker({ typeFilter: type });
-  }, [openTemplatePicker]);
 
   const handleImportClick = () => {
     setUploadMenuOpen(false);
@@ -245,97 +239,30 @@ export const DocumentListPage: React.FC = () => {
         width: '100%',
         boxSizing: 'border-box',
       }}>
-        {/* 新建 */}
-        <div style={{ minWidth: 0, position: 'relative' }}>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => { setUploadMenuOpen(false); setCreateMenuOpen(v => !v); }}
-            style={{
-              width: '100%', display: 'flex', alignItems: 'center', gap: 12,
-              padding: '14px 16px', border: '1px solid #e8e9eb', borderRadius: 8,
-              background: createMenuOpen ? '#fafafa' : '#fff',
-              cursor: busy ? 'not-allowed' : 'pointer',
-              opacity: busy ? 0.7 : 1, textAlign: 'left',
-            }}
-            onMouseEnter={e => { if (!busy && !createMenuOpen) e.currentTarget.style.background = '#fafafa'; }}
-            onMouseLeave={e => { if (!createMenuOpen) e.currentTarget.style.background = '#fff'; }}
-          >
-            <span style={{
-              width: 36, height: 36, borderRadius: 8, background: '#e8f0fe', flexShrink: 0,
-              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3370ff" strokeWidth="2">
-                <path d="M12 5v14M5 12h14" />
-              </svg>
-            </span>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 14, fontWeight: 500, color: '#1f2329', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>新建</div>
-              <div style={{ fontSize: 12, color: '#8f959e', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>新建文档开始协作</div>
-            </div>
-            <svg
-              width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#bbb" strokeWidth="2"
-              style={{
-                transform: createMenuOpen ? 'rotate(180deg)' : 'rotate(0deg)',
-                transition: 'transform 0.15s',
-              }}
-            >
-              <path d="M18 15l-6-6-6 6" />
-            </svg>
-          </button>
-          <CreateDocMenu
-            open={createMenuOpen}
-            onClose={() => setCreateMenuOpen(false)}
-            onCreate={handlePickDocType}
-            onStub={showStub}
-          />
-        </div>
+        <CreateDocQuickCard
+          menuOpen={createDoc.menuOpen}
+          disabled={busy}
+          onToggle={() => {
+            setUploadMenuOpen(false);
+            createDoc.setMenuOpen(v => !v);
+          }}
+          onClose={createDoc.closeMenu}
+          onCreate={createDoc.handlePickDocType}
+          onStub={showStub}
+          onCreateKnowledgeBase={createDoc.openCreateKnowledgeBase}
+        />
 
         {/* 上传 */}
         <UploadCard
           open={uploadMenuOpen}
           disabled={busy}
-          onToggle={() => { setCreateMenuOpen(false); setUploadMenuOpen(v => !v); }}
+          onToggle={() => { createDoc.closeMenu(); setUploadMenuOpen(v => !v); }}
           onClose={() => setUploadMenuOpen(false)}
           onUploadFile={handleImportClick}
           onStub={showStub}
         />
 
-        {/* 模板库 */}
-        <button
-          type="button"
-          onClick={() => openTemplatePicker()}
-          style={{
-            minWidth: 0,
-            width: '100%',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 12,
-            padding: '14px 16px',
-            border: '1px solid #e8e9eb',
-            borderRadius: 8,
-            background: '#fff',
-            cursor: 'pointer',
-            textAlign: 'left',
-            boxSizing: 'border-box',
-          }}
-          onMouseEnter={e => { e.currentTarget.style.background = '#fafafa'; }}
-          onMouseLeave={e => { e.currentTarget.style.background = '#fff'; }}
-        >
-          <span style={{
-            width: 36, height: 36, borderRadius: 8, background: '#f3e8fd', flexShrink: 0,
-            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-          }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9333ea" strokeWidth="1.8">
-              <rect x="4" y="4" width="7" height="7" rx="1" /><rect x="13" y="4" width="7" height="7" rx="1" />
-              <rect x="4" y="13" width="7" height="7" rx="1" /><rect x="13" y="13" width="7" height="7" rx="1" />
-            </svg>
-          </span>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 14, fontWeight: 500, color: '#1f2329', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>模板库</div>
-            <div style={{ fontSize: 12, color: '#8f959e', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>选择模板快速创建</div>
-          </div>
-        </button>
+        <CreateDocTemplateLibraryCard onClick={createDoc.openTemplateLibrary} />
       </div>
 
       {/* 列表区 */}

@@ -1,11 +1,20 @@
-import type { AnchorId, ConnectorElement, ShapeElement, ShapeKind, WhiteboardElement, WhiteboardPoint } from '@lingyi-doc/core';
-import { connectorPathD } from '@lingyi-doc/core';
+import type { AnchorId, ConnectorElement, ConnectorPathPoint, MindmapElement, ShapeElement, ShapeKind, WhiteboardElement, WhiteboardPoint } from '@lingyi-doc/core';
+import { connectorPathD, curvePathDFromEndpoints, defaultElbowPoints, elbowPathD, ensureCurvePathPoints, getSeqLifelineHandlePoint, isSeqLifelineKind, SEQ_LIFELINE_DEFAULT_LENGTH } from '@lingyi-doc/core';
 import { WB_COLORS } from '../styles';
+import { drawElbowConnectorHandles, connectorElbowSegmentOpts } from '../elbowConnectorUI';
+import { drawCurvePathHandles } from '../pathEditingUI';
 import { elementBounds, type ResizeHandle } from '../viewportUtils';
 import { SHAPE_DEFAULT_FILL, SHAPE_DEFAULT_STROKE, SHAPE_DEFAULT_STROKE_WIDTH } from '@lingyi-doc/core';
 import type { AlignmentGuide } from './alignmentGuides';
 import { getShapeVisualBounds, drawShapeBody } from './shapePaths';
 import { HANDLES, interactionAnchorsForElement } from './hitTest';
+import { drawElement } from './drawElements';
+import { drawMindmapElement } from './drawMindmap';
+import {
+  BOARD_SELECTION_UI,
+  drawResizeCornerHandle,
+  selectionEdgeDotR,
+} from './selectionUi';
 import {
   SHAPE_QUICK_ADD,
   SHAPE_QUICK_ADD_SIDES,
@@ -15,6 +24,9 @@ import {
   oppositeQuickAddSide,
   shapeEdgePoint,
   shapeSelectionBox,
+  shapeRotationCenter,
+  shapeRotationHandlePos,
+  shapeResizeHandlePos,
   shapeSideAnchorPos,
   type ShapeQuickAddSide,
 } from './shapeQuickAdd';
@@ -24,6 +36,8 @@ export interface OverlayState {
   marquee: { x: number; y: number; w: number; h: number } | null;
   createPreview: { x: number; y: number; w: number; h: number } | null;
   createPreviewShapeKind?: ShapeKind | null;
+  placementPreviewElement?: WhiteboardElement | null;
+  isPlacementHover?: boolean;
   liveConnector: { start: WhiteboardPoint; end: WhiteboardPoint } | null;
   livePenPoints: WhiteboardPoint[] | null;
   connectorStyle?: string;
@@ -32,6 +46,9 @@ export interface OverlayState {
   penMode?: string;
   connectTarget: { element: WhiteboardElement; anchor: AnchorId } | null;
   connectorEndpoints: { start: WhiteboardPoint; end: WhiteboardPoint } | null;
+  connectorRoute?: WhiteboardPoint[] | null;
+  connectorStyleSelected?: ConnectorElement | null;
+  activePathPointIndex?: number | null;
   alignmentGuides?: AlignmentGuide[];
   zoom?: number;
   readOnly?: boolean;
@@ -41,6 +58,20 @@ export interface OverlayState {
 
 const CORNER_HANDLES: ResizeHandle[] = ['nw', 'ne', 'se', 'sw'];
 const EDGE_HANDLES: ResizeHandle[] = ['n', 'e', 's', 'w'];
+
+function withShapeRotation(
+  ctx: CanvasRenderingContext2D,
+  el: ShapeElement,
+  draw: () => void,
+) {
+  ctx.save();
+  const center = shapeRotationCenter(el);
+  ctx.translate(center.x, center.y);
+  if (el.rotation) ctx.rotate((el.rotation * Math.PI) / 180);
+  ctx.translate(-center.x, -center.y);
+  draw();
+  ctx.restore();
+}
 
 function selectionBox(elements: WhiteboardElement[], ids: string[]) {
   const selected = elements.filter(e => ids.includes(e.id));
@@ -249,61 +280,77 @@ function drawShapeSelection(
 ) {
   const box = shapeSelectionBox(el);
   const accent = WB_COLORS.accent;
-  const { cornerHalf, edgeShort, edgeLong, rotOffsetX, rotOffsetY } = SHAPE_SELECTION_UI;
+  const { selectionLineWidth } = SHAPE_SELECTION_UI;
+  const edgeDotR = selectionEdgeDotR();
 
   ctx.save();
   ctx.setLineDash([]);
 
-  ctx.strokeStyle = accent;
-  ctx.lineWidth = 1.5;
-  ctx.strokeRect(box.x, box.y, box.w, box.h);
-
-  if (el.locked) {
-    ctx.restore();
-    return;
-  }
-
-  for (const handle of CORNER_HANDLES) {
-    const hp = handlePos(box, handle);
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(hp.x - cornerHalf, hp.y - cornerHalf, cornerHalf * 2, cornerHalf * 2);
+  withShapeRotation(ctx, el, () => {
     ctx.strokeStyle = accent;
-    ctx.lineWidth = 1.5;
-    ctx.strokeRect(hp.x - cornerHalf, hp.y - cornerHalf, cornerHalf * 2, cornerHalf * 2);
-  }
+    ctx.lineWidth = selectionLineWidth;
+    ctx.strokeRect(box.x, box.y, box.w, box.h);
 
-  for (const handle of EDGE_HANDLES) {
-    const hp = handlePos(box, handle);
-    ctx.fillStyle = '#ffffff';
-    ctx.strokeStyle = accent;
-    ctx.lineWidth = 1.5;
-    if (handle === 'n' || handle === 's') {
-      ctx.fillRect(hp.x - edgeLong / 2, hp.y - edgeShort, edgeLong, edgeShort * 2);
-      ctx.strokeRect(hp.x - edgeLong / 2, hp.y - edgeShort, edgeLong, edgeShort * 2);
+    if (el.locked) return;
+
+    for (const handle of CORNER_HANDLES) {
+      const hp = shapeResizeHandlePos(box, handle);
+      drawResizeCornerHandle(ctx, hp.x, hp.y, accent);
+    }
+
+    for (const handle of (isSeqLifelineKind(el.shapeKind)
+      ? EDGE_HANDLES.filter(h => h !== 's')
+      : EDGE_HANDLES)) {
+      const hp = shapeResizeHandlePos(box, handle);
+      ctx.beginPath();
+      ctx.arc(hp.x, hp.y, edgeDotR, 0, Math.PI * 2);
+      ctx.fillStyle = '#9ec5ff';
+      ctx.fill();
+      ctx.strokeStyle = accent;
+      ctx.lineWidth = BOARD_SELECTION_UI.cornerBorderWidth;
+      ctx.stroke();
+    }
+
+    const quickAddSides = isSeqLifelineKind(el.shapeKind)
+      ? SHAPE_QUICK_ADD_SIDES.filter(id => id !== 's')
+      : SHAPE_QUICK_ADD_SIDES;
+
+    if (isSeqLifelineKind(el.shapeKind)) {
+      const hp = getSeqLifelineHandlePoint(el);
+      const headCx = box.x + box.w / 2;
+      const headBottom = box.y + box.h;
+      ctx.beginPath();
+      ctx.moveTo(headCx, headBottom);
+      ctx.lineTo(hp.x, hp.y);
+      ctx.strokeStyle = accent;
+      ctx.lineWidth = 1;
+      ctx.setLineDash([3, 3]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.arc(hp.x, hp.y, SHAPE_SELECTION_UI.cornerHalf + 1, 0, Math.PI * 2);
+      ctx.fillStyle = accent;
+      ctx.fill();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = '#ffffff';
+      ctx.stroke();
+    }
+
+    if (isShapeQuickAddSide(quickAddHover)) {
+      drawQuickAddPreview(ctx, el, quickAddHover, accent);
+      for (const id of quickAddSides) {
+        if (id === quickAddHover) continue;
+        drawQuickAddDot(ctx, shapeSideAnchorPos(box, id), accent);
+      }
     } else {
-      ctx.fillRect(hp.x - edgeShort, hp.y - edgeLong / 2, edgeShort * 2, edgeLong);
-      ctx.strokeRect(hp.x - edgeShort, hp.y - edgeLong / 2, edgeShort * 2, edgeLong);
+      for (const id of quickAddSides) {
+        drawQuickAddDot(ctx, shapeSideAnchorPos(box, id), accent);
+      }
     }
-  }
 
-  if (isShapeQuickAddSide(quickAddHover)) {
-    drawQuickAddPreview(ctx, el, quickAddHover, accent);
-    for (const id of SHAPE_QUICK_ADD_SIDES) {
-      if (id === quickAddHover) continue;
-      drawQuickAddDot(ctx, shapeSideAnchorPos(box, id), accent);
-    }
-  } else {
-    for (const id of SHAPE_QUICK_ADD_SIDES) {
-      drawQuickAddDot(ctx, shapeSideAnchorPos(box, id), accent);
-    }
-  }
-
-  drawRotationHandle(
-    ctx,
-    box.x - rotOffsetX,
-    box.y + box.h + rotOffsetY,
-    accent,
-  );
+    const rotHandle = shapeRotationHandlePos(box);
+    drawRotationHandle(ctx, rotHandle.x, rotHandle.y, accent);
+  });
 
   ctx.restore();
 }
@@ -315,6 +362,8 @@ function drawRotationHandle(
   color: string,
 ): void {
   const r = SHAPE_SELECTION_UI.rotationR;
+  const start = Math.PI / 2;
+  const end = Math.PI;
   ctx.save();
   ctx.strokeStyle = color;
   ctx.fillStyle = color;
@@ -322,27 +371,32 @@ function drawRotationHandle(
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
 
-  const start = Math.PI * 0.72;
-  const end = Math.PI * 1.62;
   ctx.beginPath();
   ctx.arc(x, y, r, start, end);
   ctx.stroke();
 
-  const tip = (angle: number, dir: number) => {
+  const tip = (angle: number, along: 1 | -1) => {
     const px = x + Math.cos(angle) * r;
     const py = y + Math.sin(angle) * r;
-    const tx = -Math.sin(angle) * dir;
-    const ty = Math.cos(angle) * dir;
+    const tx = Math.sin(angle) * along;
+    const ty = -Math.cos(angle) * along;
+    const size = 3.5;
     ctx.beginPath();
     ctx.moveTo(px, py);
-    ctx.lineTo(px + tx * 4 - Math.cos(angle) * 3, py + ty * 4 - Math.sin(angle) * 3);
-    ctx.lineTo(px + tx * 4 + Math.cos(angle) * 3, py + ty * 4 + Math.sin(angle) * 3);
+    ctx.lineTo(
+      px - tx * size - Math.sin(angle) * 1.8,
+      py - ty * size + Math.cos(angle) * 1.8,
+    );
+    ctx.lineTo(
+      px - tx * size + Math.sin(angle) * 1.8,
+      py - ty * size - Math.cos(angle) * 1.8,
+    );
     ctx.closePath();
     ctx.fill();
   };
 
-  tip(start, -1);
-  tip(end, 1);
+  tip(start, 1);
+  tip(end, -1);
   ctx.restore();
 }
 
@@ -356,6 +410,8 @@ export function drawOverlay(
     marquee,
     createPreview,
     createPreviewShapeKind,
+    placementPreviewElement,
+    isPlacementHover,
     liveConnector,
     livePenPoints,
     connectorStyle = 'arrow',
@@ -364,6 +420,9 @@ export function drawOverlay(
     penMode,
     connectTarget,
     connectorEndpoints,
+    connectorRoute,
+    connectorStyleSelected,
+    activePathPointIndex,
     alignmentGuides,
     zoom = 1,
     readOnly,
@@ -383,7 +442,16 @@ export function drawOverlay(
     ctx.strokeRect(marquee.x, marquee.y, marquee.w, marquee.h);
   }
 
-  if (createPreview && createPreview.w > 0 && createPreview.h > 0) {
+  if (isPlacementHover && placementPreviewElement) {
+    ctx.save();
+    ctx.globalAlpha = 0.5;
+    if (placementPreviewElement.type === 'mindmap') {
+      drawMindmapElement(ctx, placementPreviewElement as MindmapElement, false, false);
+    } else {
+      drawElement(ctx, placementPreviewElement, { hideShapeText: placementPreviewElement.type === 'shape' });
+    }
+    ctx.restore();
+  } else if (createPreview && createPreview.w > 0 && createPreview.h > 0) {
     if (createPreviewShapeKind) {
       ctx.save();
       ctx.globalAlpha = 0.45;
@@ -397,6 +465,9 @@ export function drawOverlay(
         SHAPE_DEFAULT_FILL,
         SHAPE_DEFAULT_STROKE,
         SHAPE_DEFAULT_STROKE_WIDTH,
+        isSeqLifelineKind(createPreviewShapeKind)
+          ? { seqLifelineLength: SEQ_LIFELINE_DEFAULT_LENGTH }
+          : undefined,
       );
       ctx.globalAlpha = 1;
       ctx.restore();
@@ -427,7 +498,11 @@ export function drawOverlay(
   }
 
   if (liveConnector) {
-    const d = connectorPathD(connectorStyle as 'arrow', liveConnector.start, liveConnector.end);
+    const d = connectorStyle === 'curve'
+      ? curvePathDFromEndpoints(liveConnector.start, liveConnector.end)
+      : connectorStyle === 'elbow'
+        ? elbowPathD(defaultElbowPoints(liveConnector.start, liveConnector.end))
+        : connectorPathD(connectorStyle as 'arrow', liveConnector.start, liveConnector.end);
     ctx.strokeStyle = '#3370ff';
     ctx.lineWidth = 2;
     ctx.setLineDash([6, 4]);
@@ -453,7 +528,12 @@ export function drawOverlay(
 
   const box = selectionBox(elements, selectedIds);
   const single = selectedIds.length === 1 ? elements.find(e => e.id === selectedIds[0]) : null;
-  const hideBox = selectedIds.length === 1 && (single?.type === 'shape' || single?.type === 'mindmap');
+  const hideBox = selectedIds.length === 1 && (
+    single?.type === 'shape'
+    || single?.type === 'mindmap'
+    || single?.type === 'connector'
+    || single?.type === 'pen'
+  );
 
   if (!readOnly && single?.type === 'shape') {
     drawShapeSelection(ctx, single as ShapeElement, shapeQuickAddHover);
@@ -462,10 +542,13 @@ export function drawOverlay(
   if (!readOnly && hoveredId && hoveredId !== single?.id) {
     const hovered = elements.find(e => e.id === hoveredId);
     if (hovered?.type === 'shape') {
-      const hb = shapeSelectionBox(hovered as ShapeElement);
-      ctx.strokeStyle = `${WB_COLORS.accent}88`;
-      ctx.lineWidth = 2;
-      ctx.strokeRect(hb.x - 1, hb.y - 1, hb.w + 2, hb.h + 2);
+      const shape = hovered as ShapeElement;
+      const hb = shapeSelectionBox(shape);
+      withShapeRotation(ctx, shape, () => {
+        ctx.strokeStyle = `${WB_COLORS.accent}88`;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(hb.x, hb.y, hb.w, hb.h);
+      });
     }
   }
 
@@ -481,23 +564,31 @@ export function drawOverlay(
     && single.type !== 'connector' && single.type !== 'pen' && single.type !== 'mindmap' && single.type !== 'shape') {
     for (const handle of HANDLES) {
       const hp = handlePos(box, handle);
-      ctx.fillStyle = '#fff';
-      ctx.strokeStyle = WB_COLORS.accent;
-      ctx.lineWidth = 2;
-      ctx.fillRect(hp.x - 6, hp.y - 6, 12, 12);
-      ctx.strokeRect(hp.x - 6, hp.y - 6, 12, 12);
+      drawResizeCornerHandle(ctx, hp.x, hp.y, WB_COLORS.accent);
     }
   }
 
   if (!readOnly && connectorEndpoints && single?.type === 'connector') {
-    for (const pt of [connectorEndpoints.start, connectorEndpoints.end]) {
-      ctx.beginPath();
-      ctx.arc(pt.x, pt.y, 6, 0, Math.PI * 2);
-      ctx.fillStyle = '#fff';
-      ctx.fill();
-      ctx.strokeStyle = WB_COLORS.accent;
-      ctx.lineWidth = 2;
-      ctx.stroke();
+    const conn = connectorStyleSelected ?? (single as ConnectorElement);
+    if (conn.style === 'curve' && connectorRoute && connectorRoute.length >= 2) {
+      const pathPoints = ensureCurvePathPoints(
+        connectorRoute,
+        connectorEndpoints.start,
+        connectorEndpoints.end,
+      ) as ConnectorPathPoint[];
+      drawCurvePathHandles(ctx, pathPoints, { activeIndex: activePathPointIndex });
+    } else if (conn.style === 'elbow' && connectorRoute && connectorRoute.length >= 2) {
+      drawElbowConnectorHandles(ctx, connectorRoute, WB_COLORS.accent, connectorElbowSegmentOpts(conn));
+    } else {
+      for (const pt of [connectorEndpoints.start, connectorEndpoints.end]) {
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, 6, 0, Math.PI * 2);
+        ctx.fillStyle = '#fff';
+        ctx.fill();
+        ctx.strokeStyle = WB_COLORS.accent;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
     }
   }
 }

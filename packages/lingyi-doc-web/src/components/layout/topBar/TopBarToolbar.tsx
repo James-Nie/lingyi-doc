@@ -1,8 +1,8 @@
 import React, { useCallback, useRef, useState, useSyncExternalStore } from 'react';
 import { UserAccountMenu } from '../../auth/UserAccountMenu';
 import { authStore } from '../../../stores/authStore';
-import { CreateDocMenu, type CreateDocType } from '../../CreateDocMenu';
-import { useOptionalTemplatePicker } from '../../templates/TemplatePickerContext';
+import { CreateDocTopBarTrigger } from '../../CreateDocTopBarTrigger';
+import { useOptionalCreateDocument } from '../../../hooks/useCreateDocument';
 import { DocumentMoreMenu, type DocumentMoreMenuItem } from './DocumentMoreMenu';
 import { TopBarDivider } from './TopBarDivider';
 import { TopBarIconButton } from './TopBarIconButton';
@@ -34,11 +34,9 @@ export const TopBarToolbar: React.FC<TopBarToolbarProps> = ({
   extra,
 }) => {
   const authState = useSyncExternalStore(authStore.subscribe, authStore.getState);
-  const templatePicker = useOptionalTemplatePicker();
-  const [createOpen, setCreateOpen] = useState(false);
+  const createDoc = useOptionalCreateDocument();
   const [moreOpen, setMoreOpen] = useState(false);
   const moreBtnRef = useRef<HTMLDivElement>(null);
-  const createWrapRef = useRef<HTMLDivElement>(null);
   const [moreAnchor, setMoreAnchor] = useState<DOMRect | null>(null);
 
   const stub = useCallback((name: string) => onStub?.(name), [onStub]);
@@ -54,20 +52,11 @@ export const TopBarToolbar: React.FC<TopBarToolbarProps> = ({
     else stub(key);
   };
 
-  const handleCreate = (type: CreateDocType) => {
-    setCreateOpen(false);
-    if (!templatePicker) {
-      stub('新建');
-      return;
-    }
-    templatePicker.openTemplatePicker({ typeFilter: type });
-  };
-
   const openMoreMenu = () => {
     const rect = moreBtnRef.current?.getBoundingClientRect() ?? null;
     setMoreAnchor(rect);
     setMoreOpen(v => !v);
-    setCreateOpen(false);
+    createDoc.closeMenu();
   };
 
   return (
@@ -108,29 +97,18 @@ export const TopBarToolbar: React.FC<TopBarToolbarProps> = ({
         </TopBarIconButton>
       )}
 
-      {showCreate && templatePicker && (
-        <div ref={createWrapRef} style={{ position: 'relative' }}>
-          <TopBarIconButton
-            title="新建"
-            filled
-            active={createOpen}
-            onClick={() => {
-              setCreateOpen(v => !v);
-              setMoreOpen(false);
-            }}
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M12 5v14M5 12h14" />
-            </svg>
-          </TopBarIconButton>
-          <CreateDocMenu
-            open={createOpen}
-            variant="dropdown"
-            onClose={() => setCreateOpen(false)}
-            onCreate={handleCreate}
-            onStub={stub}
-          />
-        </div>
+      {showCreate && createDoc.available && (
+        <CreateDocTopBarTrigger
+          menuOpen={createDoc.menuOpen}
+          onToggle={() => {
+            createDoc.setMenuOpen(v => !v);
+            setMoreOpen(false);
+          }}
+          onClose={createDoc.closeMenu}
+          onCreate={createDoc.handlePickDocType}
+          onStub={stub}
+          onCreateKnowledgeBase={createDoc.openCreateKnowledgeBase}
+        />
       )}
 
       <TopBarDivider />

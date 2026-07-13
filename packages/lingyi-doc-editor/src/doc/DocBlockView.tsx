@@ -73,6 +73,7 @@ interface DocBlockViewProps {
   releasePendingCaret?: (pending: PendingCaret) => void;
   applyPendingCaret?: (pending: PendingCaret) => void;
   readOnly?: boolean;
+  selectedCommentId?: string | null;
 }
 
 export const DocBlockView: React.FC<DocBlockViewProps> = ({
@@ -112,9 +113,11 @@ export const DocBlockView: React.FC<DocBlockViewProps> = ({
   releasePendingCaret,
   applyPendingCaret,
   readOnly = false,
+  selectedCommentId = null,
 }) => {
   const editableRef = useRef<HTMLDivElement>(null);
   const skipInput = useRef(false);
+  const selectedCommentIdRef = useRef(selectedCommentId);
   const historyRevision = useDocHistoryRevision();
   const lastHistoryRevisionRef = useRef(historyRevision);
 
@@ -131,18 +134,20 @@ export const DocBlockView: React.FC<DocBlockViewProps> = ({
     if (forceSync) lastHistoryRevisionRef.current = historyRevision;
 
     const pending = consumePendingCaret?.(block.id) ?? null;
+    const commentHighlightChanged = selectedCommentIdRef.current !== selectedCommentId;
+    selectedCommentIdRef.current = selectedCommentId;
     const domContent = extractContentFromEditable(editableRef.current);
     const domMatches = domContent.text === block.text
       && marksEqual(domContent.marks, block.marks);
 
-    if (document.activeElement === editableRef.current && !forceSync && !pending && domMatches) {
+    if (document.activeElement === editableRef.current && !forceSync && !pending && domMatches && !commentHighlightChanged) {
       return;
     }
 
     const hadFocus = document.activeElement === editableRef.current;
     const savedCaret = hadFocus ? getCaretOffset(editableRef.current) : null;
 
-    const html = marksToHtml(block.text, block.marks);
+    const html = marksToHtml(block.text, block.marks, { selectedCommentId });
     if (editableRef.current.innerHTML !== html) {
       skipInput.current = true;
       editableRef.current.innerHTML = html || '';
@@ -156,7 +161,7 @@ export const DocBlockView: React.FC<DocBlockViewProps> = ({
       editableRef.current.focus({ preventScroll: true });
       setCaretOffset(editableRef.current, Math.min(savedCaret, block.text.length));
     }
-  }, [block, historyRevision, consumePendingCaret, releasePendingCaret]);
+  }, [block, historyRevision, consumePendingCaret, releasePendingCaret, selectedCommentId]);
 
   const handleInput = useCallback(() => {
     if (skipInput.current || !editableRef.current) return;

@@ -52,6 +52,10 @@ export class TenantMemberRepository {
     userId: string;
     userSource: UserSource;
     orgId?: string | null;
+    positionId?: string | null;
+    roleId?: string | null;
+    employeeId?: string | null;
+    gender?: number | null;
     tenantRole?: TenantRole;
   }): Promise<void> {
     const existing = await this.memberRepo.findOne({
@@ -63,6 +67,10 @@ export class TenantMemberRepository {
         {
           status: 1,
           orgId: input.orgId ?? null,
+          positionId: input.positionId ?? null,
+          roleId: input.roleId ?? null,
+          employeeId: input.employeeId ?? null,
+          gender: input.gender ?? null,
           tenantRole: input.tenantRole ?? 3,
         },
       );
@@ -73,6 +81,10 @@ export class TenantMemberRepository {
       userId: input.userId,
       userSource: input.userSource,
       orgId: input.orgId ?? null,
+      positionId: input.positionId ?? null,
+      roleId: input.roleId ?? null,
+      employeeId: input.employeeId ?? null,
+      gender: input.gender ?? null,
       tenantRole: input.tenantRole ?? 3,
       status: 1,
     });
@@ -90,6 +102,10 @@ export class TenantMemberRepository {
         'u.phone',
         'tm.tenantRole',
         'tm.orgId',
+        'tm.positionId',
+        'tm.roleId',
+        'tm.employeeId',
+        'tm.gender',
         'tm.status',
         'tm.joinedAt',
       ])
@@ -104,12 +120,113 @@ export class TenantMemberRepository {
       phone: (r.u_phone ?? null) as string | null,
       tenantRole: (r.tm_tenant_role ?? r.tm_tenantRole) as TenantRole,
       orgId: (r.tm_org_id ?? r.tm_orgId) as string | null,
+      positionId: (r.tm_position_id ?? r.tm_positionId ?? null) as string | null,
+      roleId: (r.tm_role_id ?? r.tm_roleId ?? null) as string | null,
+      employeeId: (r.tm_employee_id ?? r.tm_employeeId ?? null) as string | null,
+      gender: r.tm_gender != null ? Number(r.tm_gender) : null,
       status: Number(r.tm_status),
       joinedAt: (() => {
         const v = (r.tm_joined_at ?? r.tm_joinedAt) as Date | string;
         return v instanceof Date ? v.getTime() : new Date(v).getTime();
       })(),
     }));
+  }
+
+  async countByPosition(tenantId: string, positionId: string): Promise<number> {
+    return this.memberRepo.count({ where: { tenantId, positionId, status: 1 } });
+  }
+
+  async clearPositionReference(tenantId: string, positionId: string): Promise<void> {
+    await this.memberRepo.update({ tenantId, positionId }, { positionId: null });
+  }
+
+  async clearPositionReferences(tenantId: string, positionIds: string[]): Promise<void> {
+    if (!positionIds.length) return;
+    await this.memberRepo
+      .createQueryBuilder()
+      .update(TenantMemberEntity)
+      .set({ positionId: null })
+      .where('tenant_id = :tenantId', { tenantId })
+      .andWhere('position_id IN (:...positionIds)', { positionIds })
+      .execute();
+  }
+
+  async clearOrgReference(tenantId: string, orgId: string): Promise<void> {
+    await this.memberRepo.update({ tenantId, orgId }, { orgId: null });
+  }
+
+  async assignPositionToMembers(tenantId: string, positionId: string, userIds: string[]): Promise<void> {
+    if (!userIds.length) return;
+    await this.memberRepo
+      .createQueryBuilder()
+      .update(TenantMemberEntity)
+      .set({ positionId })
+      .where('tenant_id = :tenantId', { tenantId })
+      .andWhere('user_id IN (:...userIds)', { userIds })
+      .execute();
+  }
+
+  async clearMemberPosition(tenantId: string, positionId: string, userId: string): Promise<boolean> {
+    const result = await this.memberRepo.update(
+      { tenantId, userId, positionId },
+      { positionId: null },
+    );
+    return (result.affected ?? 0) > 0;
+  }
+
+  async assignRoleToMembers(
+    tenantId: string,
+    roleId: string,
+    tenantRole: TenantRole,
+    userIds: string[],
+  ): Promise<void> {
+    if (!userIds.length) return;
+    await this.memberRepo
+      .createQueryBuilder()
+      .update(TenantMemberEntity)
+      .set({ roleId, tenantRole })
+      .where('tenant_id = :tenantId', { tenantId })
+      .andWhere('user_id IN (:...userIds)', { userIds })
+      .execute();
+  }
+
+  async clearMemberRole(
+    tenantId: string,
+    roleId: string,
+    userId: string,
+    fallbackRoleId: string,
+    fallbackTenantRole: TenantRole,
+  ): Promise<boolean> {
+    const result = await this.memberRepo.update(
+      { tenantId, userId, roleId },
+      { roleId: fallbackRoleId, tenantRole: fallbackTenantRole },
+    );
+    return (result.affected ?? 0) > 0;
+  }
+
+  async countByRole(tenantId: string, roleId: string): Promise<number> {
+    return this.memberRepo.count({ where: { tenantId, roleId, status: 1 } });
+  }
+
+  async updateMember(
+    tenantId: string,
+    userId: string,
+    patch: {
+      tenantRole?: TenantRole;
+      roleId?: string | null;
+      orgId?: string | null;
+      positionId?: string | null;
+      employeeId?: string | null;
+      gender?: number | null;
+      status?: number;
+    },
+  ): Promise<boolean> {
+    const result = await this.memberRepo.update({ tenantId, userId }, patch);
+    return (result.affected ?? 0) > 0;
+  }
+
+  async countSuperAdmins(tenantId: string): Promise<number> {
+    return this.memberRepo.count({ where: { tenantId, tenantRole: 1, status: 1 } });
   }
 
   async ensurePrivateDefaultMembership(userId: string, userSource: UserSource): Promise<void> {

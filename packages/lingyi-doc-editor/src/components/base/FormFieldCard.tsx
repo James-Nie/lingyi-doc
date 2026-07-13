@@ -3,6 +3,7 @@ import type { BaseFormFieldItem, CellValue, ColumnDef } from '@lingyi-doc/core';
 import { RATING_ICON_DEFS, BASE_THEME, getRatingConfig } from '@lingyi-doc/core';
 import { RatingInput } from '../editors/RatingInput';
 import { getFieldTypeMeta } from './fieldTypeMeta';
+import { FieldTypeIcon } from './FieldTypeIcon';
 import { FormConditionalEditor } from './FormConditionalEditor';
 import { FormRecordFieldFill } from './FormRecordFieldFill';
 import { createDefaultDisplayCondition, normalizeDisplayConditions } from './formConditionalUtils';
@@ -185,13 +186,46 @@ export const FormFieldCard: React.FC<FormFieldCardProps> = ({
   onExpand, onUpdate, onUpdateColumnDef, onRemove, onDeleteField, onFillChange, dragHandleProps,
 }) => {
   const meta = getFieldTypeMeta(columnDef.type);
-  const question = item.question || columnDef.name;
+  const questionInputValue = item.question ?? columnDef.name;
+  const questionDisplay = item.question || columnDef.name;
+  const selectOptions = columnDef.options || [];
   const [rowHovered, setRowHovered] = useState(false);
+
+  const handleAddOption = () => {
+    const newOption = {
+      id: `opt_${Date.now()}_${selectOptions.length}`,
+      name: `选项${selectOptions.length + 1}`,
+      color: OPTION_COLORS[selectOptions.length % OPTION_COLORS.length],
+    };
+    onUpdateColumnDef?.({ options: [...selectOptions, newOption] });
+  };
+
+  const handleUpdateOptionName = (index: number, name: string) => {
+    onUpdateColumnDef?.({
+      options: selectOptions.map((opt, i) => (i === index ? { ...opt, name } : opt)),
+    });
+  };
+
+  const handleRemoveOption = (index: number) => {
+    onUpdateColumnDef?.({
+      options: selectOptions.filter((_, i) => i !== index),
+    });
+  };
+
+  const handleCycleOptionColor = (index: number) => {
+    const currentIdx = OPTION_COLORS.indexOf(selectOptions[index]?.color || '');
+    const nextIdx = (currentIdx + 1) % OPTION_COLORS.length;
+    onUpdateColumnDef?.({
+      options: selectOptions.map((opt, i) => (
+        i === index ? { ...opt, color: OPTION_COLORS[nextIdx] } : opt
+      )),
+    });
+  };
 
   if (mode === 'fill') {
     return (
       <FormRecordFieldFill
-        label={question}
+        label={questionDisplay}
         description={item.description}
         required={item.required}
         columnDef={columnDef}
@@ -218,7 +252,7 @@ export const FormFieldCard: React.FC<FormFieldCardProps> = ({
             display: 'inline-flex', alignItems: 'center', gap: 6, border: 'none', background: 'transparent',
             cursor: 'pointer', fontSize: 13, color: BASE_THEME.headerTextColor, padding: '2px 4px',
           }}>
-            <span>{meta.icon}</span><span>{meta.name}</span>
+            <FieldTypeIcon type={columnDef.type} size={16} /><span>{meta.name}</span>
             {isLocked && <span title="锁定字段">🔒</span>}
             <span style={{ color: '#bbb', fontSize: 10 }}>▾</span>
           </button>
@@ -239,7 +273,7 @@ export const FormFieldCard: React.FC<FormFieldCardProps> = ({
               表单问题{item.required && <span style={{ color: '#F54A45' }}>*</span>}
             </label>
             <input
-              value={question}
+              value={questionInputValue}
               onChange={e => onUpdate({ question: e.target.value })}
               style={{
                 flex: 1, border: `1px solid ${BASE_THEME.primaryColor}`, borderRadius: 6,
@@ -263,21 +297,45 @@ export const FormFieldCard: React.FC<FormFieldCardProps> = ({
             <div style={{ display: 'flex', gap: 16, marginBottom: 16 }}>
               <label style={{ width: 72, textAlign: 'right', fontSize: 13, color: BASE_THEME.headerTextColor, flexShrink: 0, paddingTop: 6 }}>选项内容</label>
               <div style={{ flex: 1 }}>
-                <button type="button" style={{ border: 'none', background: 'none', color: BASE_THEME.primaryColor, cursor: 'pointer', fontSize: 13, padding: 0, marginBottom: 8 }}>
+                <button
+                  type="button"
+                  onClick={e => { e.stopPropagation(); handleAddOption(); }}
+                  style={{ border: 'none', background: 'none', color: BASE_THEME.primaryColor, cursor: 'pointer', fontSize: 13, padding: 0, marginBottom: 8 }}
+                >
                   + 添加选项
                 </button>
-                {(columnDef.options || []).map((opt, i) => (
+                {selectOptions.map((opt, i) => (
                   <div key={opt.id} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                     <span style={{ color: '#ccc', cursor: 'grab' }}>⋮⋮</span>
-                    <span style={{
-                      width: 20, height: 20, borderRadius: '50%', background: opt.color || OPTION_COLORS[i % OPTION_COLORS.length],
-                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: '#fff',
-                    }}>▾</span>
-                    <input readOnly value={opt.name} style={{
-                      flex: 1, border: `1px solid ${BASE_THEME.gridColor}`, borderRadius: 6,
-                      padding: '6px 10px', fontSize: 13, background: '#fff',
-                    }} />
-                    <button type="button" style={{ border: 'none', background: 'none', color: '#bbb', cursor: 'pointer' }}>×</button>
+                    <button
+                      type="button"
+                      title="点击切换颜色"
+                      onClick={e => { e.stopPropagation(); handleCycleOptionColor(i); }}
+                      style={{
+                        width: 20, height: 20, borderRadius: '50%', background: opt.color || OPTION_COLORS[i % OPTION_COLORS.length],
+                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: '#fff',
+                        border: 'none', cursor: 'pointer', padding: 0, flexShrink: 0,
+                      }}
+                    >
+                      ▾
+                    </button>
+                    <input
+                      value={opt.name}
+                      onChange={e => handleUpdateOptionName(i, e.target.value)}
+                      onClick={e => e.stopPropagation()}
+                      onMouseDown={e => e.stopPropagation()}
+                      style={{
+                        flex: 1, border: `1px solid ${BASE_THEME.gridColor}`, borderRadius: 6,
+                        padding: '6px 10px', fontSize: 13, background: '#fff', outline: 'none',
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={e => { e.stopPropagation(); handleRemoveOption(i); }}
+                      style={{ border: 'none', background: 'none', color: '#bbb', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: '0 4px' }}
+                    >
+                      ×
+                    </button>
                   </div>
                 ))}
               </div>
@@ -374,7 +432,7 @@ export const FormFieldCard: React.FC<FormFieldCardProps> = ({
         </span>
         <span style={{ fontSize: 14, fontWeight: 500, color: BASE_THEME.cellTextColor }}>
           {item.required && <span style={{ color: '#F54A45', marginRight: 2 }}>*</span>}
-          {question}
+          {questionDisplay}
         </span>
         {isLocked && <span style={{ fontSize: 12 }} title="锁定">🔒</span>}
         <div style={{ marginLeft: 'auto' }}>

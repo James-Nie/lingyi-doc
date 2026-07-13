@@ -46,11 +46,13 @@ export const ColumnHeaderFilterPanel: React.FC<ColumnHeaderFilterPanelProps> = (
   anchorRect,
   onClose,
 }) => {
-  const sheet = table.sheet;
-  const existing = getColumnFilterForCol(sheet.columnFilters, col);
+  const sheetModel = table.sheet;
+  const isFreeform = sheetModel.type === 'freeform';
+  const sheet = isFreeform ? sheetModel : null;
+  const existing = isFreeform ? getColumnFilterForCol(sheetModel.columnFilters, col) : undefined;
   const valueStats = useMemo(
-    () => collectColumnValueStats(sheet.rowCount, col, (r, c) => table.getCell(r, c)),
-    [table, sheet.rowCount, col],
+    () => collectColumnValueStats(sheetModel.rowCount, col, (r, c) => table.getCell(r, c)),
+    [table, sheetModel.rowCount, col],
   );
 
   const allValues = useMemo(() => valueStats.map(s => s.value), [valueStats]);
@@ -155,6 +157,10 @@ export const ColumnHeaderFilterPanel: React.FC<ColumnHeaderFilterPanelProps> = (
 
   const presets = condCategory === 'number' ? NUMBER_CONDITION_PRESETS : TEXT_CONDITION_PRESETS;
   const hasActiveFilter = isColumnFilterActive(existing ?? { col });
+
+  if (!isFreeform || !sheet) {
+    return null;
+  }
 
   return (
     <>

@@ -20,7 +20,10 @@ export type InsertBlockKind =
   | 'code' | 'mermaid' | 'quote' | 'divider'
   | 'table' | 'image'
   | 'baseGrid' | 'baseKanban' | 'baseGantt' | 'baseGallery'
-  | 'whiteboard';
+  | 'whiteboard' | 'whiteboardFlowchart' | 'whiteboardMindmap';
+
+const ROW_HOVER_BG = '#F2F3F5';
+const ICON_HOVER_BG = '#F2F3F5';
 
 function InsertIconBtn({
   label,
@@ -31,17 +34,20 @@ function InsertIconBtn({
   onClick?: () => void;
   children: React.ReactNode;
 }) {
+  const [hover, setHover] = useState(false);
   return (
     <button
       type="button"
       title={label}
       onClick={onClick}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
       style={{
         width: 28,
         height: 28,
         border: 'none',
-        borderRadius: 4,
-        background: 'transparent',
+        borderRadius: 6,
+        background: hover ? ICON_HOVER_BG : 'transparent',
         color: DOC_COLORS.text,
         cursor: 'pointer',
         fontSize: 12,
@@ -49,6 +55,7 @@ function InsertIconBtn({
         display: 'inline-flex',
         alignItems: 'center',
         justifyContent: 'center',
+        transition: 'background 0.12s ease',
       }}
     >
       {children}
@@ -63,6 +70,7 @@ function MenuRow({
   hasSub,
   rowRef,
   onMouseEnter,
+  onMouseLeave,
   onClick,
 }: {
   icon: React.ReactNode;
@@ -71,26 +79,40 @@ function MenuRow({
   hasSub?: boolean;
   rowRef?: React.Ref<HTMLButtonElement>;
   onMouseEnter?: () => void;
+  onMouseLeave?: () => void;
   onClick?: () => void;
 }) {
+  const [hover, setHover] = useState(false);
+  const highlighted = active || hover;
+
   return (
     <button
       ref={rowRef}
       type="button"
-      onMouseEnter={onMouseEnter}
+      onMouseEnter={() => {
+        setHover(true);
+        onMouseEnter?.();
+      }}
+      onMouseLeave={() => {
+        setHover(false);
+        onMouseLeave?.();
+      }}
       onClick={onClick}
       style={{
         display: 'flex',
         alignItems: 'center',
         gap: 10,
-        width: '100%',
-        padding: '8px 12px',
+        width: 'calc(100% - 8px)',
+        margin: '0 4px',
+        padding: '8px 10px',
         border: 'none',
-        background: active ? '#F2F3F5' : 'transparent',
+        borderRadius: 6,
+        background: highlighted ? ROW_HOVER_BG : 'transparent',
         cursor: 'pointer',
         fontSize: 14,
         color: DOC_COLORS.text,
         textAlign: 'left',
+        transition: 'background 0.12s ease',
       }}
     >
       <span style={{ width: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', color: DOC_COLORS.muted }}>
@@ -98,7 +120,7 @@ function MenuRow({
       </span>
       <span style={{ flex: 1 }}>{label}</span>
       {hasSub && (
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#C9CDD4" strokeWidth="2">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={highlighted ? '#86909C' : '#C9CDD4'} strokeWidth="2">
           <path d="M9 6l6 6-6 6" />
         </svg>
       )}
@@ -134,6 +156,32 @@ export const DocBlockInsertMenu: React.FC<DocBlockInsertMenuProps> = ({
   const [positioned, setPositioned] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const tableRowRef = useRef<HTMLButtonElement>(null);
+  const tablePickerCloseTimer = useRef<number | null>(null);
+
+  const clearTablePickerTimer = useCallback(() => {
+    if (tablePickerCloseTimer.current != null) {
+      window.clearTimeout(tablePickerCloseTimer.current);
+      tablePickerCloseTimer.current = null;
+    }
+  }, []);
+
+  const openTablePicker = useCallback(() => {
+    clearTablePickerTimer();
+    setShowTablePicker(true);
+  }, [clearTablePickerTimer]);
+
+  const scheduleCloseTablePicker = useCallback(() => {
+    clearTablePickerTimer();
+    tablePickerCloseTimer.current = window.setTimeout(() => {
+      setShowTablePicker(false);
+      tablePickerCloseTimer.current = null;
+    }, 120);
+  }, [clearTablePickerTimer]);
+
+  const closeTablePicker = useCallback(() => {
+    clearTablePickerTimer();
+    setShowTablePicker(false);
+  }, [clearTablePickerTimer]);
 
   const reposition = useCallback(() => {
     if (!anchorRef.current || !panelRef.current) return;
@@ -149,7 +197,7 @@ export const DocBlockInsertMenu: React.FC<DocBlockInsertMenuProps> = ({
       setTablePickerPos(computeFloatingPosition(rowRect, {
         width: 220,
         height: 200,
-      }));
+      }, { gap: 0 }));
     }
     setPositioned(true);
   }, [anchorRef, placement, showTablePicker]);
@@ -172,14 +220,20 @@ export const DocBlockInsertMenu: React.FC<DocBlockInsertMenuProps> = ({
   }, [open, anchorRef, reposition]);
 
   useEffect(() => {
-    if (!open) setShowTablePicker(false);
-  }, [open]);
+    if (!open) {
+      closeTablePicker();
+    }
+  }, [open, closeTablePicker]);
 
   useEffect(() => {
     if (showTablePicker) reposition();
   }, [showTablePicker, reposition]);
 
+  useEffect(() => () => clearTablePickerTimer(), [clearTablePickerTimer]);
+
   if (!open) return null;
+
+  const dismissTablePicker = () => closeTablePicker();
 
   return createPortal(
     <>
@@ -230,8 +284,9 @@ export const DocBlockInsertMenu: React.FC<DocBlockInsertMenuProps> = ({
           label="表格"
           active={showTablePicker}
           hasSub
-          onMouseEnter={() => setShowTablePicker(true)}
-          onClick={() => setShowTablePicker(true)}
+          onMouseEnter={openTablePicker}
+          onMouseLeave={scheduleCloseTablePicker}
+          onClick={openTablePicker}
         />
         <MenuRow
           icon={
@@ -242,6 +297,7 @@ export const DocBlockInsertMenu: React.FC<DocBlockInsertMenuProps> = ({
             </svg>
           }
           label="图片"
+          onMouseEnter={dismissTablePicker}
           onClick={() => { onInsert('image'); onClose(); }}
         />
 
@@ -256,6 +312,7 @@ export const DocBlockInsertMenu: React.FC<DocBlockInsertMenuProps> = ({
             </svg>
           }
           label="表格"
+          onMouseEnter={dismissTablePicker}
           onClick={() => { onInsert('baseGrid'); onClose(); }}
         />
         <MenuRow
@@ -267,6 +324,7 @@ export const DocBlockInsertMenu: React.FC<DocBlockInsertMenuProps> = ({
             </svg>
           }
           label="看板"
+          onMouseEnter={dismissTablePicker}
           onClick={() => { onInsert('baseKanban'); onClose(); }}
         />
         <MenuRow
@@ -276,6 +334,7 @@ export const DocBlockInsertMenu: React.FC<DocBlockInsertMenuProps> = ({
             </svg>
           }
           label="甘特图"
+          onMouseEnter={dismissTablePicker}
           onClick={() => { onInsert('baseGantt'); onClose(); }}
         />
         <MenuRow
@@ -288,6 +347,7 @@ export const DocBlockInsertMenu: React.FC<DocBlockInsertMenuProps> = ({
             </svg>
           }
           label="画册"
+          onMouseEnter={dismissTablePicker}
           onClick={() => { onInsert('baseGallery'); onClose(); }}
         />
 
@@ -302,18 +362,54 @@ export const DocBlockInsertMenu: React.FC<DocBlockInsertMenuProps> = ({
             </svg>
           }
           label="画板"
+          onMouseEnter={dismissTablePicker}
           onClick={() => { onInsert('whiteboard'); onClose(); }}
+        />
+        <MenuRow
+          icon={
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F57C00" strokeWidth="1.8">
+              <rect x="4" y="3" width="7" height="5" rx="1" />
+              <rect x="13" y="3" width="7" height="5" rx="1" />
+              <rect x="8.5" y="16" width="7" height="5" rx="1" />
+              <path d="M7.5 8v3h9M12 11v5M16.5 8v3" />
+            </svg>
+          }
+          label="流程图"
+          onMouseEnter={dismissTablePicker}
+          onClick={() => { onInsert('whiteboardFlowchart'); onClose(); }}
+        />
+        <MenuRow
+          icon={
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3370FF" strokeWidth="1.8">
+              <circle cx="6" cy="12" r="2.5" />
+              <circle cx="18" cy="6" r="2.5" />
+              <circle cx="18" cy="18" r="2.5" />
+              <path d="M8.5 12h7M16 7.5l-2 2.5M16 16.5l-2-2.5" />
+            </svg>
+          }
+          label="思维导图"
+          onMouseEnter={dismissTablePicker}
+          onClick={() => { onInsert('whiteboardMindmap'); onClose(); }}
         />
       </div>
 
       {showTablePicker && (
-        <div style={{ position: 'fixed', top: tablePickerPos.top, left: tablePickerPos.left, zIndex: 10003 }}>
+        <div
+          style={{
+            position: 'fixed',
+            top: tablePickerPos.top,
+            left: tablePickerPos.left,
+            zIndex: 10003,
+          }}
+          onMouseEnter={openTablePicker}
+          onMouseLeave={scheduleCloseTablePicker}
+        >
           <TableInsertPicker
             onSelect={(rows, cols) => {
               onInsert('table', { rows, cols });
               onClose();
             }}
-            onClose={() => setShowTablePicker(false)}
+            onClose={closeTablePicker}
           />
         </div>
       )}

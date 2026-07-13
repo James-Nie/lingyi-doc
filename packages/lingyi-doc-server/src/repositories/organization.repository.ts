@@ -12,6 +12,7 @@ function toDbOrganization(entity: OrganizationEntity): DbOrganization {
     parent_id: entity.parentId,
     name: entity.name,
     sort_order: entity.sortOrder,
+    leader_user_id: entity.leaderUserId,
     created_at: entity.createdAt,
     updated_at: entity.updatedAt,
   };
@@ -28,6 +29,7 @@ function buildTree(rows: DbOrganization[]): OrganizationNode[] {
       parentId: row.parent_id,
       name: row.name,
       sortOrder: row.sort_order,
+      leaderUserId: row.leader_user_id ?? null,
       children: [],
     });
   }
@@ -70,6 +72,7 @@ export class OrganizationRepository {
     name: string;
     parentId?: string | null;
     sortOrder?: number;
+    leaderUserId?: string | null;
   }): Promise<DbOrganization> {
     const id = uuidv4();
     await this.orgRepo.save({
@@ -78,9 +81,38 @@ export class OrganizationRepository {
       parentId: input.parentId ?? null,
       name: input.name.trim(),
       sortOrder: input.sortOrder ?? 0,
+      leaderUserId: input.leaderUserId ?? null,
     });
     const entity = await this.orgRepo.findOne({ where: { id } });
     if (!entity) throw new Error('创建组织失败');
     return toDbOrganization(entity);
+  }
+
+  async update(
+    tenantId: string,
+    orgId: string,
+    patch: { name?: string; parentId?: string | null; leaderUserId?: string | null },
+  ): Promise<DbOrganization | null> {
+    const entity = await this.orgRepo.findOne({ where: { id: orgId, tenantId } });
+    if (!entity) return null;
+    if (patch.name != null) entity.name = patch.name.trim();
+    if (patch.parentId !== undefined) entity.parentId = patch.parentId;
+    if (patch.leaderUserId !== undefined) entity.leaderUserId = patch.leaderUserId;
+    await this.orgRepo.save(entity);
+    return toDbOrganization(entity);
+  }
+
+  async delete(tenantId: string, orgId: string): Promise<boolean> {
+    const entity = await this.orgRepo.findOne({ where: { id: orgId, tenantId } });
+    if (!entity) return false;
+    const childCount = await this.orgRepo.count({ where: { tenantId, parentId: orgId } });
+    if (childCount > 0) throw new Error('请先删除子部门');
+    await this.orgRepo.delete({ id: orgId, tenantId });
+    return true;
+  }
+
+  async findById(tenantId: string, orgId: string): Promise<DbOrganization | null> {
+    const entity = await this.orgRepo.findOne({ where: { id: orgId, tenantId } });
+    return entity ? toDbOrganization(entity) : null;
   }
 }

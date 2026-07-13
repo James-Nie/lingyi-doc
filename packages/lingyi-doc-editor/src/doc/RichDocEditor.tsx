@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
-import type { DocBlock, ImageBlock, OutlineNode, ToolbarState, ParagraphStyle, ListType, BlockAlign, TextMark, DocSelectionContext, PendingCaret, PendingCaretSpec, DocSelection, BlockSelectionState, DocAnchor } from '@lingyi-doc/core';
+import type { DocBlock, ImageBlock, OutlineNode, ToolbarState, ParagraphStyle, ListType, OrderedListStyle, BlockAlign, TextMark, DocSelectionContext, PendingCaret, PendingCaretSpec, DocSelection, BlockSelectionState, DocAnchor } from '@lingyi-doc/core';
 import {
   findActiveOutlineId,
   increaseBlockIndent,
@@ -39,6 +39,8 @@ import {
   createEmptyMermaid,
   createEmptyBaseBlock,
   createEmptyWhiteboardBlock,
+  createFlowchartWhiteboardBlock,
+  createMindmapWhiteboardBlock,
   splitListItemOnEnter,
   isListItemTextEmpty,
   listItemToParagraphBlocks,
@@ -98,6 +100,21 @@ import {
   type NativeTextSelectionDetail,
   type TextSelectionSlice,
 } from '@lingyi-doc/core';
+import {
+  applyCommentMarkFromSlice,
+  applyCommentMarksFromThreads,
+  applyRemoteCommentUpdate,
+  appendCommentReply,
+  createEmptyCommentThread,
+  removeCommentMarksFromBlocks,
+  resolveCommentThread,
+  updateCommentReply,
+  deleteCommentReply,
+  deleteCommentThread,
+  toggleCommentReplyLike,
+  type CommentUpdatePayload,
+  type DocCommentThread,
+} from '@lingyi-doc/core';
 import { handleEditablePasteEvent, handlePasteKeyboardEvent, parseTableCellCoords, findDocPasteEditable, type MarkdownPasteContext } from './markdownPaste';
 import { getImageFileFromClipboard, getImageFileFromClipboardAsync, prepareImageFileForInsert } from './imageUtils';
 import { DOC_PAGE_BG, DOC_EDITOR_MAX_WIDTH, DOC_PLACEHOLDER_BODY_COLOR } from './styles';
@@ -109,6 +126,9 @@ import type { InsertBlockKind } from './DocBlockInsertMenu';
 import { DocBlockInsertMenu } from './DocBlockInsertMenu';
 import { DocToolbar } from './DocToolbar';
 import { DocOutline } from './DocOutline';
+import { DocCommentPanel } from './comments/DocCommentPanel';
+import { DocCommentToolbarBar } from './comments/DocCommentToolbarBar';
+import { DocTextSelectionComment } from './comments/DocTextSelectionComment';
 import { DocImageInsertDialog, type InsertImagePayload } from './DocImageInsertDialog';
 import { MarkdownConvertDialog } from './MarkdownConvertDialog';
 import { DocTitleEditor } from './DocTitleEditor';
@@ -139,6 +159,31 @@ export interface RichDocEditorProps {
   historyRevision?: number;
   /** 自动保存前回调注册（同步编辑态，避免 blur 丢光标） */
   editorSaveRef?: React.MutableRefObject<RichDocEditorSaveRef | null>;
+  /** 是否开启评论功能（受服务端 FEATURE_COMMENTS_ENABLED 控制） */
+  commentsEnabled?: boolean;
+  /** 是否允许发表评论（编辑权或可评论权限） */
+  canComment?: boolean;
+  /** 当前用户（用于乐观更新评论作者信息） */
+  commentAuthor?: { authorId: string; authorName: string; authorAvatar?: string | null };
+  /** 初始评论列表（从 API 加载） */
+  initialCommentThreads?: DocCommentThread[];
+  /** 远端协同评论事件 */
+  remoteCommentUpdate?: CommentUpdatePayload | null;
+  /** 创建评论（持久化） */
+  onPersistCommentCreate?: (input: {
+    thread: DocCommentThread;
+    blocks: DocBlock[];
+  }) => Promise<DocCommentThread | void>;
+  /** 回复评论（持久化） */
+  onPersistCommentReply?: (threadId: string, text: string) => Promise<import('@lingyi-doc/core').DocCommentReply | void>;
+  /** 解决评论（持久化） */
+  onPersistCommentResolve?: (threadId: string) => Promise<void>;
+  /** 编辑评论回复（持久化） */
+  onPersistCommentEdit?: (threadId: string, replyId: string, text: string) => Promise<import('@lingyi-doc/core').DocCommentReply | void>;
+  /** 删除评论回复（持久化） */
+  onPersistCommentDelete?: (threadId: string, replyId: string) => Promise<{ threadDeleted: boolean } | void>;
+  /** 点赞评论回复（持久化） */
+  onPersistCommentLike?: (threadId: string, replyId: string) => Promise<{ liked: boolean; likeCount: number; reply: import('@lingyi-doc/core').DocCommentReply } | void>;
 }
 
 export type ToolbarAction =
@@ -150,7 +195,7 @@ export type ToolbarAction =
   | { type: 'color'; color: string }
   | { type: 'background'; color: string }
   | { type: 'align'; align: BlockAlign }
-  | { type: 'list'; listType: ListType }
+  | { type: 'list'; listType: ListType; orderedStyle?: OrderedListStyle }
   | { type: 'quote' }
   | { type: 'code' }
   | { type: 'divider' }
@@ -176,6 +221,17 @@ export const RichDocEditor: React.FC<RichDocEditorProps> = ({
   historyRevision = 0,
   readOnly = false,
   editorSaveRef,
+  commentsEnabled = false,
+  canComment = false,
+  commentAuthor,
+  initialCommentThreads,
+  remoteCommentUpdate = null,
+  onPersistCommentCreate,
+  onPersistCommentReply,
+  onPersistCommentResolve,
+  onPersistCommentEdit,
+  onPersistCommentDelete,
+  onPersistCommentLike,
 }) => {
   const [activeIndex, setActiveIndex] = useState(0);
   const [activeOutlineId, setActiveOutlineId] = useState<string | null>(null);
@@ -191,6 +247,42 @@ export const RichDocEditor: React.FC<RichDocEditorProps> = ({
   const [selectedWhiteboardIndex, setSelectedWhiteboardIndex] = useState<number | null>(null);
   const [markdownDialogOpen, setMarkdownDialogOpen] = useState(false);
   const [pendingMarkdown, setPendingMarkdown] = useState('');
+  const [showCommentPanel, setShowCommentPanel] = useState(false);
+  const [commentThreads, setCommentThreads] = useState<DocCommentThread[]>(initialCommentThreads ?? []);
+  const [selectedCommentId, setSelectedCommentId] = useState<string | null>(null);
+  const commentThreadsRef = useRef(commentThreads);
+  const remoteCommentSeqRef = useRef(0);
+
+  useEffect(() => {
+    commentThreadsRef.current = commentThreads;
+  }, [commentThreads]);
+
+  useEffect(() => {
+    if (!commentsEnabled) {
+      setCommentThreads([]);
+      setShowCommentPanel(false);
+      setSelectedCommentId(null);
+      return;
+    }
+    if (initialCommentThreads) {
+      setCommentThreads(initialCommentThreads);
+    }
+  }, [commentsEnabled, initialCommentThreads]);
+
+  useEffect(() => {
+    if (!commentsEnabled || !remoteCommentUpdate) return;
+    remoteCommentSeqRef.current += 1;
+    const { threads, blocks } = applyRemoteCommentUpdate(
+      commentThreadsRef.current,
+      blocksRef.current,
+      remoteCommentUpdate,
+    );
+    setCommentThreads(threads);
+    const marksChanged = blocks !== blocksRef.current;
+    if (marksChanged) {
+      onBlocksChange(blocks, false);
+    }
+  }, [commentsEnabled, remoteCommentUpdate, onBlocksChange]);
   const selectedImageIndexRef = useRef<number | null>(null);
   const selectedTableIndexRef = useRef<number | null>(null);
   const selectedBaseIndexRef = useRef<number | null>(null);
@@ -949,6 +1041,10 @@ export const RichDocEditor: React.FC<RichDocEditorProps> = ({
         return createEmptyBaseBlock('gallery');
       case 'whiteboard':
         return createEmptyWhiteboardBlock();
+      case 'whiteboardFlowchart':
+        return createFlowchartWhiteboardBlock();
+      case 'whiteboardMindmap':
+        return createMindmapWhiteboardBlock();
       default:
         return createEmptyParagraph();
     }
@@ -1105,7 +1201,9 @@ export const RichDocEditor: React.FC<RichDocEditorProps> = ({
     if (block.type !== 'list') return;
     setDocSelection(null);
 
-    const result = splitListItemOnEnter(block.items, itemIndex, cursorOffset, fullText, block.listType);
+    const result = splitListItemOnEnter(
+      block.items, itemIndex, cursorOffset, fullText, block.listType, block.orderedStyle,
+    );
     if ('cancel' in result) {
       const cleared = handleEmptyListItemEnter(blocksRef.current, blockIndex, itemIndex);
       scheduleCaret(pendingCaretFromBoundary(cleared.focus), cleared.blocks);
@@ -1164,14 +1262,14 @@ export const RichDocEditor: React.FC<RichDocEditorProps> = ({
         onBlocksChange(next, true);
         return;
       }
-      const items = outdentListItem(block.items, itemIndex, block.listType);
+      const items = outdentListItem(block.items, itemIndex, block.listType, block.orderedStyle);
       const next = [...blocksRef.current];
       next[blockIndex] = { ...block, items };
       onBlocksChange(next, true);
       return;
     }
 
-    const items = indentListItem(block.items, itemIndex, block.listType);
+    const items = indentListItem(block.items, itemIndex, block.listType, block.orderedStyle);
     const next = [...blocksRef.current];
     next[blockIndex] = { ...block, items };
     onBlocksChange(next, true);
@@ -1194,7 +1292,7 @@ export const RichDocEditor: React.FC<RichDocEditorProps> = ({
       items[itemIndex] = { ...curr, text: curr.text + nextItem.text };
       items.splice(itemIndex + 1, 1);
       const normalized = block.listType === 'ordered'
-        ? normalizeOrderedListItems(items)
+        ? normalizeOrderedListItems(items, block.orderedStyle)
         : block.listType === 'bullet'
           ? normalizeBulletListItems(items)
           : items;
@@ -2532,7 +2630,7 @@ export const RichDocEditor: React.FC<RichDocEditorProps> = ({
   const isNativeTextSelectionTarget = (target: Node): boolean => {
     if (!(target instanceof Element)) return false;
     if (target.closest('[data-doc-title]')) return true;
-    if (target.closest('[data-doc-editable], [data-list-root], [data-list-text]')) return true;
+    if (target.closest('[data-doc-editable], [data-list-root], [data-list-text], [data-list-marker]')) return true;
     if (target.closest('[data-doc-code-ui] textarea, [data-doc-mermaid-ui] textarea')) return true;
     return false;
   };
@@ -2667,6 +2765,182 @@ export const RichDocEditor: React.FC<RichDocEditorProps> = ({
     return getBlockSelectionState(docSelection, index, blocks);
   }, [docSelection, blocks]);
 
+  const COMMENT_AUTHOR = commentAuthor ?? { authorId: 'local', authorName: '当前用户' };
+  const commentsActive = commentsEnabled;
+  const commentToolbarVisible = commentsEnabled;
+
+  const scrollToCommentAnchor = useCallback((threadId: string) => {
+    const thread = commentThreads.find(t => t.id === threadId);
+    if (!thread) return;
+    const el = blockRefs.current.get(thread.anchor.blockId)
+      ?? document.querySelector(`[data-block-id="${thread.anchor.blockId}"]`);
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [commentThreads]);
+
+  const handleSelectComment = useCallback((id: string) => {
+    setSelectedCommentId(id);
+    scrollToCommentAnchor(id);
+  }, [scrollToCommentAnchor]);
+
+  const handleAddComment = useCallback(() => {
+    if (!canComment) return;
+    const detail = getNativeTextSelectionDetail(blocksRef.current, blockRefs.current);
+    if (!detail || detail.collapsed || !detail.slices.length) return;
+    const slice = detail.slices[0];
+    const draft = createEmptyCommentThread({
+      blockId: blocksRef.current[slice.blockIndex]?.id ?? '',
+      start: 0,
+      end: 0,
+      quote: '',
+    });
+    const applied = applyCommentMarkFromSlice(blocksRef.current, slice, draft.id);
+    if (!applied) return;
+    const thread = { ...draft, anchor: applied.anchor };
+    const prevThreads = commentThreadsRef.current;
+    const prevBlocks = blocksRef.current;
+    setCommentThreads(prev => [...prev, thread]);
+    onBlocksChange(applied.blocks, true);
+    setShowCommentPanel(true);
+    setSelectedCommentId(thread.id);
+
+    void (async () => {
+      try {
+        const saved = await onPersistCommentCreate?.({ thread, blocks: applied.blocks });
+        if (saved) {
+          setCommentThreads(prev => prev.map(t => (t.id === thread.id ? saved : t)));
+        }
+      } catch {
+        setCommentThreads(prevThreads);
+        onBlocksChange(prevBlocks, false);
+        setSelectedCommentId(null);
+      }
+    })();
+  }, [canComment, onBlocksChange, onPersistCommentCreate]);
+
+  const handleCommentReply = useCallback((threadId: string, text: string) => {
+    if (!canComment) return;
+    const prevThreads = commentThreadsRef.current;
+    setCommentThreads(prev => appendCommentReply(prev, threadId, {
+      ...COMMENT_AUTHOR,
+      text,
+    }));
+    void (async () => {
+      try {
+        const saved = await onPersistCommentReply?.(threadId, text);
+        if (!saved) return;
+        setCommentThreads(prev => prev.map(thread => {
+          if (thread.id !== threadId) return thread;
+          if (thread.replies.some(r => r.id === saved.id)) return thread;
+          const idx = thread.replies.findIndex(
+            r => r.text === text && r.authorId === COMMENT_AUTHOR.authorId,
+          );
+          if (idx >= 0) {
+            const replies = [...thread.replies];
+            replies[idx] = saved;
+            return { ...thread, replies };
+          }
+          return { ...thread, replies: [...thread.replies, saved] };
+        }));
+      } catch {
+        setCommentThreads(prevThreads);
+      }
+    })();
+  }, [canComment, onPersistCommentReply, commentAuthor]);
+
+  const handleCommentResolve = useCallback((threadId: string) => {
+    if (!canComment) return;
+    const prevThreads = commentThreadsRef.current;
+    const prevBlocks = blocksRef.current;
+    setCommentThreads(prev => resolveCommentThread(prev, threadId));
+    const nextBlocks = removeCommentMarksFromBlocks(blocksRef.current, threadId);
+    onBlocksChange(nextBlocks, true);
+    setSelectedCommentId(cur => (cur === threadId ? null : cur));
+    void (async () => {
+      try {
+        await onPersistCommentResolve?.(threadId);
+      } catch {
+        setCommentThreads(prevThreads);
+        onBlocksChange(prevBlocks, false);
+      }
+    })();
+  }, [canComment, onBlocksChange, onPersistCommentResolve]);
+
+  const handleCommentEdit = useCallback((threadId: string, replyId: string, text: string) => {
+    if (!canComment) return;
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    const prevThreads = commentThreadsRef.current;
+    setCommentThreads(prev => updateCommentReply(prev, threadId, replyId, trimmed));
+    void (async () => {
+      try {
+        const saved = await onPersistCommentEdit?.(threadId, replyId, trimmed);
+        if (!saved) return;
+        setCommentThreads(prev => prev.map(thread => {
+          if (thread.id !== threadId) return thread;
+          return {
+            ...thread,
+            replies: thread.replies.map(reply => (reply.id === replyId ? saved : reply)),
+          };
+        }));
+      } catch {
+        setCommentThreads(prevThreads);
+      }
+    })();
+  }, [canComment, onPersistCommentEdit]);
+
+  const handleCommentDelete = useCallback((threadId: string, replyId: string) => {
+    if (!canComment) return;
+    const prevThreads = commentThreadsRef.current;
+    const prevBlocks = blocksRef.current;
+    const nextThreads = deleteCommentReply(commentThreadsRef.current, threadId, replyId);
+    const threadRemoved = !nextThreads.some(t => t.id === threadId);
+    setCommentThreads(nextThreads);
+    if (threadRemoved) {
+      const nextBlocks = removeCommentMarksFromBlocks(blocksRef.current, threadId);
+      onBlocksChange(nextBlocks, true);
+      setSelectedCommentId(cur => (cur === threadId ? null : cur));
+    }
+    void (async () => {
+      try {
+        await onPersistCommentDelete?.(threadId, replyId);
+      } catch {
+        setCommentThreads(prevThreads);
+        onBlocksChange(prevBlocks, false);
+      }
+    })();
+  }, [canComment, onBlocksChange, onPersistCommentDelete]);
+
+  const handleCommentLike = useCallback((threadId: string, replyId: string) => {
+    const thread = commentThreadsRef.current.find(t => t.id === threadId);
+    const reply = thread?.replies.find(r => r.id === replyId);
+    if (!reply) return;
+    const prevLiked = !!reply.likedByMe;
+    const prevCount = reply.likeCount ?? 0;
+    const optimisticLiked = !prevLiked;
+    const optimisticCount = Math.max(0, prevCount + (optimisticLiked ? 1 : -1));
+    const prevThreads = commentThreadsRef.current;
+    setCommentThreads(prev => toggleCommentReplyLike(prev, threadId, replyId, optimisticLiked, optimisticCount));
+    void (async () => {
+      try {
+        const saved = await onPersistCommentLike?.(threadId, replyId);
+        if (!saved) return;
+        setCommentThreads(prev => toggleCommentReplyLike(
+          prev, threadId, replyId, saved.liked, saved.likeCount,
+        ));
+      } catch {
+        setCommentThreads(prevThreads);
+      }
+    })();
+  }, [onPersistCommentLike]);
+
+  const handleEditorClick = useCallback((e: React.MouseEvent) => {
+    const mark = (e.target as HTMLElement).closest('[data-doc-comment]') as HTMLElement | null;
+    const id = mark?.dataset.docComment;
+    if (!id) return;
+    setShowCommentPanel(true);
+    setSelectedCommentId(id);
+  }, []);
+
   return (
     <div style={{
       display: 'flex', flexDirection: 'column',
@@ -2679,12 +2953,23 @@ export const RichDocEditor: React.FC<RichDocEditorProps> = ({
       <DocToolbar
         state={toolbarState}
         onAction={handleToolbarAction}
-        showOutline={showOutline}
+        showOutline={showOutline && !showCommentPanel}
+        showComments={commentToolbarVisible && showCommentPanel}
+        onToggleComments={commentToolbarVisible ? () => setShowCommentPanel(v => !v) : undefined}
         onToggleOutline={onToggleOutline}
         onToggleFullscreen={onToggleFullscreen}
         onInsertImage={() => setImagePickerOpen(true)}
         insertMenuAnchorRef={toolbarInsertAnchorRef}
       />
+      )}
+      {readOnly && commentToolbarVisible && (
+        <DocCommentToolbarBar
+          showComments={showCommentPanel}
+          showOutline={showOutline && !showCommentPanel}
+          onToggleComments={() => setShowCommentPanel(v => !v)}
+          onToggleOutline={onToggleOutline}
+          onToggleFullscreen={onToggleFullscreen}
+        />
       )}
 
       {!readOnly && toolbarInsertMenuOpen && (
@@ -2716,6 +3001,16 @@ export const RichDocEditor: React.FC<RichDocEditorProps> = ({
         onDismiss={dismissMarkdownPaste}
       />
 
+      {commentsActive && canComment && !readOnly && (
+        <DocTextSelectionComment
+          editorRef={editorRef}
+          scrollRef={scrollRef}
+          enabled={commentsActive && canComment && !readOnly}
+          blockSelectionActive={!!docSelection && !isCollapsedDocSelection(docSelection)}
+          onAddComment={handleAddComment}
+        />
+      )}
+
       <div style={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden' }}>
         <DocHistoryRevisionProvider value={historyRevision}>
         <div ref={scrollRef} onScroll={() => {
@@ -2731,6 +3026,7 @@ export const RichDocEditor: React.FC<RichDocEditorProps> = ({
           <div
             ref={editorRef}
             onMouseDown={handleEditorMouseDown}
+            onClick={handleEditorClick}
             onMouseMove={handleEditorMouseMove}
             onMouseUp={handleEditorMouseUp}
             onMouseLeave={handleEditorMouseUp}
@@ -2835,7 +3131,25 @@ export const RichDocEditor: React.FC<RichDocEditorProps> = ({
           </div>
         </div>
 
-        {showOutline && (
+        {commentsActive && showCommentPanel && (
+          <DocCommentPanel
+            threads={commentThreads}
+            selectedId={selectedCommentId}
+            onSelect={handleSelectComment}
+            onClose={() => setShowCommentPanel(false)}
+            onResolve={handleCommentResolve}
+            onReply={handleCommentReply}
+            onEditReply={handleCommentEdit}
+            onDeleteReply={handleCommentDelete}
+            onLikeReply={handleCommentLike}
+            canComment={canComment}
+            currentAuthorId={COMMENT_AUTHOR.authorId}
+            currentAuthorName={COMMENT_AUTHOR.authorName}
+            currentAuthorAvatar={commentAuthor?.authorAvatar}
+          />
+        )}
+
+        {!showCommentPanel && showOutline && (
           <DocOutline nodes={outline} activeId={activeOutlineId} onNavigate={blockId => {
             const el = blockRefs.current.get(blockId) || document.querySelector(`[data-block-id="${blockId}"]`);
             el?.scrollIntoView({ behavior: 'smooth', block: 'start' });

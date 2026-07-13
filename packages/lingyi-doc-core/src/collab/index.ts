@@ -33,3 +33,33 @@ export interface OfflineOpRecord {
   status: 'pending' | 'syncing' | 'synced' | 'failed';
   retryCount: number;
 }
+
+export { CollabClient, type CollabConnectionState, type OnlineUser, type ServerMessage } from './CollabClient';
+export { SyncManager, type SyncManagerOptions } from './SyncManager';
+export { HybridLogicalClock } from './HybridLogicalClock';
+export { WorkbookCollabBridge, type WorkbookCollabBridgeOptions } from './WorkbookCollabBridge';
+export { DocumentCollabBridge, type DocumentCollabBridgeOptions } from './DocumentCollabBridge';
+export {
+  workbookPatchToCrdt,
+  workbookPatchesToCrdt,
+  crdtToWorkbookPatch,
+  documentPatchToCrdt,
+  documentPatchesToCrdt,
+  crdtToDocumentPatch,
+} from './patchToCrdt';
+export { applyRemoteWorkbookPatches } from './applyRemoteWorkbook';
+export { applyRemoteDocumentPatches } from './applyRemoteDocument';
+export { isRichTextComposing, isWhiteboardComposing, isMindNoteComposing } from './editingDetect';
+export {
+  richTextBlockLock,
+  richTextTitleLock,
+  whiteboardElementLock,
+  whiteboardMindmapNodeLock,
+  whiteboardTableCellLock,
+  mindnoteNodeLock,
+  blockLockLabel,
+  blockLockEquals,
+  type BlockLockTarget,
+} from './blockEditing';
+export type { ActiveCellEditor, CellEditingPayload } from './cellEditing';
+export { cellRefLabel } from './cellEditing';

@@ -1,22 +1,23 @@
 import React, { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import { AppTopBar } from '../components/layout/topBar/AppTopBar';
-import { TopBarBreadcrumbs } from '../components/layout/topBar/TopBarBreadcrumbs';
+import { TopBarBreadcrumbs, type TopBarBreadcrumbItem } from '../components/layout/topBar/TopBarBreadcrumbs';
 import { TopBarIconButton } from '../components/layout/topBar/TopBarIconButton';
 import { TopBarDivider } from '../components/layout/topBar/TopBarDivider';
 import { TopBarShareButton } from '../components/layout/topBar/TopBarShareButton';
 import { UserAccountMenu } from '../components/auth/UserAccountMenu';
-import { CreateDocMenu, type CreateDocType } from '../components/CreateDocMenu';
+import { CreateDocTopBarTrigger } from '../components/createDoc';
+import { useCreateDocument } from '../hooks/useCreateDocument';
 import { WikiSpaceSidebar } from '../components/wiki/WikiSpaceSidebar';
 import { WikiSpaceHomeContent } from '../components/wiki/WikiSpaceHomeContent';
+import { WikiSpaceFolderContent } from '../components/wiki/WikiSpaceFolderContent';
 import { WikiSpaceDocEditor } from '../components/wiki/WikiSpaceDocEditor';
 import { KbMembersModal } from '../components/wiki/KbMembersModal';
 import { knowledgeBaseStore } from '../stores/knowledgeBaseStore';
 import { authStore } from '../stores/authStore';
-import { useTemplatePicker } from '../components/templates/TemplatePickerContext';
 import { formatRelativeModified } from '../utils/formatDate';
 import { appPath } from '../utils/appPaths';
-import type { DocumentViewMode } from '../utils/documentViewMode';
+import { buildKbNodePath, getKbBreadcrumbPath } from '../utils/kbTreeUtils';
 
 export const WikiSpacePage: React.FC = () => {
   const { kbId = '', nodeId, docId } = useParams<{ kbId: string; nodeId?: string; docId?: string }>();
@@ -24,19 +25,11 @@ export const WikiSpacePage: React.FC = () => {
   const authState = useSyncExternalStore(authStore.subscribe, authStore.getState);
   const kbRevision = useSyncExternalStore(knowledgeBaseStore.subscribe, knowledgeBaseStore.getRevision);
   const workspaceRevision = useSyncExternalStore(authStore.subscribe, authStore.getWorkspaceRevision);
-  const { openTemplatePicker } = useTemplatePicker();
 
-  const [createMenuOpen, setCreateMenuOpen] = useState(false);
   const [membersOpen, setMembersOpen] = useState(false);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [kbReady, setKbReady] = useState(false);
-  const [docViewMode, setDocViewMode] = useState<{
-    readOnly: boolean;
-    canEdit: boolean;
-    effectiveViewMode: DocumentViewMode;
-    togglePreview: () => void;
-  } | null>(null);
 
   const kb = useMemo(() => {
     void kbRevision;
@@ -87,10 +80,6 @@ export const WikiSpacePage: React.FC = () => {
     return () => window.clearTimeout(timer);
   }, [toast]);
 
-  useEffect(() => {
-    setDocViewMode(null);
-  }, [docId]);
-
   const organizationName = useMemo(() => {
     const session = authState.session;
     const tenant = authState.tenants.find(t => t.id === session?.currentTenantId);
@@ -113,15 +102,77 @@ export const WikiSpacePage: React.FC = () => {
     navigate(appPath.wikiSpaceNode(kb.id, node.id));
   }, [kb, nodes, navigate]);
 
-  const handlePickDocType = useCallback((type: CreateDocType) => {
+  const homeNode = useMemo(() => nodes.find(node => node.isHome) ?? null, [nodes]);
+
+  const createDoc = useCreateDocument({
+    getKbContext: () => {
+      if (!kb || !homeNode) return undefined;
+      return { kbId: kb.id, parentNodeId: homeNode.id };
+    },
+  });
+
+  const handleCreateFolder = useCallback(async () => {
     if (!kb) return;
-    setCreateMenuOpen(false);
-    const homeNode = nodes.find(node => node.isHome);
-    openTemplatePicker({
-      typeFilter: type,
-      kbContext: homeNode ? { kbId: kb.id, parentNodeId: homeNode.id } : undefined,
+    createDoc.closeMenu();
+    const parentId = homeNode?.id ?? null;
+    try {
+      const folder = await knowledgeBaseStore.createFolder(kb.id, '未命名文件夹', parentId);
+      setToast('文件夹已创建');
+      navigate(appPath.wikiSpaceNode(kb.id, folder.id));
+    } catch (err) {
+      setToast(`创建文件夹失败: ${(err as Error).message}`);
+    }
+  }, [kb, homeNode?.id, createDoc.closeMenu, navigate]);
+
+  const folderChildren = useMemo(() => {
+    if (!activeNode || activeNode.type !== 'folder') return [];
+    return nodes.filter(node => node.parentId === activeNode.id);
+  }, [nodes, activeNode]);
+
+  const breadcrumbItems = useMemo((): TopBarBreadcrumbItem[] => {
+    const items: TopBarBreadcrumbItem[] = [
+      { label: organizationName, onClick: () => navigate(appPath.home) },
+      {
+        label: kb?.name ?? '知识库',
+        onClick: () => {
+          if (!kb) return;
+          if (homeNode) navigate(appPath.wikiSpaceNode(kb.id, homeNode.id));
+          else navigate(appPath.wikiSpace(kb.id));
+        },
+      },
+    ];
+
+    if (!activeNode) {
+      items.push({ label: '首页' });
+      return items;
+    }
+
+    const path = getKbBreadcrumbPath(buildKbNodePath(nodes, activeNode.id));
+    path.forEach((node, index) => {
+      const isLast = index === path.length - 1;
+      const label = node.title || (node.isHome ? '首页' : '未命名');
+      if (isLast) {
+        items.push({ label });
+        return;
+      }
+      items.push({
+        label,
+        onClick: () => {
+          if (!kb) return;
+          if (node.docId) navigate(appPath.wikiSpaceDoc(kb.id, node.docId));
+          else navigate(appPath.wikiSpaceNode(kb.id, node.id));
+        },
+      });
     });
-  }, [openTemplatePicker, nodes, kb]);
+
+    return items;
+  }, [organizationName, kb, homeNode, activeNode, nodes, navigate]);
+
+  const docBreadcrumbItems = useMemo(() => {
+    if (!docId) return undefined;
+    if (breadcrumbItems.length <= 1) return breadcrumbItems;
+    return breadcrumbItems.slice(0, -1);
+  }, [docId, breadcrumbItems]);
 
   if (!kbReady) {
     return (
@@ -142,10 +193,7 @@ export const WikiSpacePage: React.FC = () => {
   const subtitle = activeNode?.updatedAt
     ? `最近修改：${formatRelativeModified(activeNode.updatedAt)}`
     : undefined;
-  const docPreviewSubtitle = docId && docViewMode?.effectiveViewMode === 'preview'
-    ? '预览模式'
-    : null;
-  const breadcrumbSubtitle = [docPreviewSubtitle, subtitle].filter(Boolean).join(' · ') || undefined;
+  const breadcrumbSubtitle = subtitle;
 
   return (
     <div style={{ display: 'flex', height: '100%', minWidth: 0, overflow: 'hidden' }}>
@@ -168,60 +216,17 @@ export const WikiSpacePage: React.FC = () => {
       />
 
       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        {!docId && (
         <AppTopBar
           left={(
             <TopBarBreadcrumbs
-              items={[
-                { label: organizationName, onClick: () => navigate(appPath.home) },
-                { label: kb.name, onClick: () => navigate(appPath.wiki) },
-                { label: activeNode?.title ?? '首页' },
-              ]}
+              items={breadcrumbItems}
               subtitle={breadcrumbSubtitle}
             />
           )}
           right={(
             <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
               <TopBarShareButton onClick={() => showStub('分享')} />
-              {docId && docViewMode?.canEdit ? (
-                <button
-                  type="button"
-                  onClick={docViewMode.togglePreview}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    height: 32,
-                    padding: '0 12px',
-                    borderRadius: 6,
-                    border: '1px solid #dee0e3',
-                    background: docViewMode.effectiveViewMode === 'preview' ? '#f0f4ff' : '#fff',
-                    color: docViewMode.effectiveViewMode === 'preview' ? '#3370ff' : '#1f2329',
-                    fontSize: 13,
-                    cursor: 'pointer',
-                  }}
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                    <path d="M4 20h4l11-11-4-4L4 16v4z" />
-                  </svg>
-                  {docViewMode.effectiveViewMode === 'preview' ? '退出预览' : '预览'}
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M6 9l6 6 6-6" />
-                  </svg>
-                </button>
-              ) : docId && docViewMode?.readOnly ? (
-                <span style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  height: 32,
-                  padding: '0 10px',
-                  borderRadius: 6,
-                  background: '#f0f4ff',
-                  color: '#3370ff',
-                  fontSize: 13,
-                }}>
-                  只读预览
-                </span>
-              ) : (
               <button
                 type="button"
                 onClick={() => showStub('编辑')}
@@ -247,7 +252,6 @@ export const WikiSpacePage: React.FC = () => {
                   <path d="M6 9l6 6 6-6" />
                 </svg>
               </button>
-              )}
               <TopBarIconButton title="通知" onClick={() => showStub('通知')}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
@@ -302,26 +306,15 @@ export const WikiSpacePage: React.FC = () => {
                   <circle cx="11" cy="11" r="7" /><path d="M20 20l-3-3" />
                 </svg>
               </TopBarIconButton>
-              <div style={{ position: 'relative' }}>
-                <TopBarIconButton
-                  title="新建"
-                  filled
-                  active={createMenuOpen}
-                  onClick={() => setCreateMenuOpen(v => !v)}
-                >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M12 5v14M5 12h14" />
-                  </svg>
-                </TopBarIconButton>
-                <CreateDocMenu
-                  open={createMenuOpen}
-                  variant="dropdown"
-                  context="wikiSpace"
-                  onClose={() => setCreateMenuOpen(false)}
-                  onCreate={handlePickDocType}
-                  onStub={showStub}
-                />
-              </div>
+              <CreateDocTopBarTrigger
+                menuOpen={createDoc.menuOpen}
+                context="wikiSpace"
+                onToggle={() => createDoc.setMenuOpen(v => !v)}
+                onClose={createDoc.closeMenu}
+                onCreate={createDoc.handlePickDocType}
+                onStub={showStub}
+                onCreateFolder={handleCreateFolder}
+              />
               <TopBarDivider />
               <UserAccountMenu
                 variant="avatar"
@@ -331,10 +324,11 @@ export const WikiSpacePage: React.FC = () => {
             </div>
           )}
         />
+        )}
 
         <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', background: '#fff', display: 'flex', flexDirection: 'column' }}>
           {docId ? (
-            <WikiSpaceDocEditor docId={docId} onViewModeChange={setDocViewMode} />
+            <WikiSpaceDocEditor docId={docId} breadcrumbItems={docBreadcrumbItems} />
           ) : activeNode?.isHome || activeNode?.type === 'page' ? (
             <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
               <WikiSpaceHomeContent
@@ -342,6 +336,12 @@ export const WikiSpacePage: React.FC = () => {
                 lastModified={activeNode?.updatedAt}
               />
             </div>
+          ) : activeNode?.type === 'folder' ? (
+            <WikiSpaceFolderContent
+              folder={activeNode}
+              childNodes={folderChildren}
+              onSelectNode={handleSelectNode}
+            />
           ) : (
             <div style={{ padding: 48, textAlign: 'center', color: '#8f959e', fontSize: 14 }}>
               「{activeNode?.title}」内容开发中

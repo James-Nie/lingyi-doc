@@ -3,7 +3,9 @@ import { createPortal } from 'react-dom';
 
 const VIEWPORT_PAD = 8;
 
-export type CreateDocType = 'freeform' | 'base' | 'richtext' | 'mindnote' | 'slides' | 'whiteboard';
+export type CreateDocType =
+  | 'freeform' | 'base' | 'richtext' | 'mindnote' | 'slides' | 'whiteboard' | 'questionnaire'
+  | 'mindmap' | 'flowchart';
 
 interface CreateDocMenuProps {
   open: boolean;
@@ -11,6 +13,8 @@ interface CreateDocMenuProps {
   onCreate: (type: CreateDocType) => void;
   onStub: (name: string) => void;
   onMigrate?: () => void;
+  onCreateFolder?: () => void;
+  onCreateKnowledgeBase?: () => void;
   variant?: 'card' | 'dropdown';
   context?: 'default' | 'wikiSpace';
   placement?: 'below' | 'sidebar-right';
@@ -107,7 +111,7 @@ function bindDocTypeItems(
     sheet: () => onCreate('freeform'),
     slides: () => onCreate('slides'),
     base: () => onCreate('base'),
-    form: () => onStub('问卷'),
+    form: () => onCreate('questionnaire'),
     mind: () => onCreate('mindnote'),
   };
   return DOC_TYPES.map(item => ({
@@ -126,8 +130,8 @@ function bindAppTypeItems(
 ): MenuItem[] {
   const map: Record<string, () => void> = {
     whiteboard: () => onCreate('whiteboard'),
-    mindmap: () => onStub('思维导图'),
-    flow: () => onStub('流程图'),
+    mindmap: () => onCreate('mindmap'),
+    flow: () => onCreate('flowchart'),
   };
   return APP_TYPES.map(item => ({
     ...item,
@@ -144,6 +148,8 @@ export const CreateDocMenu: React.FC<CreateDocMenuProps> = ({
   onCreate,
   onStub,
   onMigrate,
+  onCreateFolder,
+  onCreateKnowledgeBase,
   variant = 'card',
   context = 'default',
   placement = 'below',
@@ -196,7 +202,11 @@ export const CreateDocMenu: React.FC<CreateDocMenuProps> = ({
     key: 'wiki',
     label: '知识库',
     icon: <TypeIcon bg="linear-gradient(135deg, #e8f0fe 0%, #e6f4ea 100%)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M4 19V5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v14" stroke="#3370ff" strokeWidth="2" /><path d="M8 7h8M8 11h8M8 15h5" stroke="#34a853" strokeWidth="2" /></svg></TypeIcon>,
-    onClick: () => { onStub('知识库'); onClose(); },
+    onClick: () => {
+      if (onCreateKnowledgeBase) onCreateKnowledgeBase();
+      else onStub('知识库');
+      onClose();
+    },
   };
 
   const importItem: MenuItem = {
@@ -277,20 +287,25 @@ export const CreateDocMenu: React.FC<CreateDocMenuProps> = ({
 
       <div style={{ height: 1, background: '#eee', margin: '0 12px' }} />
 
-      {!isDropdown && !isWikiSpace && (
-        <div style={{ padding: '6px 0' }}>
-          <MenuRow
-            item={{
-              key: 'folder',
-              label: '文件夹',
-              icon: <TypeIcon bg="#fef9e6"><svg width="16" height="16" viewBox="0 0 24 24" fill="#f9ab00"><path d="M4 8h6l2 2h8v10H4V8z" /></svg></TypeIcon>,
-              onClick: () => { onStub('文件夹'); onClose(); },
-            }}
-          />
-        </div>
+      {(isWikiSpace || (!isDropdown && !isWikiSpace)) && (
+        <>
+          <div style={{ padding: '6px 0' }}>
+            <MenuRow
+              item={{
+                key: 'folder',
+                label: '文件夹',
+                icon: <TypeIcon bg="#fef9e6"><svg width="16" height="16" viewBox="0 0 24 24" fill="#f9ab00"><path d="M4 8h6l2 2h8v10H4V8z" /></svg></TypeIcon>,
+                onClick: () => {
+                  if (isWikiSpace && onCreateFolder) onCreateFolder();
+                  else onStub('文件夹');
+                  onClose();
+                },
+              }}
+            />
+          </div>
+          <div style={{ height: 1, background: '#eee', margin: '0 12px' }} />
+        </>
       )}
-
-      {!isDropdown && !isWikiSpace && <div style={{ height: 1, background: '#eee', margin: '0 12px' }} />}
 
       {!isWikiSpace && (
         <div style={{ padding: '6px 0' }}>
@@ -301,7 +316,7 @@ export const CreateDocMenu: React.FC<CreateDocMenuProps> = ({
       {!isWikiSpace && <div style={{ height: 1, background: '#eee', margin: '0 12px' }} />}
 
       <div style={{ padding: '8px 0 6px' }}>
-        <div style={{ padding: '4px 14px 6px', fontSize: 12, color: '#8f959e' }}>文档应用</div>
+        <div style={{ padding: '4px 14px 6px', fontSize: 12, color: '#8f959e' }}>画板</div>
         {appTypes.map(item => (
           <MenuRow key={item.key} item={item} />
         ))}

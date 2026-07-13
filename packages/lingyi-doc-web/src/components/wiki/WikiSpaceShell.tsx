@@ -35,6 +35,7 @@ export const WikiSpaceShell: React.FC = () => {
     <TemplatePickerProvider
       onError={showToast}
       onDuplicateTitle={setDuplicateTitle}
+      onToast={showToast}
     >
       <div style={{
         display: 'flex',

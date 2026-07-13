@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { WikiSpaceNode } from '../../stores/knowledgeBaseStore';
+import { buildKbTree, listMoveTargets, type KbTreeNode } from '../../utils/kbTreeUtils';
 
 interface KbMoveNodeModalProps {
   open: boolean;
@@ -8,6 +9,25 @@ interface KbMoveNodeModalProps {
   nodes: WikiSpaceNode[];
   onClose: () => void;
   onMove: (targetParentId: string | null) => Promise<void>;
+}
+
+interface MoveTargetOption {
+  id: string;
+  title: string;
+  depth: number;
+}
+
+function flattenMoveTargets(roots: KbTreeNode[], allowedIds: Set<string>, depth = 0): MoveTargetOption[] {
+  const result: MoveTargetOption[] = [];
+  for (const node of roots) {
+    if (allowedIds.has(node.id)) {
+      result.push({ id: node.id, title: node.title, depth });
+    }
+    if (node.children.length > 0) {
+      result.push(...flattenMoveTargets(node.children, allowedIds, depth + 1));
+    }
+  }
+  return result;
 }
 
 export const KbMoveNodeModal: React.FC<KbMoveNodeModalProps> = ({
@@ -25,15 +45,11 @@ export const KbMoveNodeModal: React.FC<KbMoveNodeModalProps> = ({
     setTargetId('root');
   }, [open, node?.id]);
 
-  const targets = useMemo(() => {
+  const targetOptions = useMemo((): MoveTargetOption[] => {
     if (!node) return [];
-    const blocked = new Set<string>([node.id]);
-    return nodes.filter(item => {
-      if (blocked.has(item.id)) return false;
-      if (item.type === 'page' && item.isHome) return true;
-      if (item.type === 'page' || !item.docId) return true;
-      return false;
-    });
+    const allowed = new Set(listMoveTargets(nodes, node.id).map(item => item.id));
+    const tree = buildKbTree(nodes);
+    return flattenMoveTargets(tree, allowed);
   }, [node, nodes]);
 
   if (!open || !node) return null;
@@ -72,8 +88,10 @@ export const KbMoveNodeModal: React.FC<KbMoveNodeModalProps> = ({
             }}
           >
             <option value="root">根目录</option>
-            {targets.map(item => (
-              <option key={item.id} value={item.id}>{item.title}</option>
+            {targetOptions.map(item => (
+              <option key={item.id} value={item.id}>
+                {'\u00A0'.repeat(item.depth * 2)}{item.title}
+              </option>
             ))}
           </select>
         </div>

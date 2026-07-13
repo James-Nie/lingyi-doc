@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
+import { WsAdapter } from '@nestjs/platform-ws';
 import { json, urlencoded } from 'express';
 import { AppModule } from './app.module';
 import { AppLoggerService } from './common/logger/app-logger.service';
@@ -11,6 +12,7 @@ async function bootstrap() {
     bodyParser: false,
     bufferLogs: true,
   });
+  app.useWebSocketAdapter(new WsAdapter(app));
   const config = app.get(ConfigService);
   const logger = app.get(AppLoggerService);
   app.useLogger(logger);
@@ -29,6 +31,9 @@ async function bootstrap() {
 
   logger.log(`Sheet Server running on http://localhost:${port}`, 'Bootstrap');
   logger.log(`Health check: http://localhost:${port}/api/v1/health`, 'Bootstrap');
+  if (config.get<boolean>('collab.enabled')) {
+    logger.log(`Collab WebSocket: ws://localhost:${port}/api/v1/collab/ws`, 'Bootstrap');
+  }
 }
 
 bootstrap();

@@ -19,6 +19,9 @@ import {
   OrganizationEntity,
   TenantEntity,
   TenantMemberEntity,
+  TenantPositionEntity,
+  TenantPositionGroupEntity,
+  TenantRoleEntity,
 } from '../database/entities/tenant.entity';
 import {
   KbMemberEntity,
@@ -48,6 +51,8 @@ import { KbNodeRepository } from './kb-node.repository';
 import { DocumentShareRepository } from './document-share.repository';
 import { DocTemplateRepository } from './doc-template.repository';
 import { UserRepository } from './user.repository';
+import { PositionRepository } from './position.repository';
+import { TenantRoleRepository } from './tenant-role.repository';
 import { AuthHelpersService } from '../services/auth-helpers.service';
 import { AuthService } from '../services/auth.service';
 import { OssService } from '../services/oss.service';
@@ -67,6 +72,9 @@ const ENTITIES = [
   TenantEntity,
   TenantMemberEntity,
   OrganizationEntity,
+  TenantPositionGroupEntity,
+  TenantPositionEntity,
+  TenantRoleEntity,
   AdminRoleEntity,
   AdminPermissionEntity,
   AdminRolePermissionEntity,
@@ -93,6 +101,8 @@ const REPOSITORIES = [
   TenantRepository,
   TenantMemberRepository,
   OrganizationRepository,
+  PositionRepository,
+  TenantRoleRepository,
   AdminRoleRepository,
   AuditLogRepository,
   SystemConfigRepository,

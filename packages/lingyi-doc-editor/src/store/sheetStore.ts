@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import type { CellCoord, CellRange, CellStyle, BaseViewType } from '@lingyi-doc/core';
+import type { CellCoord, CellRange, CellStyle, BaseViewType, BorderStyle } from '@lingyi-doc/core';
+import { DEFAULT_BORDER_SIDE } from '@lingyi-doc/core';
 
 interface SheetStoreState {
   // 当前选中区域
@@ -33,6 +34,8 @@ interface SheetStoreState {
   strikethroughActive: boolean;
   fontColor: string;
   backgroundColor: string;
+  borderColor: string;
+  borderLineStyle: BorderStyle['style'];
   horizontalAlign: string;
   verticalAlign: string;
   textWrapActive: boolean;
@@ -69,6 +72,8 @@ interface SheetStoreState {
   setStrikethroughActive: (active: boolean) => void;
   setFontColor: (color: string) => void;
   setBackgroundColor: (color: string) => void;
+  setBorderColor: (color: string) => void;
+  setBorderLineStyle: (style: BorderStyle['style']) => void;
   setHorizontalAlign: (align: string) => void;
   setVerticalAlign: (align: string) => void;
   setTextWrapActive: (active: boolean) => void;
@@ -104,6 +109,8 @@ export const useSheetStore = create<SheetStoreState>((set, get) => ({
   strikethroughActive: false,
   fontColor: '#333333',
   backgroundColor: '#ffffff',
+  borderColor: DEFAULT_BORDER_SIDE.color,
+  borderLineStyle: DEFAULT_BORDER_SIDE.style,
   horizontalAlign: 'left',
   verticalAlign: 'middle',
   textWrapActive: false,
@@ -159,6 +166,8 @@ export const useSheetStore = create<SheetStoreState>((set, get) => ({
   setStrikethroughActive: (active) => set({ strikethroughActive: active }),
   setFontColor: (color) => set({ fontColor: color }),
   setBackgroundColor: (color) => set({ backgroundColor: color }),
+  setBorderColor: (color) => set({ borderColor: color }),
+  setBorderLineStyle: (style) => set({ borderLineStyle: style }),
   setHorizontalAlign: (align) => set({ horizontalAlign: align }),
   setVerticalAlign: (align) => set({ verticalAlign: align }),
   setTextWrapActive: (active) => set({ textWrapActive: active }),

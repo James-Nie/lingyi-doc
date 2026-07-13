@@ -17,10 +17,12 @@ import type {
   KbMemberDto,
   KbMemberRole,
   KbNodeDto,
+  KbNodeTreeDto,
   KbNodeType,
 } from '../../types/knowledge-base';
 import type { DocumentAccessContext } from '../../types/session';
 import { resolveKbScope } from '../../utils/kbAccessContext';
+import { buildKbNodeTree } from '../../utils/kb-node-tree';
 import { KbMemberEntity, KbNodeEntity, KnowledgeBaseEntity } from '../../database/entities/knowledge-base.entity';
 
 @Injectable()
@@ -160,10 +162,11 @@ export class KnowledgeBaseService {
     return { id: kbId };
   }
 
-  async listNodes(auth: AuthUser, kbId: string): Promise<{ items: KbNodeDto[]; total: number }> {
+  async listNodes(auth: AuthUser, kbId: string): Promise<{ items: KbNodeTreeDto[]; total: number; home: KbNodeDto | null }> {
     await this.requireReadableKb(auth, kbId);
-    const items = await this.kbNodeRepository.listByKbId(kbId);
-    return { items, total: items.length };
+    const flat = await this.kbNodeRepository.listByKbId(kbId);
+    const { items, home } = buildKbNodeTree(flat);
+    return { items, total: flat.length, home };
   }
 
   async createNode(

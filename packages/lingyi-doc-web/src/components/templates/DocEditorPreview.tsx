@@ -85,7 +85,7 @@ export const DocEditorPreview: React.FC<DocEditorPreviewProps> = ({ title: initi
         syncFromDoc(doc, indices[0] ?? idx);
         break;
       case 'list':
-        indices.forEach(i => doc.toggleList(i, action.listType));
+        indices.forEach(i => doc.toggleList(i, action.listType, action.orderedStyle));
         syncFromDoc(doc, indices[0] ?? idx);
         break;
       case 'quote':

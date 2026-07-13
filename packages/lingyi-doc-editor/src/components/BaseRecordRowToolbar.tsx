@@ -7,6 +7,8 @@ interface BaseRecordRowToolbarProps {
   onAddChild: (rowIndex: number) => void;
   onMouseEnter?: () => void;
   onMouseLeave?: () => void;
+  showViewDetail?: boolean;
+  showAddChild?: boolean;
 }
 
 const Tooltip: React.FC<{ text: string; anchorHeight: number }> = ({ text, anchorHeight }) => (
@@ -41,6 +43,8 @@ export const BaseRecordRowToolbar: React.FC<BaseRecordRowToolbarProps> = ({
   onAddChild,
   onMouseEnter,
   onMouseLeave,
+  showViewDetail = true,
+  showAddChild = true,
 }) => {
   const [plusHovered, setPlusHovered] = useState(false);
   const [viewHovered, setViewHovered] = useState(false);
@@ -73,7 +77,7 @@ export const BaseRecordRowToolbar: React.FC<BaseRecordRowToolbarProps> = ({
           onMouseLeave={() => setViewHovered(false)}
           onClick={() => onViewDetail(rowIndex)}
           style={{
-            display: 'inline-flex',
+            display: showViewDetail ? 'inline-flex' : 'none',
             alignItems: 'center',
             gap: 4,
             padding: '2px 8px',
@@ -103,7 +107,7 @@ export const BaseRecordRowToolbar: React.FC<BaseRecordRowToolbarProps> = ({
           onMouseLeave={() => setPlusHovered(false)}
           onClick={() => onAddChild(rowIndex)}
           style={{
-            display: 'inline-flex',
+            display: showAddChild ? 'inline-flex' : 'none',
             alignItems: 'center',
             justifyContent: 'center',
             width: 22,

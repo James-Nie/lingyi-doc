@@ -1,4 +1,4 @@
-import type { MindNode, MindNodePath } from './types';
+import type { MindNode, MindNodePath, MindNoteStructure } from './types';
 import { cloneMindNode, createEmptyMindNode, genMindNodeId } from './utils';
 
 function walk(
@@ -72,8 +72,13 @@ export function insertMindSibling(root: MindNode, targetId: string, after = true
   return { root: clone, newId: newNode.id };
 }
 
-export function insertMindChild(root: MindNode, targetId: string): { root: MindNode; newId: string | null } {
+export function insertMindChild(
+  root: MindNode,
+  targetId: string,
+  branchDir?: MindNode['branchDir'],
+): { root: MindNode; newId: string | null } {
   const newNode = createEmptyMindNode('');
+  if (branchDir) newNode.branchDir = branchDir;
   const next = replaceNode(root, targetId, ({ node }) => ({
     ...node,
     collapsed: false,
@@ -158,3 +163,88 @@ export function flattenVisibleMindNodes(root: MindNode): MindNode[] {
 }
 
 export { mapTree };
+
+const HORIZONTAL_LAYOUTS = new Set<MindNoteStructure>(['right', 'left', 'balanced']);
+
+function isHorizontalMindLayout(layout: MindNoteStructure): boolean {
+  return HORIZONTAL_LAYOUTS.has(layout);
+}
+
+/** 按布局语义解析根节点一级子节点所处左右侧 */
+export function effectiveRootChildSide(
+  child: MindNode,
+  layout: MindNoteStructure,
+): 'left' | 'right' {
+  if (layout === 'balanced') {
+    return child.branchDir === 'left' ? 'left' : 'right';
+  }
+  if (layout === 'left') {
+    return child.branchDir === 'right' ? 'right' : 'left';
+  }
+  return child.branchDir === 'left' ? 'left' : 'right';
+}
+
+/** 将左右侧编码为目标布局下的 branchDir（undefined 表示该布局的默认侧） */
+export function branchDirForRootChildSide(
+  side: 'left' | 'right',
+  layout: MindNoteStructure,
+): MindNode['branchDir'] | undefined {
+  if (layout === 'balanced') {
+    return side === 'left' ? 'left' : undefined;
+  }
+  if (layout === 'left') {
+    return side === 'right' ? 'right' : undefined;
+  }
+  return side === 'left' ? 'left' : undefined;
+}
+
+function remapRootChildBranchDir(
+  child: MindNode,
+  branchDir: MindNode['branchDir'] | undefined,
+): MindNode {
+  if (branchDir) return { ...child, branchDir };
+  const next = { ...child };
+  delete next.branchDir;
+  return next;
+}
+
+/** 切换左右类布局时，重映射根节点一级子节点的 branchDir，保持视觉侧不变 */
+export function remapMindmapRootForLayout(
+  root: MindNode,
+  fromLayout: MindNoteStructure,
+  toLayout: MindNoteStructure,
+): MindNode {
+  if (fromLayout === toLayout) return root;
+
+  if (isHorizontalMindLayout(fromLayout) && isHorizontalMindLayout(toLayout)) {
+    return {
+      ...root,
+      children: root.children.map(child => {
+        const side = effectiveRootChildSide(child, fromLayout);
+        return remapRootChildBranchDir(child, branchDirForRootChildSide(side, toLayout));
+      }),
+    };
+  }
+
+  if (fromLayout === 'vertical' && isHorizontalMindLayout(toLayout)) {
+    return {
+      ...root,
+      children: root.children.map(child => {
+        const side: 'left' | 'right' = child.branchDir === 'up' ? 'left' : 'right';
+        return remapRootChildBranchDir(child, branchDirForRootChildSide(side, toLayout));
+      }),
+    };
+  }
+
+  if (isHorizontalMindLayout(fromLayout) && toLayout === 'vertical') {
+    return {
+      ...root,
+      children: root.children.map(child => {
+        const side = effectiveRootChildSide(child, fromLayout);
+        return remapRootChildBranchDir(child, side === 'left' ? 'up' : undefined);
+      }),
+    };
+  }
+
+  return root;
+}

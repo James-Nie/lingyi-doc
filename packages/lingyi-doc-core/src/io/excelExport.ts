@@ -3,6 +3,7 @@ import type { FreeTable } from '../model/index';
 import type { Workbook } from '../model/Workbook';
 import type { CellData, CellStyle, CellValue, NumberFormat } from '../types/index';
 import { DEFAULT_COLUMN_WIDTH, DEFAULT_ROW_HEIGHT, keyToCoord } from '../types/index';
+import { getSheetMergeRanges } from '../types/sheetAccess';
 import { resolveColumnWidth } from '../utils/columnLayout';
 import { resolveRowHeight } from '../utils/rowLayout';
 import { cellStyleToExcel, cssToArgb } from './excelStyle';
@@ -40,7 +41,7 @@ function getTableBounds(table: FreeTable): { maxRow: number; maxCol: number } {
     }
   }
 
-  for (const merge of table.sheet.mergeRanges) {
+  for (const merge of getSheetMergeRanges(table.sheet)) {
     maxRow = Math.max(maxRow, merge.end.row);
     maxCol = Math.max(maxCol, merge.end.col);
   }
@@ -201,7 +202,7 @@ export function exportTableToWorksheet(table: FreeTable, worksheet: ExcelJS.Work
     }
   }
 
-  for (const merge of table.sheet.mergeRanges) {
+  for (const merge of getSheetMergeRanges(table.sheet)) {
     if (merge.start.row === merge.end.row && merge.start.col === merge.end.col) continue;
     try {
       worksheet.mergeCells(

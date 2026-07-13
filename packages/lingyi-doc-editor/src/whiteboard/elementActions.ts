@@ -1,5 +1,45 @@
-import type { ShapeElement, WhiteboardElement } from '@lingyi-doc/core';
+import type { ConnectorElement, ShapeElement, WhiteboardElement, WhiteboardPoint } from '@lingyi-doc/core';
+import { connectorEndArrow, connectorStartArrow } from '@lingyi-doc/core';
 import { elementBounds } from './viewportUtils';
+
+/** 切换箭头方向：仅交换两端箭头样式，路径与绑定保持不变 */
+export function reverseConnectorDirection(
+  conn: ConnectorElement,
+): ConnectorElement {
+  const startArrow = connectorStartArrow(conn);
+  const endArrow = connectorEndArrow(conn);
+  return {
+    ...conn,
+    arrowStart: endArrow,
+    arrowEnd: startArrow,
+  };
+}
+
+export function rotateConnector90(
+  conn: ConnectorElement,
+  resolveEndpoints: (c: ConnectorElement) => [WhiteboardPoint, WhiteboardPoint],
+): ConnectorElement {
+  const [a, b] = resolveEndpoints(conn);
+  const cx = (a.x + b.x) / 2;
+  const cy = (a.y + b.y) / 2;
+  const rot = (pt: WhiteboardPoint): WhiteboardPoint => {
+    const dx = pt.x - cx;
+    const dy = pt.y - cy;
+    return { x: cx - dy, y: cy + dx };
+  };
+  const newA = rot(a);
+  const newB = rot(b);
+  return {
+    ...conn,
+    points: [newA, newB],
+    x: Math.min(newA.x, newB.x),
+    y: Math.min(newA.y, newB.y),
+    width: Math.abs(newB.x - newA.x) || 1,
+    height: Math.abs(newB.y - newA.y) || 1,
+    startBind: undefined,
+    endBind: undefined,
+  };
+}
 
 export type ZOrderAction = 'front' | 'back' | 'forward' | 'backward';
 
@@ -107,6 +147,34 @@ export function rotateElements(
     const next = ((el.rotation ?? 0) + deltaDeg) % 360;
     return { ...el, rotation: next < 0 ? next + 360 : next };
   });
+}
+
+/** 根据指针相对旋转中心的拖拽角度计算新 rotation（度） */
+export function rotationFromPointerDrag(
+  originRotation: number,
+  center: { x: number; y: number },
+  startAngle: number,
+  pt: WhiteboardPoint,
+): number {
+  const curAngle = Math.atan2(pt.y - center.y, pt.x - center.x);
+  let delta = curAngle - startAngle;
+  while (delta > Math.PI) delta -= 2 * Math.PI;
+  while (delta < -Math.PI) delta += 2 * Math.PI;
+  const deg = originRotation + (delta * 180) / Math.PI;
+  return snapRotationDeg(((deg % 360) + 360) % 360);
+}
+
+export const ROTATION_SNAP_DEG = 5;
+
+/** 旋转角度吸附到 0/90/180/270° */
+export function snapRotationDeg(deg: number, threshold = ROTATION_SNAP_DEG): number {
+  const normalized = ((deg % 360) + 360) % 360;
+  for (const target of [0, 90, 180, 270]) {
+    let diff = Math.abs(normalized - target);
+    if (diff > 180) diff = 360 - diff;
+    if (diff <= threshold) return target;
+  }
+  return normalized;
 }
 
 export function toggleLockElements(

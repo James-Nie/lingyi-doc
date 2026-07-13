@@ -56,8 +56,17 @@ export function formatFreeformDateCellText(timestamp: number, includeTime: boole
 }
 
 export function cellValueIncludeTime(value: CellValue | undefined): boolean {
+  return shouldShowFreeformDateTime(value);
+}
+
+/** 普通表格日期单元格是否展示时分秒（以单元格 format 为准，short 强制不展示） */
+export function shouldShowFreeformDateTime(value: CellValue | undefined): boolean {
   if (!value || value.type !== 'date') return false;
-  return value.format.kind === 'datetime' || value.format.kind === 'time';
+  const kind = value.format?.kind;
+  if (kind === 'datetime' || kind === 'time') return true;
+  if (kind === 'short') return false;
+  const d = new Date(value.timestamp);
+  return d.getHours() !== 0 || d.getMinutes() !== 0 || d.getSeconds() !== 0;
 }
 
 export function validationToDateConfig(validation: DataValidation | null): DateValidationConfig {

@@ -149,6 +149,24 @@ export function buildDisplayRowHeights(
   return result;
 }
 
+/** 在树形折叠基础上，将未通过视图筛选的记录行高置为 0 */
+export function applyFilterToDisplayRowHeights(
+  rowCount: number,
+  rows: RecordRow[],
+  rowHeights: Map<number, number>,
+  collapsedIds: Set<string>,
+  defaultHeight: number,
+  visibleRecordIndices: Set<number>,
+): Map<number, number> {
+  const result = buildDisplayRowHeights(rowCount, rows, rowHeights, collapsedIds, defaultHeight);
+  for (let r = 0; r < rowCount; r++) {
+    if (!visibleRecordIndices.has(r)) {
+      result.set(r, 0);
+    }
+  }
+  return result;
+}
+
 export function buildRowHeaderMeta(
   rowCount: number,
   rows: RecordRow[],

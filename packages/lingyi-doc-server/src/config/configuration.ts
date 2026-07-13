@@ -69,4 +69,20 @@ export default () => ({
     http: process.env.LOG_HTTP !== '0',
     slowRequestMs: Number(process.env.LOG_SLOW_REQUEST_MS || 1000),
   },
+  redis: {
+    url: process.env.REDIS_URL || 'redis://127.0.0.1:6379',
+    keyPrefix: process.env.REDIS_KEY_PREFIX || 'lingyi_doc:',
+    connectTimeoutMs: Number(process.env.REDIS_CONNECT_TIMEOUT_MS || 5000),
+  },
+  collab: {
+    enabled: process.env.FEATURE_COLLAB_ENABLED === 'true',
+    wsPath: process.env.WS_PATH || '/api/v1/collab/ws',
+    roomMaxUsers: Number(process.env.COLLAB_ROOM_MAX_USERS || 50),
+    heartbeatIntervalMs: Number(process.env.COLLAB_HEARTBEAT_INTERVAL_MS || 30000),
+    presenceTtlSec: Number(process.env.COLLAB_PRESENCE_TTL_SEC || 90),
+    opsPerSecondLimit: Number(process.env.COLLAB_OPS_PER_SECOND_LIMIT || 100),
+  },
+  comments: {
+    enabled: process.env.FEATURE_COMMENTS_ENABLED === 'true',
+  },
 });

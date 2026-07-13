@@ -12,7 +12,7 @@ export class HealthController {
   @HttpCode(HttpStatus.OK)
   async check(@Res() res: Response) {
     const payload = await this.healthService.getHealth();
-    const status = payload.database === 'connected' ? HttpStatus.OK : HttpStatus.SERVICE_UNAVAILABLE;
+    const status = payload.status === 'ok' ? HttpStatus.OK : HttpStatus.SERVICE_UNAVAILABLE;
     res.status(status).json(payload);
   }
 }

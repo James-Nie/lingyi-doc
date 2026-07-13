@@ -54,9 +54,19 @@ function resolveSubAnchorFromNode(node: Node, block: DocBlock): BlockSubAnchor {
     while (el) {
       const listRoot = el.closest('[data-list-root]') as HTMLElement | null;
       if (listRoot) {
+        const li = findListItemEl(node, listRoot);
+        if (li) {
+          const marker = li.querySelector('[data-list-marker]');
+          if (marker && (marker === node || marker.contains(node))) {
+            return { kind: 'list', itemIndex: getListItemIndex(li), offset: 0 };
+          }
+        }
         const ctx = getListCaretContext(listRoot);
         if (ctx) {
           return { kind: 'list', itemIndex: ctx.focusItemIndex, offset: ctx.focusOffset };
+        }
+        if (li) {
+          return { kind: 'list', itemIndex: getListItemIndex(li), offset: 0 };
         }
         break;
       }

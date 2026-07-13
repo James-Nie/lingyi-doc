@@ -134,6 +134,10 @@ export interface ContextMenuProps {
   isBaseSheet?: boolean;
   /** 请求删除指定行（弹出确认框） */
   onRequestDeleteRows?: (rows: number[]) => void;
+  /** 是否启用评论 */
+  commentsEnabled?: boolean;
+  /** 添加单元格评论 */
+  onAddComment?: (rowIndex: number, colIndex: number) => void;
 }
 
 // ─── Styles ─────────────────────────────────────────────────
@@ -405,6 +409,8 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
   checkedRows = [],
   isBaseSheet = false,
   onRequestDeleteRows,
+  commentsEnabled = false,
+  onAddComment,
 }) => {
   const [activeSubmenu, setActiveSubmenu] = useState<string | null>(null);
   const [submenuAnchor, setSubmenuAnchor] = useState<DOMRect | null>(null);
@@ -744,6 +750,22 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
     onClose();
   }, [onClose]);
 
+  const handleAddComment = useCallback(() => {
+    if (!activeCell || !onAddComment) return;
+    onAddComment(activeCell.row, activeCell.col);
+    onClose();
+  }, [activeCell, onAddComment, onClose]);
+
+  const commentMenuItem: MenuItem | null = commentsEnabled && onAddComment
+    ? {
+      id: 'addComment',
+      label: '添加评论',
+      icon: 'comment',
+      disabled: !activeCell,
+      action: handleAddComment,
+    }
+    : null;
+
   // Build menu items
   const menuItems = useMemo<MenuItem[]>(() => {
     if (!showSelectionMenu) {
@@ -756,6 +778,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
           id: 'cellInfo', label: '查看单元格详情', icon: 'cellInfo',
           disabled: !activeCell, action: handleCellInfo,
         },
+        ...(commentMenuItem ? [commentMenuItem] : []),
       ];
     }
 
@@ -1127,6 +1150,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
       id: 'cellInfo', label: '查看单元格详情', icon: 'cellInfo',
       disabled: !activeCell, action: handleCellInfo,
     },
+    ...(commentMenuItem ? [{ ...commentMenuItem, dividerAfter: true }] : []),
     {
       id: 'numberFormat', label: '设置单元格数字格式', icon: 'numberFormat',
       disabled: !hasSelection, dividerAfter: true,
@@ -1184,7 +1208,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
     handleClearAll, handleCellInfo, handleInsertRowsAbove, handleInsertRowsBelow,
     handleInsertColsLeft, handleInsertColsRight, handleInsertCellRight, handleInsertCellDown,
     handleMergeCells, handleSort, handleStub, handleHideRows, handleSetRowHeight, handleAutoFitRows,
-    handleHideCols, handleSetColumnWidth, handleAutoFitCols]);
+    handleHideCols, handleSetColumnWidth, handleAutoFitCols, commentMenuItem]);
 
   // Handle submenu hover
   const handleSubmenuEnter = useCallback((menuId: string, e: React.MouseEvent) => {

@@ -46,6 +46,18 @@ export function computeShapeTextStartY(
   return y + h / 2 - totalH / 2 + lineHeight / 2;
 }
 
+/** 与 canvas drawShapeText 一致的内边距（相对 bounds 顶部，世界坐标） */
+export function computeShapeEditorPaddingTop(
+  h: number,
+  totalH: number,
+  vAlign: ShapeTextVerticalAlign,
+  pad: number,
+): number {
+  if (vAlign === 'top') return pad;
+  if (vAlign === 'bottom') return h - pad - totalH;
+  return h / 2 - totalH / 2;
+}
+
 export function lineOriginX(
   align: 'left' | 'center' | 'right',
   x: number,

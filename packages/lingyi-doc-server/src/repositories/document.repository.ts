@@ -462,6 +462,43 @@ export class DocumentRepository {
     return this.findById(docId);
   }
 
+  /** 内部写入文档内容（表单公开提交等场景，跳过权限校验） */
+  async saveContentInternal(
+    docId: string,
+    data: unknown,
+  ): Promise<{ version: number } | null> {
+    const existing = await this.findById(docId);
+    if (!existing) return null;
+
+    const nextVersion = (existing.version || 0) + 1;
+    const contentStr = data != null ? JSON.stringify(data) : null;
+    const storageSize = contentStr ? Buffer.byteLength(contentStr, 'utf8') : 0;
+
+    await this.dataSource.transaction(async (manager) => {
+      await manager
+        .createQueryBuilder()
+        .update(DocumentEntity)
+        .set({
+          currentVersion: nextVersion,
+          contentJson: data,
+          storageSize: String(storageSize),
+        })
+        .where('id = :docId', { docId })
+        .andWhere('isDeleted = 0')
+        .execute();
+
+      await manager.save(DocumentSnapshotEntity, {
+        id: uuidv4(),
+        docId,
+        version: nextVersion,
+        snapshotType: 'auto',
+        snapshotData: data,
+      });
+    });
+
+    return { version: nextVersion };
+  }
+
   async applyPatch(
     docId: string,
     input: { baseVersion: number; title?: string; ops: DocumentPatchOp[] },

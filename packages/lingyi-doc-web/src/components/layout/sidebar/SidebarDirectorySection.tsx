@@ -2,6 +2,7 @@ import React from 'react';
 import { SidebarDocRow, type SidebarDirectoryItem } from './SidebarDocRow';
 import { SidebarIconBtn } from './SidebarIconBtn';
 import { SIDEBAR_MUTED } from './sidebarTheme';
+import type { KbDropTarget } from '../../../utils/kbDirectoryDnD';
 
 interface SidebarDirectorySectionProps {
   title: string;
@@ -19,7 +20,16 @@ interface SidebarDirectorySectionProps {
   onItemQuickAdd: (id: string, e: React.MouseEvent) => void;
   onItemMore: (id: string, btn: HTMLButtonElement) => void;
   onItemContextMenu: (id: string, e: React.MouseEvent) => void;
+  onItemToggleExpand?: (id: string, e: React.MouseEvent) => void;
   addAction?: React.ReactNode;
+  dragEnabled?: boolean;
+  draggingId?: string | null;
+  dropTarget?: KbDropTarget | null;
+  onItemDragStart?: (id: string, e: React.DragEvent) => void;
+  onItemDragEnd?: () => void;
+  onItemDragOver?: (id: string, e: React.DragEvent) => void;
+  onItemDragLeave?: (id: string, e: React.DragEvent) => void;
+  onItemDrop?: (id: string, e: React.DragEvent) => void;
 }
 
 export const SidebarDirectorySection: React.FC<SidebarDirectorySectionProps> = ({
@@ -38,7 +48,16 @@ export const SidebarDirectorySection: React.FC<SidebarDirectorySectionProps> = (
   onItemQuickAdd,
   onItemMore,
   onItemContextMenu,
+  onItemToggleExpand,
   addAction,
+  dragEnabled = false,
+  draggingId = null,
+  dropTarget = null,
+  onItemDragStart,
+  onItemDragEnd,
+  onItemDragOver,
+  onItemDragLeave,
+  onItemDrop,
 }) => (
   <div style={{ marginBottom: 4 }}>
     <div style={{
@@ -105,6 +124,13 @@ export const SidebarDirectorySection: React.FC<SidebarDirectorySectionProps> = (
               active={isActive}
               hovered={isHovered}
               showActions={isHovered}
+              draggable={dragEnabled}
+              dragging={draggingId === item.id}
+              dropIndicator={
+                dropTarget?.nodeId === item.id
+                  ? dropTarget.position
+                  : null
+              }
               onNavigate={() => onItemClick(item)}
               onMouseEnter={() => onItemMouseEnter(item.id)}
               onMouseLeave={() => onItemMouseLeave(item.id)}
@@ -118,6 +144,13 @@ export const SidebarDirectorySection: React.FC<SidebarDirectorySectionProps> = (
                 e.stopPropagation();
                 onItemContextMenu(item.id, e);
               }}
+              onToggleExpand={e => onItemToggleExpand?.(item.id, e)}
+              showQuickAdd={item.isFolder || item.docType === 'page'}
+              onDragStart={e => onItemDragStart?.(item.id, e)}
+              onDragEnd={() => onItemDragEnd?.()}
+              onDragOver={e => onItemDragOver?.(item.id, e)}
+              onDragLeave={e => onItemDragLeave?.(item.id, e)}
+              onDrop={e => onItemDrop?.(item.id, e)}
             />
           );
         })}

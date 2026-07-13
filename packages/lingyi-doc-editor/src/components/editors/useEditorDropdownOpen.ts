@@ -13,7 +13,10 @@ export function useEditorDropdownOpen(options: EditorDropdownOpenOptions = {}) {
   const allowCloseRef = useRef(false);
 
   useEffect(() => {
-    if (!autoOpen) return;
+    if (!autoOpen) {
+      allowCloseRef.current = true;
+      return;
+    }
     const openTimer = window.setTimeout(() => setOpen(true), 0);
     const closeTimer = window.setTimeout(() => {
       allowCloseRef.current = true;

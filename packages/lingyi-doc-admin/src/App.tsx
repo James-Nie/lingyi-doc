@@ -4,14 +4,12 @@ import { authStore } from './stores/authStore';
 import { AdminLayout } from './layouts/AdminLayout';
 import { LoginPage } from './pages/auth/LoginPage';
 import { DashboardPage } from './pages/dashboard/DashboardPage';
-import { ConsumerUsersPage } from './pages/users/ConsumerUsersPage';
-import { AdminUsersPage } from './pages/admins/AdminUsersPage';
 import { SystemConfigsPage } from './pages/configs/SystemConfigsPage';
 import { AuditLogPage } from './pages/audit/AuditLogPage';
 import { DemoRequestsPage } from './pages/demo/DemoRequestsPage';
 import { DemoRequestDetailPage } from './pages/demo/DemoRequestDetailPage';
-import { OrgMembersPage } from './pages/org/OrgMembersPage';
-import { TenantDocumentsPage } from './pages/tenant/TenantDocumentsPage';
+import { OrgManagementPage } from './pages/org/OrgManagementPage';
+import { OrgRolesPage } from './pages/org/OrgRolesPage';
 import { TemplatesPage } from './pages/templates/TemplatesPage';
 import { TemplateDetailPage } from './pages/templates/TemplateDetailPage';
 import { TemplateEditPage } from './pages/templates/TemplateEditPage';
@@ -37,21 +35,19 @@ const Bootstrap: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
 const App: React.FC = () => (
   <Bootstrap>
-    <BrowserRouter>
+    <BrowserRouter basename="/admin">
       <Routes>
         <Route path="/login" element={<GuestGuard><LoginPage /></GuestGuard>} />
         <Route element={<AuthGuard><AdminLayout /></AuthGuard>}>
           <Route path="/" element={<DashboardPage />} />
-          <Route path="/users" element={<ConsumerUsersPage />} />
-          <Route path="/admins" element={<AdminUsersPage />} />
           <Route path="/configs" element={<SystemConfigsPage />} />
           <Route path="/audit" element={<AuditLogPage />} />
           <Route path="/demo-requests" element={<DemoRequestsPage />} />
           <Route path="/demo-requests/:id" element={<DemoRequestDetailPage />} />
-          <Route path="/org/members" element={<OrgMembersPage />} />
+          <Route path="/org/members" element={<OrgManagementPage />} />
+          <Route path="/org/roles" element={<OrgRolesPage />} />
           <Route path="/platform/tenants" element={<Navigate to="/org/members" replace />} />
           <Route path="/tenant/members" element={<Navigate to="/org/members" replace />} />
-          <Route path="/tenant/documents" element={<TenantDocumentsPage />} />
           <Route path="/templates" element={<TemplatesPage />} />
           <Route path="/templates/new" element={<TemplateEditPage />} />
           <Route path="/templates/:id" element={<TemplateDetailPage />} />

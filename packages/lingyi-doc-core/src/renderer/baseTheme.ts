@@ -7,6 +7,8 @@ export const BASE_THEME = {
   toolbarBg: '#F7F8FA',
   toolbarBorder: '#DEE0E3',
   gridColor: '#DEE0E3',
+  /** 分组卡片内数据区网格线（较淡） */
+  groupedGridColor: '#EBEDF0',
   headerBgColor: '#FFFFFF',
   headerTextColor: '#646A73',
   headerIconColor: '#86909C',

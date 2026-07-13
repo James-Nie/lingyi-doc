@@ -1,4 +1,6 @@
-import type { DocBlock, ListBlock, TableBlock, TextMark } from './types';
+import type { DocBlock, ImageBlock, ListBlock, TableBlock, TextMark } from './types';
+import type { WhiteboardJSON } from '../whiteboard/types';
+import { baseBlockToExportTable } from './exportBaseBlock';
 
 function escapeHtml(text: string): string {
   return text
@@ -51,6 +53,16 @@ function buildMarkSpans(text: string, marks: TextMark[], mode: 'html' | 'markdow
             // markdown link replaces inner text handling below
             void label;
           }
+        }
+        break;
+      case 'fontSize':
+        if (mark.value && mode === 'html') {
+          spans.push({
+            start: mark.start,
+            end: mark.end,
+            open: `<span style="font-size:${escapeHtml(mark.value)}">`,
+            close: '</span>',
+          });
         }
         break;
       case 'color':
@@ -128,6 +140,26 @@ function tableToMarkdown(block: TableBlock): string {
   return rows.join('\n');
 }
 
+function buildBlockStyle(opts: {
+  align?: string;
+  blockBackground?: string;
+  indentLevel?: number;
+  firstLineIndent?: boolean;
+}): string {
+  const parts: string[] = [];
+  if (opts.blockBackground) parts.push(`background:${escapeHtml(opts.blockBackground)}`);
+  if (opts.align && opts.align !== 'left') parts.push(`text-align:${opts.align}`);
+  if (opts.indentLevel && opts.indentLevel > 0) parts.push(`margin-left:${opts.indentLevel * 24}px`);
+  if (opts.firstLineIndent) parts.push('text-indent:2em');
+  return parts.length ? ` style="${parts.join(';')}"` : '';
+}
+
+function imageToHtml(block: { url: string; alt?: string; caption?: string; width?: number; align?: string }): string {
+  const widthAttr = block.width ? ` width="${block.width}"` : '';
+  const alignStyle = block.align && block.align !== 'left' ? ` style="display:block;margin:${block.align === 'center' ? '12px auto' : block.align === 'right' ? '12px 0 12px auto' : '12px 0'};max-width:100%;"` : ' style="max-width:100%;margin:12px 0;"';
+  return `<figure${block.align === 'center' ? ' align="center"' : ''}><img src="${escapeHtml(block.url)}" alt="${escapeHtml(block.alt ?? '')}"${widthAttr}${alignStyle} />${block.caption ? `<figcaption>${escapeHtml(block.caption)}</figcaption>` : ''}</figure>`;
+}
+
 function tableToHtml(block: TableBlock): string {
   const body = block.cells.map((row, ri) => {
     const tag = ri === 0 ? 'th' : 'td';
@@ -166,8 +198,12 @@ function blockToMarkdown(block: DocBlock): string {
       return tableToMarkdown(block);
     case 'image':
       return `![${block.alt ?? ''}](${block.url})`;
-    case 'base':
-      return '';
+    case 'whiteboard':
+      return `[${block.title ?? '画板'}]`;
+    case 'base': {
+      const table = baseBlockToExportTable(block);
+      return table.type === 'table' ? tableToMarkdown(table) : blockToMarkdown(table);
+    }
     default:
       return '';
   }
@@ -177,29 +213,35 @@ function blockToHtml(block: DocBlock): string {
   switch (block.type) {
     case 'heading': {
       const tag = `h${block.level}`;
-      return `<${tag}>${renderInline(block.text, block.marks, 'html')}</${tag}>`;
+      const style = buildBlockStyle(block);
+      return `<${tag}${style}>${renderInline(block.text, block.marks, 'html')}</${tag}>`;
     }
     case 'paragraph': {
-      const align = block.align && block.align !== 'left' ? ` style="text-align:${block.align}"` : '';
-      return `<p${align}>${renderInline(block.text, block.marks, 'html')}</p>`;
+      const style = buildBlockStyle(block);
+      return `<p${style}>${renderInline(block.text, block.marks, 'html')}</p>`;
     }
-    case 'quote':
-      return `<blockquote>${renderInline(block.text, block.marks, 'html')}</blockquote>`;
+    case 'quote': {
+      const style = buildBlockStyle(block);
+      return `<blockquote${style}>${renderInline(block.text, block.marks, 'html')}</blockquote>`;
+    }
     case 'list': {
       const tag = block.listType === 'ordered' ? 'ol' : 'ul';
       const items = block.items.map(item => {
         const inner = item.marks?.length
           ? renderInline(item.text, item.marks, 'html')
           : escapeHtml(item.text);
+        const indent = item.level > 1 ? ` style="margin-left:${(item.level - 1) * 24}px;"` : '';
         if (block.listType === 'task') {
-          return `<li><input type="checkbox"${item.checked ? ' checked' : ''} disabled /> ${inner}</li>`;
+          return `<li${indent}><input type="checkbox"${item.checked ? ' checked' : ''} disabled /> ${inner}</li>`;
         }
-        return `<li>${inner}</li>`;
+        return `<li${indent}>${inner}</li>`;
       }).join('');
       return `<${tag}>${items}</${tag}>`;
     }
-    case 'code':
-      return `<pre><code>${escapeHtml(block.text)}</code></pre>`;
+    case 'code': {
+      const lang = block.language ? ` class="language-${escapeHtml(block.language)}"` : '';
+      return `<pre><code${lang}>${escapeHtml(block.text)}</code></pre>`;
+    }
     case 'mermaid':
       return `<pre><code>${escapeHtml(block.text)}</code></pre>`;
     case 'divider':
@@ -207,12 +249,88 @@ function blockToHtml(block: DocBlock): string {
     case 'table':
       return tableToHtml(block);
     case 'image':
-      return `<figure><img src="${escapeHtml(block.url)}" alt="${escapeHtml(block.alt ?? '')}" style="max-width:100%;" />${block.caption ? `<figcaption>${escapeHtml(block.caption)}</figcaption>` : ''}</figure>`;
-    case 'base':
-      return '';
+      return imageToHtml(block);
+    case 'whiteboard':
+      return `<p style="color:#646a73;">[${escapeHtml(block.title ?? '画板')}]</p>`;
+    case 'base': {
+      const table = baseBlockToExportTable(block);
+      return table.type === 'table' ? tableToHtml(table) : blockToHtml(table);
+    }
     default:
       return '';
   }
+}
+
+export interface ExportEmbedOptions {
+  resolveImageUrl?: (url: string) => Promise<string>;
+  renderWhiteboard?: (data: WhiteboardJSON) => Promise<string | null>;
+}
+
+function toExportImageBlock(
+  source: DocBlock,
+  dataUrl: string,
+  alt: string,
+  width?: number,
+): ImageBlock {
+  return {
+    type: 'image',
+    id: source.id,
+    url: dataUrl,
+    alt,
+    width,
+    align: 'center',
+  };
+}
+
+/** 导出前内嵌图片、渲染画板（供 Word/PDF 离线可用） */
+export async function prepareBlocksForExport(
+  blocks: DocBlock[],
+  options: ExportEmbedOptions,
+): Promise<DocBlock[]> {
+  const { resolveImageUrl, renderWhiteboard } = options;
+  if (!resolveImageUrl && !renderWhiteboard) return blocks;
+
+  const prepared: DocBlock[] = [];
+  for (const block of blocks) {
+    if (block.type === 'image' && resolveImageUrl) {
+      if (!block.url) {
+        prepared.push({ type: 'paragraph', id: block.id, text: '[图片]', marks: [] });
+        continue;
+      }
+      try {
+        const url = await resolveImageUrl(block.url);
+        prepared.push({ ...block, url });
+      } catch {
+        prepared.push({
+          type: 'paragraph',
+          id: block.id,
+          text: block.alt ? `[图片: ${block.alt}]` : '[图片加载失败]',
+          marks: [],
+        });
+      }
+      continue;
+    }
+
+    if (block.type === 'whiteboard' && renderWhiteboard) {
+      try {
+        const dataUrl = await renderWhiteboard(block.whiteboardData);
+        if (dataUrl) {
+          prepared.push(toExportImageBlock(block, dataUrl, block.title ?? '画板', 640));
+          continue;
+        }
+      } catch { /* fall through to placeholder */ }
+      prepared.push({
+        type: 'paragraph',
+        id: block.id,
+        text: `[${block.title ?? '画板'}]`,
+        marks: [],
+      });
+      continue;
+    }
+
+    prepared.push(block);
+  }
+  return prepared;
 }
 
 /** 将文档块序列化为 Markdown 文本 */
@@ -242,7 +360,8 @@ export function wrapHtmlDocument(body: string, title: string): string {
     pre { background: #f5f6f7; padding: 12px; border-radius: 6px; overflow: auto; }
     blockquote { border-left: 3px solid #dee0e3; margin: 0.8em 0; padding-left: 12px; color: #646a73; }
     table { margin: 12px 0; }
-    img { max-width: 100%; }
+    img { max-width: 100%; height: auto; page-break-inside: avoid; }
+    figure { margin: 12px 0; page-break-inside: avoid; }
   </style>
 </head>
 <body>
@@ -256,7 +375,23 @@ export function wrapHtmlForWord(body: string, title: string): string {
   return `<html xmlns:o="urn:schemas-microsoft-com:office:office"
 xmlns:w="urn:schemas-microsoft-com:office:word"
 xmlns="http://www.w3.org/TR/REC-html40">
-<head><meta charset="utf-8"><title>${escapeHtml(title)}</title></head>
+<head>
+<meta charset="utf-8">
+<title>${escapeHtml(title)}</title>
+<!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View></w:WordDocument></xml><![endif]-->
+<style>
+  body { font-family: "PingFang SC", "Microsoft YaHei", sans-serif; color: #1f2329; line-height: 1.6; }
+  h1,h2,h3,h4,h5,h6 { margin: 1em 0 0.5em; }
+  p { margin: 0.5em 0; }
+  pre { background: #f5f6f7; padding: 12px; border-radius: 6px; white-space: pre-wrap; word-wrap: break-word; }
+  blockquote { border-left: 3px solid #dee0e3; margin: 0.8em 0; padding-left: 12px; color: #646a73; }
+  table { border-collapse: collapse; width: 100%; margin: 12px 0; }
+  th, td { border: 1px solid #dee0e3; padding: 6px 8px; vertical-align: top; }
+  img { max-width: 100%; height: auto; }
+  figure { margin: 12px 0; }
+  figcaption { font-size: 12px; color: #646a73; text-align: center; margin-top: 4px; }
+</style>
+</head>
 <body>
   <h1>${escapeHtml(title)}</h1>
   ${body}
@@ -278,27 +413,104 @@ export function downloadBlob(blob: Blob, filename: string): void {
   URL.revokeObjectURL(url);
 }
 
-/** 在新窗口中打开打印（用于 PDF 导出） */
-export function printHtmlDocument(html: string): void {
-  const iframe = document.createElement('iframe');
-  iframe.style.position = 'fixed';
-  iframe.style.right = '0';
-  iframe.style.bottom = '0';
-  iframe.style.width = '0';
-  iframe.style.height = '0';
-  iframe.style.border = 'none';
-  document.body.appendChild(iframe);
-  const doc = iframe.contentDocument;
-  if (!doc) {
-    document.body.removeChild(iframe);
-    throw new Error('无法创建打印窗口');
-  }
-  doc.open();
-  doc.write(html);
-  doc.close();
-  iframe.contentWindow?.focus();
-  iframe.contentWindow?.print();
-  window.setTimeout(() => {
-    document.body.removeChild(iframe);
-  }, 1000);
+/** 将图片包装为可打印 HTML（表格截图、画板、思维导图等） */
+export function wrapImagePrintHtml(
+  title: string,
+  imageDataUrl: string,
+  options?: { subtitle?: string },
+): string {
+  const subtitle = options?.subtitle
+    ? `<p style="margin:0 0 16px;color:#646a73;font-size:14px;">${escapeHtml(options.subtitle)}</p>`
+    : '';
+  return `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>${escapeHtml(title)}</title>
+  <style>
+    @page { margin: 12mm; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+      color: #1f2329;
+      margin: 0;
+      padding: 24px;
+      text-align: center;
+    }
+    h1 { font-size: 20px; font-weight: 600; margin: 0 0 8px; }
+    img { max-width: 100%; height: auto; display: inline-block; }
+  </style>
+</head>
+<body>
+  <h1>${escapeHtml(title)}</h1>
+  ${subtitle}
+  <img src="${imageDataUrl}" alt="${escapeHtml(title)}" />
+</body>
+</html>`;
+}
+
+function waitForDocumentImages(doc: Document): Promise<void> {
+  const images = Array.from(doc.images);
+  if (images.length === 0) return Promise.resolve();
+
+  return Promise.all(images.map(img => {
+    if (img.complete && img.naturalHeight > 0) return Promise.resolve();
+    return new Promise<void>(resolve => {
+      img.addEventListener('load', () => resolve(), { once: true });
+      img.addEventListener('error', () => resolve(), { once: true });
+    });
+  })).then(() => undefined);
+}
+
+/** 在新窗口中打开打印（用于 PDF 导出）；等待图片加载完成后再弹出打印对话框 */
+export function printHtmlDocument(html: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = 'none';
+    document.body.appendChild(iframe);
+
+    const cleanup = () => {
+      window.setTimeout(() => {
+        if (iframe.parentNode) document.body.removeChild(iframe);
+      }, 1000);
+    };
+
+    const win = iframe.contentWindow;
+    const doc = iframe.contentDocument;
+    if (!win || !doc) {
+      cleanup();
+      reject(new Error('无法创建打印窗口'));
+      return;
+    }
+
+    let started = false;
+    const triggerPrint = async () => {
+      if (started) return;
+      started = true;
+      try {
+        await waitForDocumentImages(doc);
+        await new Promise<void>(r => requestAnimationFrame(() => requestAnimationFrame(() => r())));
+        win.focus();
+        win.print();
+        resolve();
+      } catch (err) {
+        reject(err);
+      } finally {
+        cleanup();
+      }
+    };
+
+    win.addEventListener('load', () => { void triggerPrint(); }, { once: true });
+    doc.open();
+    doc.write(html);
+    doc.close();
+
+    if (doc.readyState === 'complete') {
+      void triggerPrint();
+    }
+  });
 }

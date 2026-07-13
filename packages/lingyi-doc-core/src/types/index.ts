@@ -72,7 +72,18 @@ export interface CellStyle {
 
 export interface BorderStyle {
   color: string;
-  style: 'thin' | 'medium' | 'thick' | 'dashed' | 'dotted' | 'double' | 'none';
+  style:
+    | 'hair'
+    | 'thin'
+    | 'medium'
+    | 'thick'
+    | 'dashed'
+    | 'mediumDashed'
+    | 'dotted'
+    | 'dashDot'
+    | 'dashDotDot'
+    | 'double'
+    | 'none';
 }
 
 export type FormulaError = '#REF!' | '#VALUE!' | '#DIV/0!' | '#N/A' | '#NAME?' | '#NUM!' | '#NULL!' | '#ERROR!' | '#CYCLE!';
@@ -271,7 +282,8 @@ export function getSheetCellEditText(value: CellValue, isFreeformTable: boolean)
   if (isFreeformTable && value.type === 'date') {
     const d = new Date(value.timestamp);
     if (Number.isNaN(d.getTime())) return '';
-    const includeTime = value.format.kind === 'datetime' || value.format.kind === 'time';
+    const includeTime = value.format?.kind === 'datetime' || value.format?.kind === 'time'
+      || (!value.format?.kind && (d.getHours() !== 0 || d.getMinutes() !== 0 || d.getSeconds() !== 0));
     const y = d.getFullYear();
     const m = d.getMonth() + 1;
     const day = d.getDate();
@@ -557,50 +569,54 @@ export interface FreezeState {
 
 // ==================== Sheet 模型 ====================
 
-/** Sheet 类型 */
+/**
+ * 运行时活跃的 sheet / 文档类型（不含已废弃的 standard）。
+ * 读取持久化数据时请用 `normalizeSheetType` 归一化。
+ */
+export type ActiveSheetType = 'freeform' | 'base';
+
+/**
+ * Sheet 类型（含历史值）。
+ * @deprecated `standard` 已废弃，与 `freeform` 等价。
+ */
 export type SheetType = 'standard' | 'freeform' | 'base';
 
-export interface SheetModel {
+export interface SheetModelBase {
   sheetId: string;
   name: string;
-  type: SheetType;
   rowCount: number;
   colCount: number;
   isHidden: boolean;
-
-  // 自由表专用
   cells: Map<string, CellData>;
-  mergeRanges: CellRange[];
   columnWidths: Map<number, number>;
   rowHeights: Map<number, number>;
-
-  // 标准表专用
-  columnDefs: ColumnDef[];
-  rows: RecordRow[];
-
-  // 共用
   conditionalFormats: ConditionalFormat[];
   validations: DataValidation[];
   defaultStyle: CellStyle;
   freezeState: FreezeState;
-
-  // 图表
   charts: import('../chart/types').ChartInstance[];
+}
 
-  // 多维表（Base）专用视图
-  views?: BaseView[];
-  activeViewId?: string;
-
-  /** 多维表全局行高（新行继承此值） */
-  defaultRowHeight?: number;
-
-  /** 普通表格列筛选条件 */
+/** 普通表格模型 */
+export interface FreeformSheetModel extends SheetModelBase {
+  type: 'freeform';
+  mergeRanges: CellRange[];
   columnFilters?: ColumnFilterCondition[];
-  /** 普通表格：是否已开启列头筛选 */
   columnFilterEnabled?: boolean;
-  /** 显示筛选图标的列索引（仅这些列头展示下拉三角） */
   columnFilterCols?: number[];
 }
+
+/** 多维表模型 */
+export interface BaseSheetModel extends SheetModelBase {
+  type: 'base';
+  columnDefs: ColumnDef[];
+  rows: RecordRow[];
+  views?: BaseView[];
+  activeViewId?: string;
+  defaultRowHeight?: number;
+}
+
+export type SheetModel = FreeformSheetModel | BaseSheetModel;
 
 /** 普通表格列筛选（按列索引） */
 export interface ColumnFilterCondition {
@@ -665,6 +681,12 @@ export interface BaseViewConfig {
   formFieldItems?: BaseFormFieldItem[];
   /** 用户主动移出表单的字段，同步时不再自动加回 */
   formExcludedFieldIds?: string[];
+  /** 表单分享是否开启 */
+  formShareEnabled?: boolean;
+  /** 链接分享范围：互联网 / 组织内 / 仅协作者 */
+  formShareLinkScope?: 'internet' | 'organization' | 'collaborators';
+  /** 折叠的分组路径 key 列表 */
+  collapsedGroupKeys?: string[];
 }
 
 /** 表单视图中单个字段的配置 */
@@ -754,3 +776,6 @@ export const DEFAULT_ROW_HEIGHT = 25;
 
 /** 多维表默认行高 */
 export const DEFAULT_BASE_ROW_HEIGHT = 40;
+
+export { isBaseSheet, isFreeformSheet, assertBaseSheet, assertFreeformSheet } from './sheetGuards';
+export { getSheetMergeRanges, getSheetColumnDefs, getSheetRows, getSheetColumnFilters } from './sheetAccess';

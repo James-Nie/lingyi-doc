@@ -1,5 +1,6 @@
 import { FreeTable } from '../model/index';
 import type { BaseView } from '../types/index';
+import { isBaseSheet } from '../types/sheetGuards';
 import type { BaseBlock, BaseEmbedViewType } from './types';
 import { genBlockId } from './utils';
 
@@ -48,6 +49,10 @@ export function createEmptyBaseBlock(initialView: BaseEmbedViewType = 'grid'): B
     rowCount: 3,
     colCount: 4,
   });
+
+  if (!isBaseSheet(table.sheet)) {
+    throw new Error('Expected base sheet for embed block');
+  }
 
   table.sheet.columnDefs = [
     { id: 'col_text', name: '文本', type: 'text', width: 180, required: true },

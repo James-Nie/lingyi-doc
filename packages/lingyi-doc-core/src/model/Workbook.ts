@@ -1,14 +1,12 @@
 import { FreeTable } from './index';
-
-const BASE_FIELD_TYPES = new Set([
-  'select', 'multiSelect', 'date', 'datetime', 'rating', 'progress',
-  'attachment', 'user', 'boolean', 'autoNumber',
-]);
+import { normalizeSheetType } from '../utils/sheetType';
+import { isBaseSheet, isFreeformSheet } from '../types/sheetGuards';
+import type { ActiveSheetType } from '../types/index';
 
 export interface SheetInfo {
   id: string;
   name: string;
-  type: 'freeform' | 'standard' | 'base';
+  type: ActiveSheetType;
   table: FreeTable;
 }
 
@@ -24,7 +22,7 @@ export class Workbook {
     return this._sheetOrder.map(id => ({
       id,
       name: this._sheets.get(id)!.name,
-      type: this._sheets.get(id)!.sheet.type,
+      type: normalizeSheetType(this._sheets.get(id)!.sheet.type),
       table: this._sheets.get(id)!,
     }));
   }
@@ -39,10 +37,11 @@ export class Workbook {
     return this._sheets.get(id) || null;
   }
 
-  addSheet(name?: string, type?: 'freeform' | 'standard' | 'base'): string {
+  addSheet(name?: string, type?: ActiveSheetType): string {
     const id = `sheet_${Date.now()}`;
     const sheetName = name || `Sheet${this._sheets.size + 1}`;
-    const table = new FreeTable({ sheetId: id, name: sheetName, type: type || 'freeform', rowCount: 200, colCount: 30 });
+    const sheetType = normalizeSheetType(type);
+    const table = new FreeTable({ sheetId: id, name: sheetName, type: sheetType, rowCount: 200, colCount: 30 });
     this._sheets.set(id, table);
     this._sheetOrder.push(id);
     this._activeSheetId = id;
@@ -124,7 +123,7 @@ export class Workbook {
     return wb;
   }
 
-  /** 加载后修复多维表结构（兼容旧数据、docType 与 sheet.type 不一致） */
+  /** 加载后修复多维表结构（兼容旧数据；不得把已持久化的普通表升级为多维表） */
   normalizeAfterLoad(docType?: string): void {
     this._sheetOrder = Workbook._dedupeIds(this._sheetOrder.filter(id => this._sheets.has(id)));
 
@@ -137,18 +136,13 @@ export class Workbook {
       this._activeSheetId = this._sheetOrder[0] ?? '';
     }
 
+    const hasBaseSheet = this._sheetOrder.some(id => isBaseSheet(this._sheets.get(id)!.sheet));
+
     for (const id of this._sheetOrder) {
       const table = this._sheets.get(id)!;
       const sheet = table.sheet;
 
-      if (sheet.columnDefs.length > 0 && sheet.type !== 'base') {
-        const hasStructuredFields = sheet.columnDefs.some(c => BASE_FIELD_TYPES.has(c.type));
-        if (hasStructuredFields || docType === 'base') {
-          sheet.type = 'base';
-        }
-      }
-
-      if (sheet.type === 'base') {
+      if (isBaseSheet(sheet)) {
         if (sheet.columnDefs.length === 0) {
           table.repairBaseSchema();
         } else {
@@ -157,14 +151,20 @@ export class Workbook {
       }
     }
 
-    if (docType === 'base') {
+    // 旧版单 sheet 文档：docType=base 但 sheet 未标 type=base
+    if (docType === 'base' && !hasBaseSheet && this._sheetOrder.length === 1) {
+      const only = this._sheets.get(this._sheetOrder[0]);
+      if (only && isFreeformSheet(only.sheet)) {
+        only.repairBaseSchema();
+      }
+    }
+
+    if (docType === 'base' && hasBaseSheet) {
       const active = this.activeSheet;
-      if (!active || active.sheet.type !== 'base') {
-        const baseSheetId = this._sheetOrder.find(id => this._sheets.get(id)?.sheet.type === 'base');
+      if (!active || !isBaseSheet(active.sheet)) {
+        const baseSheetId = this._sheetOrder.find(id => isBaseSheet(this._sheets.get(id)!.sheet));
         if (baseSheetId) {
           this._activeSheetId = baseSheetId;
-        } else if (active) {
-          active.repairBaseSchema();
         }
       } else {
         active.syncColumnLayout();

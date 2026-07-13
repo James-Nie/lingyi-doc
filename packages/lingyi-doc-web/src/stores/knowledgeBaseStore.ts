@@ -1,5 +1,6 @@
 import {
   KnowledgeBaseApi,
+  flattenKbNodeTree,
   mapKbNodeToLegacy,
   mapKnowledgeBaseToLegacy,
 } from '../api/knowledgeBase';
@@ -20,7 +21,7 @@ export interface KnowledgeBase {
   updatedAt: number;
 }
 
-export type WikiSpaceNodeType = 'page' | 'sheet' | 'doc';
+export type WikiSpaceNodeType = 'page' | 'sheet' | 'doc' | 'folder';
 
 export interface WikiSpaceNode {
   id: string;
@@ -28,6 +29,8 @@ export interface WikiSpaceNode {
   title: string;
   type: WikiSpaceNodeType;
   docId?: string;
+  parentId?: string | null;
+  sortOrder?: number;
   isHome?: boolean;
   createdAt: number;
   updatedAt: number;
@@ -55,7 +58,10 @@ function sortNodes(list: WikiSpaceNode[]): WikiSpaceNode[] {
   return [...list].sort((a, b) => {
     if (a.isHome) return -1;
     if (b.isHome) return 1;
-    return b.updatedAt - a.updatedAt;
+    const ao = a.sortOrder ?? 0;
+    const bo = b.sortOrder ?? 0;
+    if (ao !== bo) return ao - bo;
+    return a.title.localeCompare(b.title, 'zh-CN');
   });
 }
 
@@ -110,7 +116,9 @@ export const knowledgeBaseStore = {
 
   async loadNodes(kbId: string): Promise<WikiSpaceNode[]> {
     const res = await KnowledgeBaseApi.listNodes(kbId);
-    const nodes = sortNodes(res.items.map(mapKbNodeToLegacy));
+    const flat = flattenKbNodeTree(res.items);
+    if (res.home) flat.push(res.home);
+    const nodes = sortNodes(flat.map(mapKbNodeToLegacy));
     nodesCache.set(kbId, nodes);
     notify();
     return nodes;
@@ -166,7 +174,13 @@ export const knowledgeBaseStore = {
     docId?: string;
     parentId?: string | null;
   }): Promise<WikiSpaceNode> {
-    const nodeType = input.type === 'page' ? 'page' : input.docId ? 'doc_ref' : 'folder';
+    const nodeType = input.type === 'page'
+      ? 'page'
+      : input.type === 'folder'
+        ? 'folder'
+        : input.docId
+          ? 'doc_ref'
+          : 'folder';
     const created = await KnowledgeBaseApi.createNode(input.kbId, {
       title: input.title,
       nodeType,
@@ -176,6 +190,19 @@ export const knowledgeBaseStore = {
     await this.loadNodes(input.kbId);
     this.touchLocal(input.kbId);
     return mapKbNodeToLegacy(created);
+  },
+
+  async createFolder(
+    kbId: string,
+    title: string,
+    parentId?: string | null,
+  ): Promise<WikiSpaceNode> {
+    return this.addNode({
+      kbId,
+      title,
+      type: 'folder',
+      parentId: parentId ?? null,
+    });
   },
 
   async moveNode(

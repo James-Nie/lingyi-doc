@@ -1,19 +1,26 @@
 import type {
   AnchorId,
+  ConnectorElement,
   ShapeElement,
   WhiteboardElement,
   WhiteboardPoint,
 } from '@lingyi-doc/core';
 import {
+  anchorOutwardVector,
   getElementAnchors,
+  getSeqLifelineHandlePoint,
   isConnectable,
+  isSeqLifelineKind,
   pointInElement,
   type ConnectionSnap,
 } from '@lingyi-doc/core';
 import { hitLineElement } from '@lingyi-doc/core';
+import { getBoardConnectorLabelBounds } from '../boardConnector';
+import { measureConnectorLabelWidth } from './ConnectorLabelEditor';
 import { elementBounds, type ResizeHandle } from '../viewportUtils';
 import { getShapeConnectorAnchors, getShapeVisualBounds, hitShapeElementAtPoint } from './shapePaths';
-import { SHAPE_SELECTION_UI } from './shapeQuickAdd';
+import { SHAPE_SELECTION_UI, shapeInteractionPoint, shapeResizeHandlePos, shapeRotationHandlePos, shapeSelectionBox } from './shapeQuickAdd';
+import { BOARD_SELECTION_UI, selectionResizeCornerHit, selectionResizeEdgeHit } from './selectionUi';
 
 function shapeInteractionHit(el: WhiteboardElement, pt: WhiteboardPoint, pad: number): boolean {
   if (el.type === 'shape') return hitShapeElementAtPoint(el as ShapeElement, pt, pad);
@@ -27,6 +34,34 @@ function interactionAnchors(el: WhiteboardElement): { id: AnchorId; x: number; y
 
 export function interactionAnchorsForElement(el: WhiteboardElement): { id: AnchorId; x: number; y: number }[] {
   return interactionAnchors(el);
+}
+
+/** 在指定元素上选取最面向 target 的连接锚点（避免从图形错误一侧出线） */
+export function resolveConnectionBindForElement(
+  el: WhiteboardElement,
+  target: WhiteboardPoint,
+): ConnectionSnap | null {
+  if (!isConnectable(el)) return null;
+  const anchors = interactionAnchors(el);
+  let best: (ConnectionSnap & { score: number }) | null = null;
+
+  for (const a of anchors) {
+    const toTarget = { x: target.x - a.x, y: target.y - a.y };
+    const len = Math.hypot(toTarget.x, toTarget.y);
+    if (len < 1e-6) continue;
+    const outward = anchorOutwardVector(a.id);
+    const align = (toTarget.x / len) * outward.x + (toTarget.y / len) * outward.y;
+    if (!best || align > best.score) {
+      best = {
+        elementId: el.id,
+        anchor: a.id,
+        point: { x: a.x, y: a.y },
+        score: align,
+      };
+    }
+  }
+
+  return best ? { elementId: best.elementId, anchor: best.anchor, point: best.point } : null;
 }
 
 export function findHoverConnectable(
@@ -44,18 +79,37 @@ export function findHoverConnectable(
 export function findConnectionSnap(
   elements: WhiteboardElement[],
   pt: WhiteboardPoint,
-  opts?: { excludeId?: string; snapRadius?: number },
+  opts?: { excludeId?: string; snapRadius?: number; fromPoint?: WhiteboardPoint },
 ): ConnectionSnap | null {
   const snapRadius = opts?.snapRadius ?? 40;
-  let best: (ConnectionSnap & { dist: number }) | null = null;
+  const fromPoint = opts?.fromPoint;
+  let best: (ConnectionSnap & { score: number }) | null = null;
 
   for (const el of elements) {
     if (!isConnectable(el) || el.id === opts?.excludeId) continue;
     if (!shapeInteractionHit(el, pt, 20)) continue;
     for (const a of interactionAnchors(el)) {
-      const d = Math.hypot(pt.x - a.x, pt.y - a.y);
-      if (d <= snapRadius && (!best || d < best.dist)) {
-        best = { elementId: el.id, anchor: a.id, point: { x: a.x, y: a.y }, dist: d };
+      const dist = Math.hypot(pt.x - a.x, pt.y - a.y);
+      if (dist > snapRadius) continue;
+
+      let score = 1 - dist / snapRadius;
+      if (fromPoint) {
+        const approach = { x: pt.x - fromPoint.x, y: pt.y - fromPoint.y };
+        const approachLen = Math.hypot(approach.x, approach.y);
+        if (approachLen > 1e-6) {
+          const outward = anchorOutwardVector(a.id);
+          const align = -(approach.x / approachLen * outward.x + approach.y / approachLen * outward.y);
+          score = score * 0.4 + Math.max(0, align) * 0.6;
+        }
+      }
+
+      if (!best || score > best.score) {
+        best = {
+          elementId: el.id,
+          anchor: a.id,
+          point: { x: a.x, y: a.y },
+          score,
+        };
       }
     }
   }
@@ -65,8 +119,9 @@ export function findConnectionSnap(
 const HANDLES: ResizeHandle[] = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
 const CORNER_HANDLES: ResizeHandle[] = ['nw', 'ne', 'se', 'sw'];
 const EDGE_HANDLES: ResizeHandle[] = ['n', 'e', 's', 'w'];
-const HANDLE_R = SHAPE_SELECTION_UI.resizeCornerHit;
-const EDGE_HANDLE_HIT_R = SHAPE_SELECTION_UI.resizeEdgeHit;
+const HANDLE_R = selectionResizeCornerHit();
+const EDGE_HANDLE_HIT_R = selectionResizeEdgeHit();
+const HANDLE_HIT_PAD = BOARD_SELECTION_UI.resizeHitPad;
 const EDGE_HIT_DIST = 6;
 const EDGE_CORNER_MARGIN = 14;
 
@@ -125,11 +180,38 @@ export function resizeHandleCursor(handle: ResizeHandle): string {
   }
 }
 
+export function hitConnectorLabelAtPoint(
+  elements: WhiteboardElement[],
+  pt: WhiteboardPoint,
+): ConnectorElement | null {
+  const sorted = [...elements]
+    .filter((el): el is ConnectorElement => el.type === 'connector' && !!el.text?.trim())
+    .sort((a, b) => b.zIndex - a.zIndex);
+
+  for (const conn of sorted) {
+    const textWidth = measureConnectorLabelWidth(conn.text!.trim());
+    const bounds = getBoardConnectorLabelBounds(conn, elements, textWidth);
+    if (!bounds) continue;
+    if (
+      pt.x >= bounds.x
+      && pt.x <= bounds.x + bounds.w
+      && pt.y >= bounds.y
+      && pt.y <= bounds.y + bounds.h
+    ) {
+      return conn;
+    }
+  }
+  return null;
+}
+
 export function hitElementAtPoint(
   elements: WhiteboardElement[],
   pt: WhiteboardPoint,
   excludeTypes: string[] = [],
 ): WhiteboardElement | null {
+  const labelHit = hitConnectorLabelAtPoint(elements, pt);
+  if (labelHit) return labelHit;
+
   const lineHit = hitLineElement(elements, pt, 10);
   if (lineHit) {
     const el = elements.find(e => e.id === lineHit);
@@ -164,6 +246,25 @@ function handlePosition(box: { x: number; y: number; w: number; h: number }, han
   }
 }
 
+const SEQ_EDGE_HANDLES: ResizeHandle[] = ['n', 'e', 'w'];
+
+export function hitSeqLifelineHandle(
+  elements: WhiteboardElement[],
+  selectedIds: string[],
+  pt: WhiteboardPoint,
+): string | null {
+  if (selectedIds.length !== 1) return null;
+  const el = elements.find(e => e.id === selectedIds[0]);
+  if (!el || el.type !== 'shape' || el.locked || !isSeqLifelineKind(el.shapeKind)) return null;
+  const shape = el as ShapeElement;
+  const localPt = shapeInteractionPoint(shape, pt);
+  const hp = getSeqLifelineHandlePoint(shape);
+  if (Math.hypot(localPt.x - hp.x, localPt.y - hp.y) <= HANDLE_R + HANDLE_HIT_PAD + 2) {
+    return el.id;
+  }
+  return null;
+}
+
 export function hitResizeHandle(
   elements: WhiteboardElement[],
   selectedIds: string[],
@@ -175,22 +276,28 @@ export function hitResizeHandle(
   const box = el.type === 'shape'
     ? getShapeVisualBounds(el.shapeKind, el.x, el.y, el.width, el.height)
     : elementBounds(el);
+  const hitPt = el.type === 'shape'
+    ? shapeInteractionPoint(el as ShapeElement, pt)
+    : pt;
 
   for (const handle of CORNER_HANDLES) {
-    const hp = handlePosition(box, handle);
-    if (Math.hypot(pt.x - hp.x, pt.y - hp.y) <= HANDLE_R + 4) {
+    const hp = el.type === 'shape'
+      ? shapeResizeHandlePos(box, handle)
+      : handlePosition(box, handle);
+    if (Math.hypot(hitPt.x - hp.x, hitPt.y - hp.y) <= HANDLE_R + HANDLE_HIT_PAD) {
       return { id: el.id, handle };
     }
   }
 
   if (el.type === 'shape') {
-    for (const handle of EDGE_HANDLES) {
-      const hp = handlePosition(box, handle);
-      if (Math.hypot(pt.x - hp.x, pt.y - hp.y) <= EDGE_HANDLE_HIT_R) {
+    const edgeHandles = isSeqLifelineKind(el.shapeKind) ? SEQ_EDGE_HANDLES : EDGE_HANDLES;
+    for (const handle of edgeHandles) {
+      const hp = shapeResizeHandlePos(box, handle);
+      if (Math.hypot(hitPt.x - hp.x, hitPt.y - hp.y) <= EDGE_HANDLE_HIT_R) {
         return { id: el.id, handle };
       }
     }
-    const edge = hitShapeResizeEdge(box, pt);
+    const edge = hitShapeResizeEdge(box, hitPt);
     if (edge) return { id: el.id, handle: edge };
     return null;
   }
@@ -198,10 +305,26 @@ export function hitResizeHandle(
   for (const handle of HANDLES) {
     if (CORNER_HANDLES.includes(handle)) continue;
     const hp = handlePosition(box, handle);
-    if (Math.hypot(pt.x - hp.x, pt.y - hp.y) <= HANDLE_R + 4) {
+    if (Math.hypot(pt.x - hp.x, pt.y - hp.y) <= HANDLE_R + HANDLE_HIT_PAD) {
       return { id: el.id, handle };
     }
   }
+  return null;
+}
+
+export function hitShapeRotationHandle(
+  elements: WhiteboardElement[],
+  selectedIds: string[],
+  pt: WhiteboardPoint,
+): string | null {
+  if (selectedIds.length !== 1) return null;
+  const el = elements.find(e => e.id === selectedIds[0]);
+  if (!el || el.type !== 'shape' || el.locked) return null;
+  const shape = el as ShapeElement;
+  const localPt = shapeInteractionPoint(shape, pt);
+  const hp = shapeRotationHandlePos(shapeSelectionBox(shape));
+  const hitR = SHAPE_SELECTION_UI.rotationR + 6;
+  if (Math.hypot(localPt.x - hp.x, localPt.y - hp.y) <= hitR) return el.id;
   return null;
 }
 

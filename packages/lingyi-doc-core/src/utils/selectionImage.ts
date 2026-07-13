@@ -2,6 +2,7 @@ import type { CellCoord, CellRange } from '../types/index';
 import { DEFAULT_COLUMN_WIDTH, DEFAULT_ROW_HEIGHT } from '../types/index';
 import type { FreeTable } from '../model/index';
 import { ViewportManager, CellRenderer, DEFAULT_RENDER_CONFIG } from '../renderer/index';
+import { getSheetMergeRanges } from '../types/sheetAccess';
 import { normalizeRange } from './autofill';
 import { resolveColumnWidth } from './columnLayout';
 import { isRowLayoutHidden, resolveRowHeight } from './rowLayout';
@@ -136,17 +137,19 @@ export function renderSelectionToCanvas(
 
   const renderer = new CellRenderer(viewport);
 
+  const mergeRanges = getSheetMergeRanges(sheet);
+
   for (let r = startRow; r <= endRow; r++) {
     if (isRowLayoutHidden(r, rowHeights, DEFAULT_ROW_HEIGHT)) continue;
     for (let c = startCol; c <= endCol; c++) {
       if (resolveColumnWidth(c, columnWidths, DEFAULT_COLUMN_WIDTH) <= 0) continue;
       renderer.drawCellBackground(
-        ctx, { row: r, col: c }, table.getCell(r, c), columnWidths, rowHeights, sheet.mergeRanges,
+        ctx, { row: r, col: c }, table.getCell(r, c), columnWidths, rowHeights, mergeRanges,
       );
     }
   }
 
-  for (const mergeRange of sheet.mergeRanges) {
+  for (const mergeRange of mergeRanges) {
     if (mergeRange.start.row === mergeRange.end.row && mergeRange.start.col === mergeRange.end.col) continue;
     if (mergeRange.end.row < startRow || mergeRange.start.row > endRow
       || mergeRange.end.col < startCol || mergeRange.start.col > endCol) {
@@ -171,16 +174,20 @@ export function renderSelectionToCanvas(
     for (let c = startCol; c <= endCol; c++) {
       if (resolveColumnWidth(c, columnWidths, DEFAULT_COLUMN_WIDTH) <= 0) continue;
       if (table.isInMergedCell(r, c)) continue;
-      renderer.drawCellBorders(ctx, { row: r, col: c }, table.getCell(r, c), columnWidths, rowHeights);
+      renderer.drawCellBorders(
+        ctx, { row: r, col: c }, table.getCell(r, c), columnWidths, rowHeights,
+        undefined, (row, col) => table.getCell(row, col),
+      );
     }
   }
 
-  for (const mergeRange of sheet.mergeRanges) {
+  for (const mergeRange of mergeRanges) {
     if (mergeRange.start.row === mergeRange.end.row && mergeRange.start.col === mergeRange.end.col) continue;
     const master = mergeRange.master || mergeRange.start;
     if (master.row < startRow || master.row > endRow || master.col < startCol || master.col > endCol) continue;
     renderer.drawCellBorders(
-      ctx, master, table.getCell(master.row, master.col), columnWidths, rowHeights, sheet.mergeRanges,
+      ctx, master, table.getCell(master.row, master.col), columnWidths, rowHeights, mergeRanges,
+      (row, col) => table.getCell(row, col),
     );
   }
 
@@ -189,7 +196,7 @@ export function renderSelectionToCanvas(
     for (let c = startCol; c <= endCol; c++) {
       if (resolveColumnWidth(c, columnWidths, DEFAULT_COLUMN_WIDTH) <= 0) continue;
       renderer.drawCellContent(
-        ctx, { row: r, col: c }, table.getCell(r, c), columnWidths, rowHeights, sheet.mergeRanges,
+        ctx, { row: r, col: c }, table.getCell(r, c), columnWidths, rowHeights, mergeRanges,
       );
     }
   }

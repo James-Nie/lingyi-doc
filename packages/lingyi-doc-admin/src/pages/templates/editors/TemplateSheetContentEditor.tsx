@@ -1,6 +1,7 @@
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import type { BaseViewType } from '@lingyi-doc/core/types';
 import type { SheetInfo } from '@lingyi-doc/core/model';
+import { isBaseSheet } from '@lingyi-doc/core';
 import {
   SheetContainer,
   SheetTabs,
@@ -60,7 +61,7 @@ export const TemplateSheetContentEditor = forwardRef<TemplateContentEditorHandle
     }, [activeSheetId, forceUpdate, workbook.sheets.length]);
 
     const activeTable = workbook.activeSheet;
-    const isBase = activeTable?.sheet.type === 'base';
+    const isBase = activeTable ? isBaseSheet(activeTable.sheet) : false;
     const sheetInfos = useMemo(
       () => workbook.sheets.map((s: SheetInfo) => ({ id: s.id, name: s.name, type: s.type })),
       [workbook, activeSheetId],

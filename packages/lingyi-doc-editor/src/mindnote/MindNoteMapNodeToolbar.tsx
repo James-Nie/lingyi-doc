@@ -209,6 +209,8 @@ export interface MindNoteMapNodeToolbarProps {
   onMoreAction: (action: MindNoteMapMoreAction) => void;
   onEditDescription: () => void;
   onAddImage: () => void;
+  onAddChild: () => void;
+  onAddSibling: () => void;
   onComment: () => void;
 }
 
@@ -219,14 +221,18 @@ export const MindNoteMapNodeToolbar: React.FC<MindNoteMapNodeToolbarProps> = ({
   onMoreAction,
   onEditDescription,
   onAddImage,
+  onAddChild,
+  onAddSibling,
   onComment,
 }) => {
   const [mounted, setMounted] = useState(visible);
   const [shown, setShown] = useState(false);
   const [displayNode, setDisplayNode] = useState<MindNode | null>(node);
   const [textStyleOpen, setTextStyleOpen] = useState(false);
+  const [addNodeOpen, setAddNodeOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const moreBtnRef = useRef<HTMLButtonElement>(null);
+  const addNodeBtnRef = useRef<HTMLButtonElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -251,6 +257,7 @@ export const MindNoteMapNodeToolbar: React.FC<MindNoteMapNodeToolbarProps> = ({
   useEffect(() => {
     if (!visible) {
       setTextStyleOpen(false);
+      setAddNodeOpen(false);
       setMoreOpen(false);
     }
   }, [visible]);
@@ -261,15 +268,16 @@ export const MindNoteMapNodeToolbar: React.FC<MindNoteMapNodeToolbarProps> = ({
   }, [displayNode, onPatch]);
 
   useEffect(() => {
-    if (!textStyleOpen && !moreOpen) return;
+    if (!textStyleOpen && !addNodeOpen && !moreOpen) return;
     const onDown = (e: MouseEvent) => {
       if (wrapRef.current?.contains(e.target as Node)) return;
       setTextStyleOpen(false);
+      setAddNodeOpen(false);
       setMoreOpen(false);
     };
     document.addEventListener('mousedown', onDown);
     return () => document.removeEventListener('mousedown', onDown);
-  }, [textStyleOpen, moreOpen]);
+  }, [textStyleOpen, addNodeOpen, moreOpen]);
 
   if (!mounted || !displayNode) return null;
 
@@ -307,13 +315,37 @@ export const MindNoteMapNodeToolbar: React.FC<MindNoteMapNodeToolbarProps> = ({
         <ToolbarBtn
           label="文字样式"
           active={textStyleOpen}
-          onClick={() => { setMoreOpen(false); setTextStyleOpen(v => !v); }}
+          onClick={() => { setMoreOpen(false); setAddNodeOpen(false); setTextStyleOpen(v => !v); }}
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
             <text x="3" y="11" fill="currentColor" fontSize="9" fontWeight="700" fontFamily="system-ui,sans-serif">A</text>
             <path d="M13 6h7M13 10h5M13 14h7M13 18h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
           </svg>
         </ToolbarBtn>
+
+        <ToolbarBtn
+          label="添加节点"
+          active={addNodeOpen}
+          btnRef={addNodeBtnRef}
+          onClick={() => { setMoreOpen(false); setTextStyleOpen(false); setAddNodeOpen(v => !v); }}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+            <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+          </svg>
+        </ToolbarBtn>
+
+        <ToolbarBtn
+          label={`添加图片 (${shortcutOptionEnter()})`}
+          onClick={onAddImage}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+            <rect x="4" y="6" width="16" height="12" rx="2" stroke="currentColor" strokeWidth="1.6" />
+            <circle cx="9" cy="11" r="1.5" fill="currentColor" />
+            <path d="M4 15l4-3 3 2 5-4 4 3" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
+          </svg>
+        </ToolbarBtn>
+
+        <div style={{ width: 1, height: 20, background: 'rgba(255,255,255,0.15)', margin: '0 4px' }} />
 
         <ToolbarBtn
           label={displayNode.completed
@@ -358,21 +390,10 @@ export const MindNoteMapNodeToolbar: React.FC<MindNoteMapNodeToolbarProps> = ({
         </ToolbarBtn>
 
         <ToolbarBtn
-          label={`添加图片 (${shortcutOptionEnter()})`}
-          onClick={onAddImage}
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-            <rect x="4" y="6" width="16" height="12" rx="2" stroke="currentColor" strokeWidth="1.6" />
-            <circle cx="9" cy="11" r="1.5" fill="currentColor" />
-            <path d="M4 15l4-3 3 2 5-4 4 3" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
-          </svg>
-        </ToolbarBtn>
-
-        <ToolbarBtn
           label="更多"
           active={moreOpen}
           btnRef={moreBtnRef}
-          onClick={() => { setTextStyleOpen(false); setMoreOpen(v => !v); }}
+          onClick={() => { setTextStyleOpen(false); setAddNodeOpen(false); setMoreOpen(v => !v); }}
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
             <circle cx="6" cy="12" r="1.5" fill="currentColor" />
@@ -393,6 +414,53 @@ export const MindNoteMapNodeToolbar: React.FC<MindNoteMapNodeToolbarProps> = ({
           </svg>
         </ToolbarBtn>
       </div>
+
+      {addNodeOpen && (
+        <div
+          style={{
+            position: 'absolute',
+            left: '50%',
+            bottom: '100%',
+            transform: 'translateX(-50%)',
+            marginBottom: 8,
+            background: 'rgba(31,35,41,0.96)',
+            borderRadius: 8,
+            padding: '6px 0',
+            minWidth: 180,
+            boxShadow: '0 8px 24px rgba(0,0,0,0.24)',
+            zIndex: 120,
+          }}
+        >
+          {([
+            { label: '添加子节点', shortcut: 'Tab', action: onAddChild },
+            { label: '添加同级节点', shortcut: 'Enter', action: onAddSibling },
+          ] as const).map(item => (
+            <button
+              key={item.label}
+              type="button"
+              onClick={() => { item.action(); setAddNodeOpen(false); }}
+              style={{
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '8px 14px',
+                border: 'none',
+                background: 'transparent',
+                color: '#fff',
+                fontSize: 13,
+                cursor: 'pointer',
+                textAlign: 'left',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+            >
+              <span>{item.label}</span>
+              <span style={{ color: 'rgba(255,255,255,0.45)', fontSize: 12 }}>{item.shortcut}</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {moreOpen && (
         <MindNoteMapMoreMenu

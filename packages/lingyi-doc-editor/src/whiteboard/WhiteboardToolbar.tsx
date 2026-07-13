@@ -8,24 +8,27 @@ import type {
 } from '@lingyi-doc/core';
 import {
   CONNECTOR_PRESETS,
-  MINDMAP_TEMPLATES,
   SECTION_PRESETS,
-  SHAPE_PRESETS,
   STICKY_COLORS,
+  getShapeRegistry,
+  SHAPE_CATEGORY_IDS,
 } from '@lingyi-doc/core';
 import { WB_COLORS, WB_PANEL } from './styles';
 import { ShapeIcon } from './ShapeIcon';
+import { MindmapLayoutPicker } from './mindmap/MindmapLayoutPicker';
 
 export interface WhiteboardToolState {
   tool: WhiteboardTool;
-  shapeKind: ShapeKind;
-  stickyColor: string;
-  connectorStyle: ConnectorStyle;
-  sectionAspect: SectionAspect;
+  shapeKind: ShapeKind | null;
+  /** 当前放置图形所属图形库分类 */
+  shapeCategoryId: string | null;
+  stickyColor: string | null;
+  connectorStyle: ConnectorStyle | null;
+  sectionAspect: SectionAspect | null;
   penColor: string;
   penWidth: number;
   penMode: 'pen' | 'highlighter' | 'eraser';
-  mindmapLayout: MindmapLayout;
+  mindmapLayout: MindmapLayout | null;
 }
 
 interface WhiteboardToolbarProps {
@@ -33,6 +36,10 @@ interface WhiteboardToolbarProps {
   readOnly?: boolean;
   state: WhiteboardToolState;
   onChange: (patch: Partial<WhiteboardToolState>) => void;
+  /** 点击图片工具：直接打开选图弹窗 */
+  onImagePick?: () => void;
+  /** 打开左侧图形库面板 */
+  onOpenShapeLibrary?: () => void;
 }
 
 const TOOLS: { id: WhiteboardTool; title: string; shortcut?: string; icon: React.ReactNode }[] = [
@@ -55,11 +62,18 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
   readOnly,
   state,
   onChange,
+  onImagePick,
+  onOpenShapeLibrary,
 }) => {
   const [hoverPanel, setHoverPanel] = useState<WhiteboardTool | null>(null);
+  const quickShapePresets = getShapeRegistry().listShapePresets({ quickPickOnly: true });
 
   const pickTool = (tool: WhiteboardTool) => {
     if (readOnly) return;
+    if (tool === 'image') {
+      onImagePick?.();
+      return;
+    }
     onChange({ tool });
   };
 
@@ -114,6 +128,7 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
           <ToolDivider />
           <ToolBtn
             title="评论"
+            active={state.tool === 'comment'}
             disabled={readOnly}
             onMouseEnter={hidePanel}
             onClick={() => pickTool('comment')}
@@ -125,18 +140,25 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
       {hoverPanel === 'shape' && (
         <Flyout title="形状" badge="M">
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6, padding: 8 }}>
-            {SHAPE_PRESETS.map(s => (
+            {quickShapePresets.map(s => (
               <ShapeGridButton
                 key={s.kind}
                 label={s.label}
                 active={state.shapeKind === s.kind}
-                onClick={() => onChange({ shapeKind: s.kind, tool: 'shape' })}
+                onClick={() => onChange({
+                  shapeKind: s.kind,
+                  shapeCategoryId: SHAPE_CATEGORY_IDS.basic,
+                  tool: 'shape',
+                })}
               >
                 <ShapeIcon kind={s.kind} />
               </ShapeGridButton>
             ))}
           </div>
-          <PanelFooterBtn onClick={() => onChange({ tool: 'shape' })}>
+          <PanelFooterBtn onClick={() => {
+            onOpenShapeLibrary?.();
+            hidePanel();
+          }}>
             更多图形
             <span style={{ fontSize: 11, color: WB_COLORS.muted, background: '#f0f1f2', padding: '1px 6px', borderRadius: 4 }}>M</span>
           </PanelFooterBtn>
@@ -193,19 +215,11 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
 
       {hoverPanel === 'mindmap' && (
         <Flyout title="思维导图" wide>
-          <div style={{ padding: 10, maxHeight: 280, overflowY: 'auto' }}>
-            <div style={{ fontSize: 12, color: WB_COLORS.muted, marginBottom: 8 }}>思维导图</div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
-              {MINDMAP_TEMPLATES.map(t => (
-                <PanelTileBtn
-                  key={t.layout}
-                  active={state.mindmapLayout === t.layout}
-                  onClick={() => onChange({ mindmapLayout: t.layout, tool: 'mindmap' })}
-                >
-                  {t.label}
-                </PanelTileBtn>
-              ))}
-            </div>
+          <div style={{ padding: '10px 12px' }}>
+            <MindmapLayoutPicker
+              layout={state.mindmapLayout}
+              onLayoutChange={layout => onChange({ mindmapLayout: layout, tool: 'mindmap' })}
+            />
           </div>
         </Flyout>
       )}
@@ -548,6 +562,7 @@ function ShapeGridButton({
       <button
         type="button"
         onClick={onClick}
+        onPointerDown={e => e.stopPropagation()}
         style={{
           width: 32,
           height: 32,
@@ -691,12 +706,13 @@ function IconComment() {
 
 export const DEFAULT_TOOL_STATE: WhiteboardToolState = {
   tool: 'select',
-  shapeKind: 'roundRect',
-  stickyColor: STICKY_COLORS[0],
-  connectorStyle: 'arrow',
-  sectionAspect: 'custom',
+  shapeKind: null,
+  shapeCategoryId: null,
+  stickyColor: null,
+  connectorStyle: null,
+  sectionAspect: null,
   penColor: '#e53935',
   penWidth: 3,
   penMode: 'pen',
-  mindmapLayout: 'right',
+  mindmapLayout: null,
 };

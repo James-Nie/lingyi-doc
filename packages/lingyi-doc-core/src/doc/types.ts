@@ -9,19 +9,23 @@ export type MarkType =
   | 'color'
   | 'background'
   | 'link'
-  | 'fontSize';
+  | 'fontSize'
+  | 'comment';
 
 export interface TextMark {
   type: MarkType;
   start: number;
   end: number;
-  /** color / background / link url / fontSize */
+  /** color / background / link url / fontSize / comment threadId */
   value?: string;
 }
 
 export type BlockAlign = 'left' | 'center' | 'right';
 export type ParagraphStyle = 'paragraph' | 'heading1' | 'heading2' | 'heading3' | 'heading4' | 'heading5' | 'heading6';
 export type ListType = 'bullet' | 'ordered' | 'task';
+
+/** 有序列表编号方案：1/a/i、中文编号、层级 decimal */
+export type OrderedListStyle = 'multiLevel' | 'chinese' | 'hierarchical';
 
 export interface ListItem {
   text: string;
@@ -64,6 +68,8 @@ export interface ListBlock {
   id: string;
   listType: ListType;
   items: ListItem[];
+  /** 有序列表编号方案，仅 listType === 'ordered' 时有效 */
+  orderedStyle?: OrderedListStyle;
 }
 
 export interface QuoteBlock {

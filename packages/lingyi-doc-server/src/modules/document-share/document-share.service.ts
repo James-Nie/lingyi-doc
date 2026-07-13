@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { BusinessException } from '../../common/exceptions/business.exception';
 import type { AuthUser } from '../../auth/decorators/current-user.decorator';
 import { DocumentShareRepository } from '../../repositories/document-share.repository';
+import { DocumentCommentService } from '../document-comment/document-comment.service';
 import { DocumentRepository } from '../../repositories/document.repository';
 import { TenantMemberRepository } from '../../repositories/tenant-member.repository';
 import { UserRepository } from '../../repositories/user.repository';
@@ -28,9 +29,11 @@ import { DocPathService } from '../../services/doc-path.service';
 import { StorageService } from '../../services/storage.service';
 import { generateInviteToken } from '../../utils/docSlug';
 import { buildDocOwnerPath } from '../../utils/docPublicPath';
-import { computeDocumentContentStats, formatStorageSize } from '../../utils/documentContentStats';
+import { computeDocumentStats, formatStorageSize } from '../../utils/documentContentStats';
 import { formatAuditOperation } from '../../utils/documentInfoFormat';
 import type { DocumentInfoDto } from '../../types/document-info';
+import { appendBaseFormRecord } from '../../utils/appendBaseFormRecord';
+import { OssService } from '../../services/oss.service';
 
 function generateShareToken(): string {
   return generateInviteToken();
@@ -83,6 +86,8 @@ export class DocumentShareService {
     private readonly userRepository: UserRepository,
     private readonly docPathService: DocPathService,
     private readonly storageService: StorageService,
+    private readonly commentService: DocumentCommentService,
+    private readonly ossService: OssService,
   ) {}
 
   private ctx(auth: AuthUser): DocumentAccessContext {
@@ -933,8 +938,15 @@ export class DocumentShareService {
       email: meta.ownerEmail,
     };
 
-    const { wordCount, charCount } = computeDocumentContentStats(meta.data, meta.docType);
+    const stats = await computeDocumentStats(
+      meta.data,
+      meta.docType,
+      this.ossService.isEnabled()
+        ? (objectKey) => this.ossService.headObjectSize(objectKey)
+        : undefined,
+    );
     const visitStats = await this.shareRepository.getVisitStats(docId);
+    const commentCount = await this.commentService.count(docId);
     const visitRecords = await this.shareRepository.listVisitRecords(docId);
     const auditRows = await this.shareRepository.listAuditLogs(docId);
     const operationRecords = auditRows.map(row => formatAuditOperation(row));
@@ -949,17 +961,17 @@ export class DocumentShareService {
         updatedAt: meta.updatedAt,
       },
       documentStats: {
-        wordCount,
-        charCount,
-        sizeBytes: meta.storageSize,
-        sizeLabel: formatStorageSize(meta.storageSize),
+        wordCount: stats.wordCount,
+        charCount: stats.charCount,
+        sizeBytes: stats.totalBytes,
+        sizeLabel: formatStorageSize(stats.totalBytes),
       },
       interaction: {
         visitorCount: visitStats.visitorCount,
         visitCount: visitStats.visitCount,
         todayNewVisits: visitStats.todayNewVisits,
         likeCount: 0,
-        commentCount: 0,
+        commentCount,
       },
       visitRecords: visitRecords.map(row => ({
         visitorId: row.visitorId,
@@ -975,5 +987,100 @@ export class DocumentShareService {
         showOthersVisitRecord: true,
       },
     };
+  }
+
+  /** 公开表单填写提交（仅追加记录，不暴露完整编辑能力） */
+  async submitPublicForm(
+    spaceSlug: string,
+    bookSlug: string,
+    docSlug: string,
+    body: {
+      token: string;
+      password?: string;
+      sheetId: string;
+      viewId: string;
+      fieldValues: Record<string, unknown>;
+    },
+    visitorIp?: string | null,
+    deviceInfo?: string | null,
+  ): Promise<{ success: true; version: number }> {
+    if (!body.token?.trim()) {
+      throw new BusinessException(100002, '缺少分享 token', HttpStatus.BAD_REQUEST);
+    }
+    if (!body.sheetId || !body.viewId) {
+      throw new BusinessException(100002, '缺少表单参数', HttpStatus.BAD_REQUEST);
+    }
+
+    const pathCtx = await this.docPathService.resolveDocIdByPath(spaceSlug, bookSlug, docSlug);
+    if (!pathCtx) {
+      throw new BusinessException(100004, '文档不存在', HttpStatus.NOT_FOUND);
+    }
+
+    const share = await this.loadShareForPublic(body.token);
+    if (share.docId !== pathCtx.docId) {
+      throw new BusinessException(100403, '分享链接无效', HttpStatus.FORBIDDEN);
+    }
+
+    if (share.status !== 1) {
+      await this.shareRepository.appendVisitLog({
+        docId: pathCtx.docId,
+        shareToken: body.token,
+        visitorIp: visitorIp ?? null,
+        deviceInfo: deviceInfo ?? null,
+        visitStatus: 'closed',
+      });
+      throw new BusinessException(100403, '分享已关闭', HttpStatus.GONE);
+    }
+
+    if (isShareExpired(share)) {
+      await this.shareRepository.appendVisitLog({
+        docId: pathCtx.docId,
+        shareToken: body.token,
+        visitorIp: visitorIp ?? null,
+        deviceInfo: deviceInfo ?? null,
+        visitStatus: 'expired',
+      });
+      throw new BusinessException(100403, '分享链接已过期', HttpStatus.GONE);
+    }
+
+    if (share.passwordHash) {
+      const valid = body.password ? await bcrypt.compare(body.password, share.passwordHash) : false;
+      if (!valid) {
+        await this.shareRepository.appendVisitLog({
+          docId: pathCtx.docId,
+          shareToken: body.token,
+          visitorIp: visitorIp ?? null,
+          deviceInfo: deviceInfo ?? null,
+          visitStatus: 'password_error',
+        });
+        throw new BusinessException(100401, '访问密码错误', HttpStatus.UNAUTHORIZED);
+      }
+    }
+
+    const doc = await this.documentRepository.findById(pathCtx.docId);
+    if (!doc) {
+      throw new BusinessException(100004, '文档不存在', HttpStatus.NOT_FOUND);
+    }
+
+    const nextData = appendBaseFormRecord(doc.data, {
+      sheetId: body.sheetId,
+      viewId: body.viewId,
+      fieldValues: body.fieldValues as Record<string, Record<string, unknown> & { type: string }>,
+    });
+
+    const saved = await this.documentRepository.saveContentInternal(pathCtx.docId, nextData);
+    if (!saved) {
+      throw new BusinessException(100005, '保存失败', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    await this.shareRepository.appendVisitLog({
+      docId: pathCtx.docId,
+      shareToken: body.token,
+      visitorIp: visitorIp ?? null,
+      deviceInfo: deviceInfo ?? null,
+      visitStatus: 'success',
+    });
+
+    return { success: true, version: saved.version };
   }
 }

@@ -119,6 +119,14 @@ export interface PublicShareDocument {
   data: unknown;
 }
 
+export interface SubmitPublicFormInput {
+  token: string;
+  password?: string;
+  sheetId: string;
+  viewId: string;
+  fieldValues: Record<string, unknown>;
+}
+
 export interface SharedDocumentListItem {
   id: string;
   title: string;
@@ -280,5 +288,20 @@ export const DocumentShareApi = {
       method: 'POST',
       body: JSON.stringify(password ? { password } : {}),
     });
+  },
+
+  submitPublicForm(
+    spaceSlug: string,
+    bookSlug: string,
+    docSlug: string,
+    input: SubmitPublicFormInput,
+  ): Promise<{ success: true; version: number }> {
+    return publicFetch(
+      `/api/v1/docs/by-path/${encodeURIComponent(spaceSlug)}/${encodeURIComponent(bookSlug)}/${encodeURIComponent(docSlug)}/form-submit`,
+      {
+        method: 'POST',
+        body: JSON.stringify(input),
+      },
+    );
   },
 } as const;

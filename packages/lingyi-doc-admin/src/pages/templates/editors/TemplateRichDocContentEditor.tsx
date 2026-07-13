@@ -16,7 +16,7 @@ type TemplateToolbarAction =
   | { type: 'color'; color: string }
   | { type: 'background'; color: string }
   | { type: 'align'; align: 'left' | 'center' | 'right' }
-  | { type: 'list'; listType: 'bullet' | 'ordered' }
+  | { type: 'list'; listType: 'bullet' | 'ordered'; orderedStyle?: 'multiLevel' | 'chinese' | 'hierarchical' }
   | { type: 'quote' }
   | { type: 'code' }
   | { type: 'divider' }
@@ -109,7 +109,7 @@ export const TemplateRichDocContentEditor = forwardRef<TemplateContentEditorHand
           syncFromDoc(doc, indices[0] ?? idx);
           break;
         case 'list':
-          indices.forEach(i => doc.toggleList(i, action.listType));
+          indices.forEach(i => doc.toggleList(i, action.listType, action.orderedStyle));
           syncFromDoc(doc, indices[0] ?? idx);
           break;
         case 'quote':

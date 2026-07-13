@@ -18,8 +18,9 @@ export const ColumnFilterPopover: React.FC<ColumnFilterPopoverProps> = ({
   defaultCol = 0,
   trigger,
 }) => {
-  const sheet = table.sheet;
-  const conditions = sheet.columnFilters ?? [];
+  const sheetModel = table.sheet;
+  const conditions = sheetModel.type === 'freeform' ? (sheetModel.columnFilters ?? []) : [];
+  const colCount = sheetModel.colCount;
 
   const updateConditions = useCallback((next: ColumnFilterCondition[]) => {
     table.setColumnFilters(next);
@@ -32,7 +33,7 @@ export const ColumnFilterPopover: React.FC<ColumnFilterPopoverProps> = ({
     ]);
   }, [conditions, defaultCol, updateConditions]);
 
-  const colOptions = Array.from({ length: sheet.colCount }, (_, i) => i);
+  const colOptions = Array.from({ length: colCount }, (_, i) => i);
 
   return (
     <ToolbarPopover

@@ -1,5 +1,5 @@
 import type { MindNoteBranchStyle } from '@lingyi-doc/core';
-import { MIND_NODE_MAX_WIDTH } from '@lingyi-doc/core';
+import { MIND_NODE_MAX_WIDTH, WHITEBOARD_MIND_BRANCH_STYLE_DEFAULT } from '@lingyi-doc/core';
 import { mapLineStyle } from '../../smm/smmAdapter';
 
 export const WB_MM_THEME = {
@@ -10,7 +10,7 @@ export const WB_MM_THEME = {
   rootText: '#FFFFFF',
 } as const;
 
-export function createWbMindmapTheme(branchStyle: MindNoteBranchStyle = 'straight') {
+export function createWbMindmapTheme(branchStyle: MindNoteBranchStyle = WHITEBOARD_MIND_BRANCH_STYLE_DEFAULT) {
   return {
     backgroundColor: 'transparent',
     lineColor: WB_MM_THEME.line,

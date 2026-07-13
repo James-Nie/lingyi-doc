@@ -25,6 +25,9 @@ import { DocumentShareModule } from './modules/document-share/document-share.mod
 import { TemplateModule } from './modules/template/template.module';
 import { MembershipModule } from './modules/membership/membership.module';
 import { BootstrapModule } from './bootstrap/bootstrap.module';
+import { RedisModule } from './redis/redis.module';
+import { DocumentCommentModule } from './modules/document-comment/document-comment.module';
+import { CollabModule } from './modules/collab/collab.module';
 
 @Module({
   imports: [
@@ -35,6 +38,7 @@ import { BootstrapModule } from './bootstrap/bootstrap.module';
     }),
     AppLoggerModule,
     DatabaseModule,
+    RedisModule,
     BootstrapModule,
     AuthModule,
     HealthModule,
@@ -53,6 +57,8 @@ import { BootstrapModule } from './bootstrap/bootstrap.module';
     DocumentShareModule,
     TemplateModule,
     MembershipModule,
+    CollabModule,
+    DocumentCommentModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: AllExceptionsFilter },

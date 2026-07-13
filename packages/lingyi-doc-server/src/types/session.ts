@@ -66,6 +66,7 @@ export interface DbOrganization {
   parent_id: string | null;
   name: string;
   sort_order: number;
+  leader_user_id?: string | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -76,6 +77,7 @@ export interface OrganizationNode {
   parentId: string | null;
   name: string;
   sortOrder: number;
+  leaderUserId?: string | null;
   children?: OrganizationNode[];
 }
 
@@ -86,6 +88,10 @@ export interface TenantMemberPublic {
   phone: string | null;
   tenantRole: TenantRole;
   orgId: string | null;
+  positionId: string | null;
+  roleId: string | null;
+  employeeId: string | null;
+  gender: number | null;
   status: number;
   joinedAt: number;
 }

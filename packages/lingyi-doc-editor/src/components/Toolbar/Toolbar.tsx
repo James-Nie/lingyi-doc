@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useSheetStore } from '../../store/sheetStore';
 import { ColorPicker } from './ColorPicker';
-import { AlignmentPicker } from './AlignmentPicker';
+import { BorderPicker, type BorderPreset } from './BorderPicker';
 import { FontSelector } from './FontSelector';
 import { NumberFormatToolbar } from './NumberFormatToolbar';
 import { FormulaDropdown } from './FormulaDropdown';
@@ -10,11 +10,25 @@ import { ColumnFilterDropdown } from './ColumnFilterDropdown';
 import { FreezeDropdown } from './FreezeDropdown';
 import { InsertDropdown } from './InsertDropdown';
 import type { FreeTable } from '@lingyi-doc/core';
-import { applyFormatMenuKey, getEditText, DEFAULT_CELL_STYLE, getFilteredColumnIndices } from '@lingyi-doc/core';
+import {
+  applyFormatMenuKey,
+  getEditText,
+  DEFAULT_CELL_STYLE,
+  getFilteredColumnIndices,
+  createBorderSide,
+  patchExistingBorderSides,
+  type BorderLineStyle,
+} from '@lingyi-doc/core';
 
 interface ToolbarProps {
   table: FreeTable;
   onInsertChart?: () => void;
+  /** 是否启用评论功能 */
+  commentsEnabled?: boolean;
+  /** 评论面板是否展开 */
+  commentPanelOpen?: boolean;
+  /** 切换评论面板显隐 */
+  onToggleCommentPanel?: () => void;
 }
 
 const TOOLBAR_BG = '#f3f4f5';
@@ -26,19 +40,9 @@ const divider = (
   <div style={{ width: 1, height: 44, background: '#dcdcdc', margin: '0 6px', flexShrink: 0 }} />
 );
 
-const BORDER_PRESETS = [
-  { value: 'all', label: '所有边框', icon: '▦' },
-  { value: 'outer', label: '外侧框线', icon: '▣' },
-  { value: 'inner', label: '内侧框线', icon: '═' },
-  { value: 'left', label: '左侧框线', icon: '├' },
-  { value: 'right', label: '右侧框线', icon: '┤' },
-  { value: 'top', label: '顶部框线', icon: '┬' },
-  { value: 'bottom', label: '底部框线', icon: '┴' },
-  { value: 'none', label: '无框线', icon: '○' },
-];
-
-const DEFAULT_BORDER_STYLE = { color: '#000000', style: 'thin' as const };
 const FONT_SIZES = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 32, 36, 48, 72];
+
+const NONE_BORDER_SIDE = { color: '#000000', style: 'none' as const };
 
 const selectStyle: React.CSSProperties = {
   padding: '2px 4px',
@@ -159,7 +163,13 @@ function AlignIconBtn({
   );
 }
 
-export const Toolbar: React.FC<ToolbarProps> = ({ table, onInsertChart }) => {
+export const Toolbar: React.FC<ToolbarProps> = ({
+  table,
+  onInsertChart,
+  commentsEnabled = false,
+  commentPanelOpen = false,
+  onToggleCommentPanel,
+}) => {
   const boldActive = useSheetStore(s => s.boldActive);
   const italicActive = useSheetStore(s => s.italicActive);
   const underlineActive = useSheetStore(s => s.underlineActive);
@@ -168,6 +178,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({ table, onInsertChart }) => {
   const currentFontFamily = useSheetStore(s => s.currentFontFamily);
   const fontColor = useSheetStore(s => s.fontColor);
   const backgroundColor = useSheetStore(s => s.backgroundColor);
+  const borderColor = useSheetStore(s => s.borderColor);
+  const borderLineStyle = useSheetStore(s => s.borderLineStyle);
   const horizontalAlign = useSheetStore(s => s.horizontalAlign);
   const verticalAlign = useSheetStore(s => s.verticalAlign);
   const textWrapActive = useSheetStore(s => s.textWrapActive);
@@ -185,6 +197,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({ table, onInsertChart }) => {
   const setFontFamily = useSheetStore(s => s.setFontFamily);
   const setFontColor = useSheetStore(s => s.setFontColor);
   const setBackgroundColor = useSheetStore(s => s.setBackgroundColor);
+  const setBorderColor = useSheetStore(s => s.setBorderColor);
+  const setBorderLineStyle = useSheetStore(s => s.setBorderLineStyle);
   const setHorizontalAlign = useSheetStore(s => s.setHorizontalAlign);
   const setVerticalAlign = useSheetStore(s => s.setVerticalAlign);
   const setTextWrapActive = useSheetStore(s => s.setTextWrapActive);
@@ -197,7 +211,9 @@ export const Toolbar: React.FC<ToolbarProps> = ({ table, onInsertChart }) => {
   const [freezeMenuOpen, setFreezeMenuOpen] = useState(false);
   useEffect(() => table.onChange(() => setFilterTick(v => v + 1)), [table]);
   const filterEnabled = table.isColumnFilterEnabled();
-  const columnFilterCount = getFilteredColumnIndices(table.sheet.columnFilters ?? []).length;
+  const columnFilterCount = getFilteredColumnIndices(
+    table.sheet.type === 'freeform' ? (table.sheet.columnFilters ?? []) : [],
+  ).length;
 
   const guardCell = useCallback((): boolean => {
     if (!activeCell) {
@@ -255,16 +271,44 @@ export const Toolbar: React.FC<ToolbarProps> = ({ table, onInsertChart }) => {
     setStrikethroughActive, setFontSize, setFontFamily, setFontColor, setBackgroundColor,
     setHorizontalAlign, setVerticalAlign, setTextWrapActive]);
 
-  const applyBorder = useCallback((preset: string) => {
+  const applyBorderAppearanceToSelection = useCallback((color: string, lineStyle: BorderLineStyle): number => {
+    if (!guardCell()) return 0;
+    let updated = 0;
+    for (const { row, col } of getSelectionCells()) {
+      const style = table.getCell(row, col)?.style;
+      const patch = patchExistingBorderSides(style, color, lineStyle);
+      if (Object.keys(patch).length > 0) {
+        table.setCellStyle(row, col, patch);
+        updated++;
+      }
+    }
+    return updated;
+  }, [table, guardCell, getSelectionCells]);
+
+  const handleBorderColorChange = useCallback((color: string) => {
+    setBorderColor(color);
+    const updated = applyBorderAppearanceToSelection(color, useSheetStore.getState().borderLineStyle);
+    setStatusText(updated > 0 ? '已更新边框颜色' : '边框颜色已设置，请选择边框类型应用');
+  }, [setBorderColor, applyBorderAppearanceToSelection, setStatusText]);
+
+  const handleBorderLineStyleChange = useCallback((lineStyle: BorderLineStyle) => {
+    setBorderLineStyle(lineStyle);
+    const updated = applyBorderAppearanceToSelection(useSheetStore.getState().borderColor, lineStyle);
+    if (updated > 0) setStatusText('已更新边框线型');
+  }, [setBorderLineStyle, applyBorderAppearanceToSelection, setStatusText]);
+
+  const applyBorder = useCallback((preset: BorderPreset) => {
     if (!guardCell()) return;
+    const { borderColor: color, borderLineStyle: lineStyle } = useSheetStore.getState();
     const sel = useSheetStore.getState().selectionRange;
     const cells = getSelectionCells();
+    const borderSide = createBorderSide(color, lineStyle);
     switch (preset) {
       case 'all':
         for (const c of cells) {
           table.setCellStyle(c.row, c.col, {
-            borderTop: DEFAULT_BORDER_STYLE, borderRight: DEFAULT_BORDER_STYLE,
-            borderBottom: DEFAULT_BORDER_STYLE, borderLeft: DEFAULT_BORDER_STYLE,
+            borderTop: borderSide, borderRight: borderSide,
+            borderBottom: borderSide, borderLeft: borderSide,
           });
         }
         break;
@@ -272,10 +316,10 @@ export const Toolbar: React.FC<ToolbarProps> = ({ table, onInsertChart }) => {
         if (sel) {
           for (const c of cells) {
             const s: Record<string, unknown> = {};
-            if (c.row === sel.start.row) s.borderTop = DEFAULT_BORDER_STYLE;
-            if (c.row === sel.end.row) s.borderBottom = DEFAULT_BORDER_STYLE;
-            if (c.col === sel.start.col) s.borderLeft = DEFAULT_BORDER_STYLE;
-            if (c.col === sel.end.col) s.borderRight = DEFAULT_BORDER_STYLE;
+            if (c.row === sel.start.row) s.borderTop = borderSide;
+            if (c.row === sel.end.row) s.borderBottom = borderSide;
+            if (c.col === sel.start.col) s.borderLeft = borderSide;
+            if (c.col === sel.end.col) s.borderRight = borderSide;
             if (Object.keys(s).length > 0) table.setCellStyle(c.row, c.col, s);
           }
         }
@@ -284,26 +328,26 @@ export const Toolbar: React.FC<ToolbarProps> = ({ table, onInsertChart }) => {
         if (sel) {
           for (const c of cells) {
             const s: Record<string, unknown> = {};
-            if (c.row !== sel.start.row) s.borderTop = DEFAULT_BORDER_STYLE;
-            if (c.row !== sel.end.row) s.borderBottom = DEFAULT_BORDER_STYLE;
-            if (c.col !== sel.start.col) s.borderLeft = DEFAULT_BORDER_STYLE;
-            if (c.col !== sel.end.col) s.borderRight = DEFAULT_BORDER_STYLE;
+            if (c.row !== sel.start.row) s.borderTop = borderSide;
+            if (c.row !== sel.end.row) s.borderBottom = borderSide;
+            if (c.col !== sel.start.col) s.borderLeft = borderSide;
+            if (c.col !== sel.end.col) s.borderRight = borderSide;
             if (Object.keys(s).length > 0) table.setCellStyle(c.row, c.col, s);
           }
         }
         break;
-      case 'left': for (const c of cells) table.setCellStyle(c.row, c.col, { borderLeft: DEFAULT_BORDER_STYLE }); break;
-      case 'right': for (const c of cells) table.setCellStyle(c.row, c.col, { borderRight: DEFAULT_BORDER_STYLE }); break;
-      case 'top': for (const c of cells) table.setCellStyle(c.row, c.col, { borderTop: DEFAULT_BORDER_STYLE }); break;
-      case 'bottom': for (const c of cells) table.setCellStyle(c.row, c.col, { borderBottom: DEFAULT_BORDER_STYLE }); break;
+      case 'left': for (const c of cells) table.setCellStyle(c.row, c.col, { borderLeft: borderSide }); break;
+      case 'right': for (const c of cells) table.setCellStyle(c.row, c.col, { borderRight: borderSide }); break;
+      case 'top': for (const c of cells) table.setCellStyle(c.row, c.col, { borderTop: borderSide }); break;
+      case 'bottom': for (const c of cells) table.setCellStyle(c.row, c.col, { borderBottom: borderSide }); break;
       case 'none':
         for (const c of cells) {
           table.setCellStyle(c.row, c.col, {
-            borderTop: { color: '#000', style: 'none' },
-            borderRight: { color: '#000', style: 'none' },
-            borderBottom: { color: '#000', style: 'none' },
-            borderLeft: { color: '#000', style: 'none' },
-          } as Record<string, unknown>);
+            borderTop: NONE_BORDER_SIDE,
+            borderRight: NONE_BORDER_SIDE,
+            borderBottom: NONE_BORDER_SIDE,
+            borderLeft: NONE_BORDER_SIDE,
+          });
         }
         break;
     }
@@ -543,13 +587,18 @@ export const Toolbar: React.FC<ToolbarProps> = ({ table, onInsertChart }) => {
             </select>
           </ToolbarTooltip>
           <ToolbarTooltip label="边框">
-            <AlignmentPicker
-              value=""
-              onChange={applyBorder}
-              options={BORDER_PRESETS}
+            <BorderPicker
+              borderColor={borderColor}
+              borderLineStyle={borderLineStyle}
+              onBorderColorChange={handleBorderColorChange}
+              onBorderLineStyleChange={handleBorderLineStyleChange}
+              onApplyPreset={applyBorder}
               trigger={(
                 <button type="button" style={{ ...selectStyle, display: 'inline-flex', alignItems: 'center', gap: 2, padding: '2px 6px' }}>
-                  <span style={{ fontSize: 14 }}>▦</span>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                    <rect x="4" y="4" width="16" height="16" rx="1" />
+                    <path d="M4 10h16M4 16h16M10 4v16M16 4v16" />
+                  </svg>
                   <svg width="8" height="8" viewBox="0 0 24 24" fill="currentColor" style={{ opacity: 0.45 }}><path d="M7 10l5 5 5-5z" /></svg>
                 </button>
               )}
@@ -702,7 +751,14 @@ export const Toolbar: React.FC<ToolbarProps> = ({ table, onInsertChart }) => {
       {/* 高级功能 */}
       <ToolbarLabeledBtn showChevron label="多维表格" icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="3" y="3" width="8" height="8" /><rect x="13" y="3" width="8" height="8" /><rect x="3" y="13" width="8" height="8" /><rect x="13" y="13" width="8" height="8" /></svg>} onClick={stub('多维表格')} />
       <ToolbarLabeledBtn label="查找和替换" icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="10" cy="10" r="6" /><path d="M14.5 14.5L20 20" /></svg>} onClick={stub('查找和替换')} />
-      <ToolbarLabeledBtn label="评论" icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" /></svg>} onClick={stub('评论')} />
+      {commentsEnabled && (
+        <ToolbarLabeledBtn
+          label="评论"
+          active={commentPanelOpen}
+          icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" /></svg>}
+          onClick={onToggleCommentPanel}
+        />
+      )}
       <ToolbarLabeledBtn label="AI 写公式" icon={<span style={{ fontSize: 11, fontWeight: 700, color: ACTIVE_COLOR }}>AI</span>} onClick={stub('AI 写公式')} />
     </div>
   );

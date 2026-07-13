@@ -11,6 +11,7 @@ import {
   insertMindChild,
   insertMindParent,
   insertMindSibling,
+  remapMindmapRootForLayout,
   toggleMindCollapse,
   updateMindNode,
 } from './tree';
@@ -76,6 +77,10 @@ export class MindNoteDocument {
 
   updateSettings(partial: Partial<MindNoteSettings>, recordHistory = false): void {
     if (recordHistory) this.pushHistory();
+    const nextStructure = partial.structure;
+    if (nextStructure && nextStructure !== this.settings.structure) {
+      this.root = remapMindmapRootForLayout(this.root, this.settings.structure, nextStructure);
+    }
     this.settings = { ...this.settings, ...partial };
   }
 

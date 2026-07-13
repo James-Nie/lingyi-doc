@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import type { ShapeElement, TextElement, WhiteboardElement } from '@lingyi-doc/core';
 import { getShapeTextBounds } from './shapePaths';
-import { shapeTextDecorationCss, textDecorationCss } from './shapeTextStyle';
+import { computeShapeEditorPaddingTop, shapeTextDecorationCss, textDecorationCss } from './shapeTextStyle';
 
 interface CanvasInlineEditorProps {
   element: WhiteboardElement;
@@ -10,6 +10,8 @@ interface CanvasInlineEditorProps {
   onClose: () => void;
   /** 双击进入时全选；键盘输入进入时光标置于末尾 */
   focusMode?: 'select-all' | 'end';
+  /** 键盘输入进入时的即时文本（避免父级 state 尚未同步） */
+  textOverride?: string | null;
 }
 
 /** 文本/便签/图形 Canvas 模式下的 DOM 编辑浮层 */
@@ -19,18 +21,19 @@ export const CanvasInlineEditor: React.FC<CanvasInlineEditorProps> = ({
   onChange,
   onClose,
   focusMode = 'select-all',
+  textOverride = null,
 }) => {
   const ref = useRef<HTMLTextAreaElement>(null);
   const ignoreBlurRef = useRef(true);
 
   useEffect(() => {
     ignoreBlurRef.current = true;
-    const focusTimer = window.setTimeout(() => {
+    const focusInput = () => {
       const input = ref.current;
       if (!input) return;
-      input.focus();
+      input.focus({ preventScroll: true });
+      const len = input.value.length;
       if (focusMode === 'end') {
-        const len = input.value.length;
         input.setSelectionRange(len, len);
       } else {
         input.select();
@@ -38,9 +41,13 @@ export const CanvasInlineEditor: React.FC<CanvasInlineEditorProps> = ({
       window.setTimeout(() => {
         ignoreBlurRef.current = false;
       }, 120);
-    }, 0);
-    return () => window.clearTimeout(focusTimer);
-  }, [element.id, focusMode]);
+    };
+    const raf = window.requestAnimationFrame(() => {
+      focusInput();
+      window.requestAnimationFrame(focusInput);
+    });
+    return () => window.cancelAnimationFrame(raf);
+  }, [element.id, focusMode, textOverride]);
 
   const isSticky = element.type === 'sticky';
   const isShape = element.type === 'shape';
@@ -57,9 +64,10 @@ export const CanvasInlineEditor: React.FC<CanvasInlineEditorProps> = ({
   const width = bounds.w * viewport.zoom;
   const height = bounds.h * viewport.zoom;
 
-  const text = element.type === 'text' || element.type === 'sticky' || element.type === 'shape'
-    ? (element.text ?? '')
-    : '';
+  const text = textOverride
+    ?? (element.type === 'text' || element.type === 'sticky' || element.type === 'shape'
+      ? (element.text ?? '')
+      : '');
 
   const fontSize = isShape
     ? (shape!.fontSize ?? 14) * viewport.zoom
@@ -99,15 +107,26 @@ export const CanvasInlineEditor: React.FC<CanvasInlineEditorProps> = ({
       : undefined;
   const highlight = isShape ? shape!.textHighlight : isText ? textEl!.textHighlight : undefined;
 
-  const pad = isSticky ? 12 : isShape ? 12 * viewport.zoom : 4;
-  const justifyContent = textVerticalAlign === 'top'
-    ? 'flex-start'
-    : textVerticalAlign === 'bottom'
-      ? 'flex-end'
-      : 'center';
+  const shapePad = 12;
+  const stickyPad = 12;
+  const textPad = 4;
+  const pad = isSticky ? stickyPad : isShape ? shapePad : textPad;
+  const fontSizeWorld = isShape
+    ? (shape!.fontSize ?? 14)
+    : isText
+      ? textEl!.fontSize
+      : 14;
+  const lineHeightWorld = fontSizeWorld * 1.35;
+  const lineCount = Math.max(1, text.split('\n').length);
+  const totalHWorld = lineCount * lineHeightWorld;
+  const shapePaddingTop = isShape
+    ? computeShapeEditorPaddingTop(bounds.h, totalHWorld, textVerticalAlign, shapePad)
+    : 0;
 
   return (
     <div
+      data-wb-inline-editor
+      data-wb-lock-id={element.id}
       style={{
         position: 'absolute',
         left,
@@ -115,11 +134,14 @@ export const CanvasInlineEditor: React.FC<CanvasInlineEditorProps> = ({
         width,
         height,
         zIndex: 10080,
-        display: isShape || isText ? 'flex' : 'block',
-        flexDirection: 'column',
-        justifyContent: isShape || isText ? justifyContent : undefined,
+        display: 'block',
         pointerEvents: 'auto',
         boxSizing: 'border-box',
+        padding: isShape
+          ? `${shapePaddingTop * viewport.zoom}px ${shapePad * viewport.zoom}px ${shapePad * viewport.zoom}px`
+          : isSticky
+            ? `${stickyPad}px`
+            : `${textPad}px`,
       }}
       onPointerDown={e => e.stopPropagation()}
       onMouseDown={e => e.stopPropagation()}
@@ -139,13 +161,11 @@ export const CanvasInlineEditor: React.FC<CanvasInlineEditorProps> = ({
         }}
         style={{
           width: '100%',
-          flex: isShape || isText ? '0 1 auto' : undefined,
-          maxHeight: isShape || isText ? '100%' : undefined,
           border: isShape || isText ? 'none' : '2px solid #3370ff',
           borderRadius: isShape || isText ? 0 : 4,
           outline: 'none',
           resize: 'none',
-          padding: pad,
+          padding: isShape ? 0 : pad,
           fontSize,
           fontWeight,
           fontStyle,

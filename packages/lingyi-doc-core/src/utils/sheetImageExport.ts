@@ -2,8 +2,10 @@ import type { CellRange } from '../types/index';
 import { keyToCoord, getCellText } from '../types/index';
 import type { FreeTable } from '../model/index';
 import type { Workbook } from '../model/Workbook';
+import { getSheetMergeRanges } from '../types/sheetAccess';
 import { renderSelectionToCanvas } from './selectionImage';
 import { downloadBlob } from '../doc/export';
+import { printHtmlDocument, wrapImagePrintHtml } from '../doc/export';
 
 function getSheetUsedRange(table: FreeTable): CellRange {
   const sheetId = table.sheetId;
@@ -19,7 +21,7 @@ function getSheetUsedRange(table: FreeTable): CellRange {
     }
   }
 
-  for (const merge of table.sheet.mergeRanges) {
+  for (const merge of getSheetMergeRanges(table.sheet)) {
     maxRow = Math.max(maxRow, merge.end.row);
     maxCol = Math.max(maxCol, merge.end.col);
   }
@@ -56,4 +58,29 @@ export function exportActiveSheetAsPng(workbook: Workbook, filename: string): Pr
       resolve();
     }, 'image/png');
   });
+}
+
+function renderActiveSheetCanvas(workbook: Workbook): HTMLCanvasElement {
+  const table = workbook.activeSheet;
+  if (!table) throw new Error('没有可打印的工作表');
+
+  const range = getSheetUsedRange(table);
+  return renderSelectionToCanvas(
+    table,
+    range,
+    table.sheet.columnWidths,
+    table.sheet.rowHeights,
+    1,
+  );
+}
+
+/** 将当前工作表内容区域渲染并打开打印对话框 */
+export async function printActiveSheet(workbook: Workbook, title: string): Promise<void> {
+  const table = workbook.activeSheet;
+  if (!table) throw new Error('没有可打印的工作表');
+
+  const canvas = renderActiveSheetCanvas(workbook);
+  const dataUrl = canvas.toDataURL('image/png');
+  const sheetName = table.sheet.name || '工作表';
+  await printHtmlDocument(wrapImagePrintHtml(title, dataUrl, { subtitle: sheetName }));
 }

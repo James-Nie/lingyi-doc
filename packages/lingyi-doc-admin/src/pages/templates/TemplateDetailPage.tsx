@@ -124,7 +124,7 @@ export const TemplateDetailPage: React.FC = () => {
                     previewMode
                     docType={watchDocType ?? detail.docType}
                     documentTitle={watchDocumentTitle ?? detail.documentTitle}
-                    isBlank={!!watchIsBlank}
+                    isBlank={watchIsBlank ?? detail.isBlank}
                     contentJson={contentJson}
                   />
                 </Card>

@@ -1,6 +1,13 @@
 import type { ConnectorElement, WhiteboardPoint } from '@lingyi-doc/core';
-import { listElbowSegments } from '@lingyi-doc/core';
+import { dragElbowSegment, listEditableElbowSegments, type ElbowSegmentDragOpts } from '@lingyi-doc/core';
 import { WB_COLORS } from './styles';
+
+export function connectorElbowSegmentOpts(conn: ConnectorElement): ElbowSegmentDragOpts {
+  return {
+    lockStart: Boolean(conn.startBind),
+    lockEnd: Boolean(conn.endBind),
+  };
+}
 
 export const ELBOW_HANDLE = {
   endpointR: 7,
@@ -39,10 +46,11 @@ export function drawElbowConnectorHandles(
   ctx: CanvasRenderingContext2D,
   route: WhiteboardPoint[],
   accent = WB_COLORS.accent,
+  opts?: ElbowSegmentDragOpts,
 ): void {
   const { endpointR } = ELBOW_HANDLE;
 
-  for (const seg of listElbowSegments(route)) {
+  for (const seg of listEditableElbowSegments(route, opts)) {
     fillPill(ctx, seg.midpoint.x, seg.midpoint.y, seg.axis, accent);
   }
 
@@ -60,11 +68,12 @@ export function drawElbowConnectorHandles(
 export function hitElbowSegmentHandle(
   route: WhiteboardPoint[],
   pt: WhiteboardPoint,
+  opts?: ElbowSegmentDragOpts,
 ): number | null {
   const { pillHitLong, pillHitShort } = ELBOW_HANDLE;
   let best: { index: number; dist: number } | null = null;
 
-  for (const seg of listElbowSegments(route)) {
+  for (const seg of listEditableElbowSegments(route, opts)) {
     const { midpoint: m, axis, index } = seg;
     const hw = axis === 'h' ? pillHitLong / 2 : pillHitShort / 2;
     const hh = axis === 'h' ? pillHitShort / 2 : pillHitLong / 2;
