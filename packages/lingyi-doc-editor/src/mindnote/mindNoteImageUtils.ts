@@ -1,1 +1,1 @@
-export { readImageFile, fitMindNodeImageSize } from '../smm/imageUtils';
+export { readImageFile, fitMindNodeImageSize } from '@lingyi-doc/editor-shared';

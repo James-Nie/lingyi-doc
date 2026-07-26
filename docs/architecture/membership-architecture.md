@@ -87,24 +87,30 @@ ALTER TABLE tenants
 
 ## 3. 四档默认配额（P0 静态配置）
 
-配置位置：`packages/lingyi-doc-server/src/modules/membership/membership-policy.ts`
+配置位置：`packages/lingyi-doc-server/src/modules/membership/membership-policy.ts`  
+完整对照表见：[membership-account-feature-matrix.md](./membership-account-feature-matrix.md)
 
 ### 3.1 个人空间
 
 | 指标 | 免费 | 会员 / 试用 |
 |------|------|-------------|
-| 存储 | 10 GB | 无限制 |
-| 文档数 | 500 | 无限制 |
-| 日导出 | 20（P1） | 无限制 |
+| 知识库 | 10 | 无限制 |
+| 存储 | 2 GB | 无限制 |
+| 文档数 | 100 | 无限制 |
+| 单文件 | 10 MB | 50 MB |
+| 协作人数 | 5 | 无限制 |
+| 日导出 | 20 | 无限制 |
 
 ### 3.2 团队空间
 
 | 指标 | 免费 | 会员 / 试用 |
 |------|------|-------------|
-| 成员数 | 10 | 无限制 |
-| 存储 | 50 GB | 无限制 |
-| 文档数 | 2000 | 无限制 |
-| 日导出 | 100（P1） | 无限制 |
+| 知识库 | 100 | 无限制 |
+| 成员 / 协作人数 | 20 | 无限制 |
+| 存储 | 10 GB | 无限制 |
+| 文档数 | 1000 | 无限制 |
+| 单文件 | 10 MB | 50 MB |
+| 日导出 | 100 | 无限制 |
 
 ### 3.3 功能开关（节选）
 

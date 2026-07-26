@@ -6,8 +6,11 @@ import { DocEditorPage } from './DocEditorPage';
 import { MindNoteEditorPage } from './MindNoteEditorPage';
 import { WhiteboardEditorPage } from './WhiteboardEditorPage';
 import { authStore } from '../stores/authStore';
+import { activeDocumentStore } from '../stores/activeDocumentStore';
 import { useDocumentViewMode } from '../utils/documentViewMode';
 import { TemplatePickerProvider } from '../components/templates/TemplatePickerContext';
+import { rememberDocPathContext } from '../utils/navigateToDoc';
+import type { DocPathContext } from '../api/documentShare';
 
 interface PathAccessPending {
   requirePassword: true;
@@ -81,6 +84,18 @@ export const DocPublicEditorPage: React.FC<{ inShell?: boolean }> = ({ inShell =
   React.useEffect(() => {
     void load();
   }, [load]);
+
+  React.useEffect(() => {
+    if (!entry?.docId) return;
+    activeDocumentStore.setDocId(entry.docId);
+    rememberDocPathContext({
+      docId: entry.docId,
+      title: entry.title || '',
+      spaceSlug,
+      bookSlug,
+      docSlug,
+    } satisfies DocPathContext);
+  }, [entry?.docId, entry?.title, spaceSlug, bookSlug, docSlug]);
 
   const access = useDocumentViewMode(entry?.docId, entry ?? {});
 

@@ -19,12 +19,18 @@ import {
   type MindNoteSettings,
   type OnlineUser,
 } from '@lingyi-doc/core';
-import { MindNoteEditor, printMindNoteMap } from '@lingyi-doc/editor';
+import { MindNoteEditor, printMindNoteMap } from '@lingyi-doc/editor-pro';
 import { DocumentBar } from '../components/DocumentBar';
 import { CollabStatusBar } from '../components/CollabStatusBar';
-import { isCollabViewOnly, useCollabBlockLock } from '../hooks/useCollabBlockLock';
+import {
+  DocumentHistoryPanelSlot,
+  DocumentHistoryToolbarSlot,
+} from '../components/history/DocumentHistoryChrome';
+import { useCollabBlockLock } from '../hooks/useCollabBlockLock';
+import { useDocumentHistory } from '../hooks/useDocumentHistory';
 import { appPath } from '../utils/appPaths';
 import { authStore } from '../stores/authStore';
+import { fetchSystemFeatures } from '../api/system';
 import type { EditorAccessProps } from '../types/editorAccess';
 
 export const MindNoteEditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiResponse; embedded?: boolean } & EditorAccessProps> = ({
@@ -48,10 +54,7 @@ export const MindNoteEditorPage: React.FC<{ docId?: string; prefetched?: Documen
 
   const [collabUsers, setCollabUsers] = useState<OnlineUser[]>([]);
   const [collabState, setCollabState] = useState<CollabConnectionState>('idle');
-  const [activeBlockEditor, setActiveBlockEditor] = useState<ActiveCellEditor | null>(null);
-  const myUserIdRef = useRef(authStore.getState().user?.id ?? '');
-
-  const collabViewOnly = isCollabViewOnly(readOnly, collabState, activeBlockEditor, myUserIdRef.current);
+  const [activeBlockEditors, setActiveBlockEditors] = useState<ActiveCellEditor[]>([]);
 
   const [loading, setLoading] = useState(true);
   const [title, setTitle] = useState('未命名思维笔记');
@@ -73,12 +76,55 @@ export const MindNoteEditorPage: React.FC<{ docId?: string; prefetched?: Documen
     setHistoryTick(v => v + 1);
   }, []);
 
-  const handleSnapshotReplace = useCallback((snapshot: Record<string, unknown>) => {
+  const reloadDocumentFromServer = useCallback(async () => {
+    if (!docId) return;
+    const result = await DocumentManager.loadMindNote(docId);
+    if (!result) return;
+    docRef.current = result.document;
+    setTitle(result.title);
+    titleRef.current = result.title;
+    syncFromDoc(result.document);
+    setDirty(false);
+    setSaveStatus('saved');
+    setLastModified(Date.now());
+    saveManagerRef.current?.initialize(
+      result.version,
+      result.document.toJSON() as unknown as Record<string, unknown>,
+      result.title,
+    );
+  }, [docId, syncFromDoc]);
+
+  const applyDocumentSnapshot = useCallback((
+    snapshot: Record<string, unknown>,
+    opts?: { markDirty?: boolean; syncTitle?: boolean },
+  ) => {
     const doc = MindNoteDocument.fromJSON(snapshot as unknown as MindNoteJSON);
     docRef.current = doc;
+    if (opts?.syncTitle !== false && typeof snapshot.title === 'string' && snapshot.title.trim()) {
+      setTitle(snapshot.title);
+      titleRef.current = snapshot.title;
+    }
     syncFromDoc(doc);
-    saveManagerRef.current?.markDirty();
+    if (opts?.markDirty) {
+      saveManagerRef.current?.markDirty();
+    }
   }, [syncFromDoc]);
+
+  const history = useDocumentHistory({
+    docId,
+    canRestore: canEdit && !readOnly,
+    saveManagerRef,
+    applyPreviewSnapshot: (snapshot) => {
+      applyDocumentSnapshot(snapshot, { markDirty: false, syncTitle: true });
+    },
+    reloadCurrentDocument: reloadDocumentFromServer,
+  });
+
+  const handleSnapshotReplace = useCallback((snapshot: Record<string, unknown>) => {
+    if (history.historyOpenRef.current) return;
+    applyDocumentSnapshot(snapshot, { markDirty: false, syncTitle: false });
+    saveManagerRef.current?.adoptRemoteSnapshot(snapshot);
+  }, [applyDocumentSnapshot, history.historyOpenRef]);
 
   const handleSnapshotReplaceRef = useRef(handleSnapshotReplace);
   handleSnapshotReplaceRef.current = handleSnapshotReplace;
@@ -95,6 +141,12 @@ export const MindNoteEditorPage: React.FC<{ docId?: string; prefetched?: Documen
     resolveLock: resolveMindnoteLock,
     isComposing: isMindNoteComposing,
     fallbackNodeIdRef: activeNodeIdRef,
+    onLockDenied: (lock) => {
+      const holder = collabBridgeRef.current
+        ?.getRemoteBlockEditors()
+        .find(e => e.sheetId === lock.sheetId && e.row === lock.row && e.col === lock.col);
+      message.warning(holder ? `${holder.displayName} 正在编辑该区域` : '该区域正在被他人编辑');
+    },
   });
 
   useEffect(() => {
@@ -105,6 +157,8 @@ export const MindNoteEditorPage: React.FC<{ docId?: string; prefetched?: Documen
     let cancelled = false;
     (async () => {
       setLoading(true);
+      const features = await fetchSystemFeatures().catch(() => ({ collab: false, comments: false, ai: false }));
+      if (cancelled) return;
       const result = await DocumentManager.loadMindNote(docId, prefetched);
       if (cancelled) return;
       if (!result) {
@@ -148,21 +202,36 @@ export const MindNoteEditorPage: React.FC<{ docId?: string; prefetched?: Documen
         saveManagerRef.current = manager;
 
         collabBridgeRef.current?.disconnect();
-        const bridge = new DocumentCollabBridge({
-          docId,
-          userId: authStore.getState().user?.id ?? '',
-          patchKind: 'mindnote',
-          getToken: () => authStore.getAccessToken(),
-          getSnapshot: () => docRef.current?.toJSON() as unknown as Record<string, unknown> | null,
-          onSnapshotReplace: (snap) => handleSnapshotReplaceRef.current(snap),
-          isLocalEditing: isMindNoteComposing,
-          onPresenceChange: setCollabUsers,
-          onBlockEditingChange: setActiveBlockEditor,
-          onStateChange: setCollabState,
-        });
-        bridge.initialize(result.document.toJSON() as unknown as Record<string, unknown>);
-        collabBridgeRef.current = bridge;
-        bridge.connect();
+        if (features.collab) {
+          const bridge = new DocumentCollabBridge({
+            docId,
+            userId: authStore.getState().user?.id ?? '',
+            patchKind: 'mindnote',
+            getToken: () => authStore.getAccessToken(),
+            getSnapshot: () => docRef.current?.toJSON() as unknown as Record<string, unknown> | null,
+            onSnapshotReplace: (snap) => handleSnapshotReplaceRef.current(snap),
+            isLocalEditing: isMindNoteComposing,
+            onPresenceChange: setCollabUsers,
+            onBlockEditingChange: setActiveBlockEditors,
+            onStateChange: setCollabState,
+            onError: (err) => {
+              if (err.message.includes('210009') || err.message.includes('正在编辑')) {
+                if (document.activeElement instanceof HTMLElement) {
+                  document.activeElement.blur();
+                }
+              }
+              message.warning(`协同: ${err.message}`);
+            },
+          });
+          bridge.initialize(result.document.toJSON() as unknown as Record<string, unknown>);
+          collabBridgeRef.current = bridge;
+          bridge.connect();
+        } else {
+          collabBridgeRef.current = null;
+          setCollabState('idle');
+          setCollabUsers([]);
+          setActiveBlockEditors([]);
+        }
       } else {
         saveManagerRef.current?.dispose();
         saveManagerRef.current = null;
@@ -178,24 +247,33 @@ export const MindNoteEditorPage: React.FC<{ docId?: string; prefetched?: Documen
       collabBridgeRef.current = null;
       setCollabState('idle');
       setCollabUsers([]);
-      setActiveBlockEditor(null);
+      setActiveBlockEditors([]);
     };
   }, [docId, navigate, syncFromDoc, prefetched, readOnly]);
 
   useEffect(() => {
-    const onLeave = () => { void saveManagerRef.current?.flush(true); };
+    const onLeave = (e: BeforeUnloadEvent) => {
+      const manager = saveManagerRef.current;
+      if (!manager) return;
+      const hadDirty = manager.isDirty();
+      void manager.flush(false);
+      if (hadDirty) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
     window.addEventListener('beforeunload', onLeave);
     return () => window.removeEventListener('beforeunload', onLeave);
   }, []);
 
   const markDirty = useCallback(() => {
-    if (readOnly) return;
+    if (readOnly || history.historyOpenRef.current) return;
     setDirty(true);
     saveManagerRef.current?.markDirty();
     if (!collabBridgeRef.current?.isApplyingRemote()) {
       collabBridgeRef.current?.scheduleBroadcast();
     }
-  }, [readOnly]);
+  }, [readOnly, history.historyOpenRef]);
 
   const handleTitleChange = useCallback((t: string) => {
     if (readOnly) return;
@@ -285,13 +363,28 @@ export const MindNoteEditorPage: React.FC<{ docId?: string; prefetched?: Documen
           effectiveViewMode={effectiveViewMode}
           onTogglePreview={onTogglePreview}
           breadcrumbItems={breadcrumbItems}
+          onOpenHistory={() => { void history.openHistory(); }}
         />
       )}
+      <DocumentHistoryToolbarSlot
+        historyOpen={history.historyOpen}
+        selectedIndex={history.selectedHistoryIndex}
+        items={history.historyItems}
+        canRestore={canEdit && !readOnly}
+        restoring={history.historyRestoring}
+        previewLoading={history.historyPreviewLoading}
+        onRestore={() => { void history.restoreHistoryVersion(); }}
+        onPrev={history.goPrevHistory}
+        onNext={history.goNextHistory}
+        onClose={() => { void history.closeHistory(); }}
+      />
+      <div style={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <MindNoteEditor
         title={title}
         root={root}
         settings={settings}
-        readOnly={readOnly || collabViewOnly}
+        readOnly={readOnly || history.historyOpen}
         canUndo={doc.canUndo()}
         canRedo={doc.canRedo()}
         onTitleChange={handleTitleChange}
@@ -343,14 +436,25 @@ export const MindNoteEditorPage: React.FC<{ docId?: string; prefetched?: Documen
         }}
         onActiveNodeChange={setActiveNodeId}
       />
-      {!readOnly && (
+      {!readOnly && !history.historyOpen && (
         <CollabStatusBar
           collabState={collabState}
           collabUsers={collabUsers}
-          collabViewOnly={collabViewOnly}
-          activeBlockEditor={activeBlockEditor}
+          activeEditors={activeBlockEditors}
         />
       )}
+        </div>
+        {docId && (
+          <DocumentHistoryPanelSlot
+            docId={docId}
+            historyOpen={history.historyOpen}
+            selectedVersion={history.selectedHistoryVersion}
+            onSelectVersion={(version) => { void history.previewHistoryVersion(version); }}
+            onVersionsChange={history.handleHistoryVersionsChange}
+            onClose={() => { void history.closeHistory(); }}
+          />
+        )}
+      </div>
     </div>
   );
 };

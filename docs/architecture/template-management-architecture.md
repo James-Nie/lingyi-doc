@@ -65,7 +65,6 @@
 | usage_label | VARCHAR(100) | 展示用量文案，如「39.9 万人已使用」 |
 | is_new | TINYINT(1) | 是否标记 NEW |
 | is_blank | TINYINT(1) | 是否空白模板 |
-| thumb_gradient | VARCHAR(500) | 卡片缩略图渐变 CSS |
 | content_json | JSON | 模板内容快照（见 3.2） |
 | status | VARCHAR(20) | `draft` \| `published` \| `archived` |
 | sort_order | INT | 排序权重，越大越靠前 |

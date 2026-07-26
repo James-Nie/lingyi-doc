@@ -1,4 +1,4 @@
-import type { MindMapLayoutNode, MindNoteStructure } from '@lingyi-doc/core';
+import type { MindMapLayoutNode, MindNoteStructure } from '@lingyi-doc/core-mindmap';
 import {
   COLLAPSE_BTN_GAP,
   COLLAPSE_BTN_SIZE,

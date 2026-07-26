@@ -20,7 +20,14 @@ export const AuthGuard: React.FC = () => {
   }
 
   if (!state.accessToken || !state.user) {
-    return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+    const returnUrl = `${location.pathname}${location.search}`;
+    return (
+      <Navigate
+        to={`/login?redirect=${encodeURIComponent(returnUrl)}`}
+        replace
+        state={{ from: returnUrl }}
+      />
+    );
   }
 
   if (state.user.status === 'suspended') {

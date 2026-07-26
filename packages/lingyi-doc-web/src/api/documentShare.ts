@@ -4,17 +4,20 @@
  * @see docs/document-share-architecture.md
  */
 import { authFetch, authStore } from '../stores/authStore';
+import { encodePathSegment } from '../utils/appPaths';
 
 const DOC_SHARE_BASE = '/api/v1/c/docs';
 const PUBLIC_SHARE_BASE = '/api/v1/share';
 
 export type DocSharePermissionLevel = 'none' | 'read' | 'comment' | 'edit' | 'manage';
 
-export const DOC_SHARE_PERMISSION_OPTIONS: { value: DocSharePermissionLevel; label: string }[] = [
+/** 分享给他人时可选权限（不含管理；管理权仅文档拥有者） */
+export type DocShareAssignablePermission = Exclude<DocSharePermissionLevel, 'none' | 'manage'>;
+
+export const DOC_SHARE_PERMISSION_OPTIONS: { value: DocShareAssignablePermission; label: string }[] = [
   { value: 'read', label: '只读' },
   { value: 'comment', label: '可评论' },
   { value: 'edit', label: '可编辑' },
-  { value: 'manage', label: '可管理' },
 ];
 
 export const DOC_SHARE_COLLABORATOR_OPTIONS = DOC_SHARE_PERMISSION_OPTIONS;
@@ -24,7 +27,7 @@ export const DOC_SHARE_PERMISSION_LABELS: Record<DocSharePermissionLevel, string
   read: '只读',
   comment: '可评论',
   edit: '可编辑',
-  manage: '可管理',
+  manage: '可编辑', // 历史 manage 按可编辑展示
 };
 
 export interface DocShareConfig {
@@ -127,6 +130,66 @@ export interface SubmitPublicFormInput {
   fieldValues: Record<string, unknown>;
 }
 
+export interface PublicFormAccessPending {
+  requirePassword: true;
+  title: string;
+  docType: string;
+  permissionLevel?: DocSharePermissionLevel;
+}
+
+export interface PublicFormFieldDto {
+  fieldId: string;
+  question: string;
+  description?: string;
+  required?: boolean;
+  conditionalVisible?: boolean;
+  displayConditions?: unknown[];
+  column: Record<string, unknown> & { id: string; name: string; type: string };
+}
+
+export interface PublicFormSchema {
+  docId: string;
+  sheetId: string;
+  viewId: string;
+  title: string;
+  description: string;
+  formShareLinkScope: 'internet' | 'organization' | 'collaborators';
+  canManage: boolean;
+  fields: PublicFormFieldDto[];
+}
+
+export interface PublicFormStats {
+  submittedCount: number;
+  requiredCount: number;
+  submittedPeopleCount: number;
+  pendingRequiredCount: number;
+}
+
+export interface PublicFormSubmissionSummary {
+  recordId: string;
+  createdAt: number;
+  createdBy: string;
+  isLatest: boolean;
+  fields: Array<{ label: string; value: string }>;
+}
+
+export interface PublicFormQuery {
+  token: string;
+  sheetId: string;
+  viewId: string;
+  password?: string;
+}
+
+function buildFormQuery(query: PublicFormQuery): string {
+  const qs = new URLSearchParams({
+    token: query.token,
+    sheetId: query.sheetId,
+    viewId: query.viewId,
+  });
+  if (query.password) qs.set('password', query.password);
+  return qs.toString();
+}
+
 export interface SharedDocumentListItem {
   id: string;
   title: string;
@@ -166,10 +229,12 @@ async function optionalAuthFetch<T>(path: string): Promise<T> {
   return parsePublicResponse<T>(res);
 }
 async function publicFetch<T>(path: string, options?: RequestInit): Promise<T> {
+  const token = authStore.getAccessToken();
   const res = await fetch(path, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(options?.headers as Record<string, string> | undefined),
     },
   });
@@ -234,7 +299,7 @@ export const DocumentShareApi = {
 
   addCollaborator(
     docId: string,
-    input: { userId: string; permissionLevel: DocSharePermissionLevel },
+    input: { userId: string; permissionLevel: DocShareAssignablePermission },
   ): Promise<DocShareCollaborator> {
     return authFetch(`${DOC_SHARE_BASE}/${docId}/share/collaborators`, {
       method: 'POST',
@@ -242,12 +307,22 @@ export const DocumentShareApi = {
     });
   },
 
+  searchUsersForCollaborator(
+    docId: string,
+    q: string,
+  ): Promise<{ items: Array<{ userId: string; displayName: string; email: string; phone: string | null }> }> {
+    const qs = new URLSearchParams({ q }).toString();
+    return authFetch(`${DOC_SHARE_BASE}/${docId}/share/collaborators/search-users?${qs}`);
+  },
+
   removeCollaborator(docId: string, userId: string): Promise<{ userId: string }> {
     return authFetch(`${DOC_SHARE_BASE}/${docId}/share/collaborators/${userId}`, { method: 'DELETE' });
   },
 
   resolveDocByPath(spaceSlug: string, bookSlug: string, docSlug: string): Promise<DocPathContext> {
-    return authFetch(`${DOC_SHARE_BASE}/by-path/${encodeURIComponent(spaceSlug)}/${encodeURIComponent(bookSlug)}/${encodeURIComponent(docSlug)}/resolve`);
+    return authFetch(
+      `${DOC_SHARE_BASE}/by-path/${encodePathSegment(spaceSlug)}/${encodePathSegment(bookSlug)}/${encodePathSegment(docSlug)}/resolve`,
+    );
   },
 
   resolveDocPathById(docId: string): Promise<DocPathContext> {
@@ -262,7 +337,7 @@ export const DocumentShareApi = {
   ): Promise<CollaboratorJoinInfo> {
     const qs = new URLSearchParams({ token });
     return optionalAuthFetch(
-      `/api/v1/share/join/${encodeURIComponent(spaceSlug)}/${encodeURIComponent(bookSlug)}/${encodeURIComponent(docSlug)}/collaborator?${qs}`,
+      `/api/v1/share/join/${encodePathSegment(spaceSlug)}/${encodePathSegment(bookSlug)}/${encodePathSegment(docSlug)}/collaborator?${qs}`,
     );
   },
 
@@ -273,7 +348,7 @@ export const DocumentShareApi = {
     token: string,
     message?: string,
   ): Promise<{ status: 'pending' | 'approved'; docUrl: string }> {
-    return authFetch(`/api/v1/c/share/join/${encodeURIComponent(spaceSlug)}/${encodeURIComponent(bookSlug)}/${encodeURIComponent(docSlug)}/collaborator?token=${encodeURIComponent(token)}`, {
+    return authFetch(`/api/v1/c/share/join/${encodePathSegment(spaceSlug)}/${encodePathSegment(bookSlug)}/${encodePathSegment(docSlug)}/collaborator?token=${encodeURIComponent(token)}`, {
       method: 'POST',
       body: JSON.stringify({ token, message }),
     });
@@ -290,6 +365,51 @@ export const DocumentShareApi = {
     });
   },
 
+  getPublicForm(
+    spaceSlug: string,
+    bookSlug: string,
+    docSlug: string,
+    query: PublicFormQuery,
+  ): Promise<PublicFormSchema | PublicFormAccessPending> {
+    return publicFetch(
+      `/api/v1/docs/by-path/${encodePathSegment(spaceSlug)}/${encodePathSegment(bookSlug)}/${encodePathSegment(docSlug)}/form?${buildFormQuery(query)}`,
+    );
+  },
+
+  getPublicFormStats(
+    spaceSlug: string,
+    bookSlug: string,
+    docSlug: string,
+    query: PublicFormQuery,
+  ): Promise<PublicFormStats> {
+    return publicFetch(
+      `/api/v1/docs/by-path/${encodePathSegment(spaceSlug)}/${encodePathSegment(bookSlug)}/${encodePathSegment(docSlug)}/form/stats?${buildFormQuery(query)}`,
+    );
+  },
+
+  listPublicFormSubmissions(
+    spaceSlug: string,
+    bookSlug: string,
+    docSlug: string,
+    query: PublicFormQuery,
+  ): Promise<{ items: PublicFormSubmissionSummary[]; total: number }> {
+    return publicFetch(
+      `/api/v1/docs/by-path/${encodePathSegment(spaceSlug)}/${encodePathSegment(bookSlug)}/${encodePathSegment(docSlug)}/form/submissions?${buildFormQuery(query)}`,
+    );
+  },
+
+  getPublicFormSubmissionDetail(
+    spaceSlug: string,
+    bookSlug: string,
+    docSlug: string,
+    recordId: string,
+    query: PublicFormQuery,
+  ): Promise<{ recordId: string; fieldValues: Record<string, unknown> }> {
+    return publicFetch(
+      `/api/v1/docs/by-path/${encodePathSegment(spaceSlug)}/${encodePathSegment(bookSlug)}/${encodePathSegment(docSlug)}/form/submissions/${encodeURIComponent(recordId)}?${buildFormQuery(query)}`,
+    );
+  },
+
   submitPublicForm(
     spaceSlug: string,
     bookSlug: string,
@@ -297,7 +417,7 @@ export const DocumentShareApi = {
     input: SubmitPublicFormInput,
   ): Promise<{ success: true; version: number }> {
     return publicFetch(
-      `/api/v1/docs/by-path/${encodeURIComponent(spaceSlug)}/${encodeURIComponent(bookSlug)}/${encodeURIComponent(docSlug)}/form-submit`,
+      `/api/v1/docs/by-path/${encodePathSegment(spaceSlug)}/${encodePathSegment(bookSlug)}/${encodePathSegment(docSlug)}/form-submit`,
       {
         method: 'POST',
         body: JSON.stringify(input),

@@ -7,9 +7,13 @@ import {
   Param,
   Post,
   Req,
+  UseGuards,
 } from '@nestjs/common';
 import type { Request } from 'express';
 import { BusinessException } from '../../common/exceptions/business.exception';
+import { AuthAudience } from '../../auth/decorators/auth-audience.decorator';
+import { CurrentUser, type AuthUser } from '../../auth/decorators/current-user.decorator';
+import { OptionalJwtAuthGuard } from '../../auth/guards/optional-jwt-auth.guard';
 import { DocumentShareService } from './document-share.service';
 
 @Controller('api/v1/share')
@@ -41,10 +45,13 @@ export class DocumentSharePublicController {
   }
 
   @Post(':token/verify')
+  @UseGuards(OptionalJwtAuthGuard)
+  @AuthAudience('consumer')
   async verifyShare(
     @Param('token') token: string,
     @Body() body: Record<string, unknown>,
     @Req() req: Request,
+    @CurrentUser() user?: AuthUser,
   ) {
     try {
       const userAgent = req.headers['user-agent'];
@@ -53,6 +60,7 @@ export class DocumentSharePublicController {
         typeof body.password === 'string' ? body.password : undefined,
         req.ip,
         typeof userAgent === 'string' ? userAgent.slice(0, 500) : null,
+        user?.userId ?? null,
       );
     } catch (err) {
       if (err instanceof BusinessException) throw err;

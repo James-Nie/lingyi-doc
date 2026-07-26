@@ -24,7 +24,8 @@ export function applyKbAccessToUpdateQueryBuilder(
   qb: UpdateQueryBuilder<KnowledgeBaseEntity>,
   ctx: DocumentAccessContext,
 ): void {
-  const access = buildKbAccessClause(ctx);
+  // UPDATE 无表别名，不可使用 kb.scope；与 documents 的 update helper 保持一致
+  const access = buildKbAccessClause(ctx, '');
   qb.andWhere(access.sql, access.params);
 }
 

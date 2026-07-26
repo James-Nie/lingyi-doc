@@ -17,7 +17,7 @@ export class DocCommentThreadEntity {
   @Column({ name: 'doc_id', type: 'varchar', length: 64 })
   docId!: string;
 
-  @Column({ name: 'block_id', type: 'varchar', length: 64 })
+  @Column({ name: 'block_id', type: 'varchar', length: 128 })
   blockId!: string;
 
   @Column({ name: 'anchor_start', type: 'int' })

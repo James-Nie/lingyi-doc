@@ -1,10 +1,8 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { CrdtOperation } from './collab.types';
 import { CrdtOplogRepository } from '../../repositories/crdt-oplog.repository';
-import { DocumentRepository } from '../../repositories/document.repository';
 import { RedisService } from '../../redis/redis.service';
-import { documentAccessFromAuth } from '../../utils/documentAccessContext';
 import type { AuthUser } from '../../auth/decorators/current-user.decorator';
 import { RoomManager } from './room.manager';
 import {
@@ -18,6 +16,10 @@ import {
   type ServerMessage,
 } from './collab.types';
 import { UserRepository } from '../../repositories/user.repository';
+import {
+  DOCUMENT_ACCESS_PORT,
+  type DocumentAccessPort,
+} from '../../ports';
 import crypto from 'crypto';
 
 @Injectable()
@@ -27,11 +29,14 @@ export class CollabService implements OnModuleInit {
   private readonly enabled: boolean;
   private readonly presenceTtlSec: number;
   private subscribed = false;
+  /** 进程内区域锁（Redis 不可用时仍可互斥；有 Redis 时与之同步） */
+  private readonly memoryCellLocks = new Map<string, Map<string, ActiveCellEditor>>();
 
   constructor(
     private readonly config: ConfigService,
     private readonly oplogRepo: CrdtOplogRepository,
-    private readonly documentRepo: DocumentRepository,
+    @Inject(DOCUMENT_ACCESS_PORT)
+    private readonly documentAccess: DocumentAccessPort,
     private readonly userRepo: UserRepository,
     private readonly redis: RedisService,
     private readonly roomManager: RoomManager,
@@ -79,17 +84,15 @@ export class CollabService implements OnModuleInit {
     docVersion: number;
     globalVersion: number;
   }> {
-    const ctx = documentAccessFromAuth(auth);
-    const doc = await this.documentRepo.findAccessibleById(docId, ctx);
-    if (!doc) {
+    const access = await this.documentAccess.checkAccess(docId, auth);
+    if (!access.canRead) {
       return { canRead: false, canWrite: false, docVersion: 0, globalVersion: 0 };
     }
-    const canWrite = await this.documentRepo.hasWriteAccess(docId, ctx);
     const globalVersion = await this.oplogRepo.getLatestGlobalVersion(docId);
     return {
       canRead: true,
-      canWrite,
-      docVersion: doc.version,
+      canWrite: access.canWrite,
+      docVersion: access.docVersion,
       globalVersion,
     };
   }
@@ -128,6 +131,32 @@ export class CollabService implements OnModuleInit {
     });
 
     return result;
+  }
+
+  /**
+   * 批量处理多个 CRDT 操作，使用单个事务写入数据库。
+   * 返回每条操作的结果。
+   */
+  async handleOperations(
+    docId: string,
+    userId: string,
+    ops: CrdtOperation[],
+  ): Promise<Array<{ globalVersion: number; duplicate: boolean }>> {
+    const validOps = ops.filter(op => op?.opId && op?.type && op?.target);
+    if (validOps.length === 0) return [];
+
+    const inputs = validOps.map(op => ({
+      docId,
+      opId: op.opId,
+      userId,
+      opType: op.type,
+      opTarget: op.target,
+      opData: crdtOperationToOpData(op),
+      dependencies: op.dependencies,
+      clientTs: op.clock,
+    }));
+
+    return this.oplogRepo.batchInsertOperations(inputs);
   }
 
   async getOperationsSince(docId: string, fromVersion: number): Promise<{
@@ -176,41 +205,150 @@ export class CollabService implements OnModuleInit {
     };
   }
 
-  private cellLockKey(docId: string): string {
+  private cellLocksKey(docId: string): string {
+    return `collab:cell_locks:${docId}`;
+  }
+
+  /** 旧版整文档单锁，读取时迁移到多区域锁 */
+  private legacyCellLockKey(docId: string): string {
     return `collab:cell_lock:${docId}`;
   }
 
-  async getActiveCellEditor(docId: string): Promise<ActiveCellEditor | null> {
-    if (!this.redis.isReady()) return null;
-    const raw = await this.redis.get(this.cellLockKey(docId));
-    if (!raw) return null;
-    try {
-      return JSON.parse(raw) as ActiveCellEditor;
-    } catch {
-      return null;
+  private regionKey(editor: Pick<ActiveCellEditor, 'sheetId' | 'row' | 'col'>): string {
+    return `${editor.sheetId}:${editor.row}:${editor.col}`;
+  }
+
+  private getMemoryLocks(docId: string): Map<string, ActiveCellEditor> {
+    let locks = this.memoryCellLocks.get(docId);
+    if (!locks) {
+      locks = new Map();
+      this.memoryCellLocks.set(docId, locks);
+    }
+    return locks;
+  }
+
+  private listMemoryEditors(docId: string): ActiveCellEditor[] {
+    return [...this.getMemoryLocks(docId).values()];
+  }
+
+  private syncMemoryFromEditors(docId: string, editors: ActiveCellEditor[]): void {
+    const locks = this.getMemoryLocks(docId);
+    locks.clear();
+    for (const editor of editors) {
+      locks.set(this.regionKey(editor), editor);
+    }
+    if (locks.size === 0) {
+      this.memoryCellLocks.delete(docId);
     }
   }
 
+  async getActiveCellEditors(docId: string): Promise<ActiveCellEditor[]> {
+    if (!this.redis.isReady()) {
+      return this.listMemoryEditors(docId);
+    }
+
+    const legacyRaw = await this.redis.get(this.legacyCellLockKey(docId));
+    if (legacyRaw) {
+      try {
+        const legacy = JSON.parse(legacyRaw) as ActiveCellEditor;
+        await this.redis.hset(this.cellLocksKey(docId), this.regionKey(legacy), legacyRaw);
+        await this.redis.expire(this.cellLocksKey(docId), this.presenceTtlSec);
+        await this.redis.del(this.legacyCellLockKey(docId));
+      } catch {
+        await this.redis.del(this.legacyCellLockKey(docId));
+      }
+    }
+
+    const all = await this.redis.hgetall(this.cellLocksKey(docId));
+    const editors: ActiveCellEditor[] = [];
+    for (const raw of Object.values(all)) {
+      try {
+        editors.push(JSON.parse(raw) as ActiveCellEditor);
+      } catch {
+        // skip bad field
+      }
+    }
+    this.syncMemoryFromEditors(docId, editors);
+    return editors;
+  }
+
+  /** @deprecated 兼容旧接口，返回第一个区域锁 */
+  async getActiveCellEditor(docId: string): Promise<ActiveCellEditor | null> {
+    const editors = await this.getActiveCellEditors(docId);
+    return editors[0] ?? null;
+  }
+
+  /**
+   * 按区域加锁：不同区域可并行编辑；同一区域仅允许一人。
+   * 同一用户切换区域时会释放其先前持有的锁。
+   * Redis 不可用时仍以进程内 Map 互斥（单实例可正常工作）。
+   */
   async tryAcquireCellEditor(
     docId: string,
     editor: ActiveCellEditor,
-  ): Promise<{ ok: true } | { ok: false; holder: ActiveCellEditor }> {
-    const current = await this.getActiveCellEditor(docId);
-    if (current && current.userId !== editor.userId) {
-      return { ok: false, holder: current };
+  ): Promise<{ ok: true; editors: ActiveCellEditor[] } | { ok: false; holder: ActiveCellEditor }> {
+    const editors = await this.getActiveCellEditors(docId);
+    const key = this.regionKey(editor);
+    const holder = editors.find(
+      e => this.regionKey(e) === key && e.userId !== editor.userId,
+    );
+    if (holder) {
+      return { ok: false, holder };
     }
+
+    const locks = this.getMemoryLocks(docId);
+    for (const existing of editors) {
+      if (existing.userId === editor.userId && this.regionKey(existing) !== key) {
+        locks.delete(this.regionKey(existing));
+        if (this.redis.isReady()) {
+          await this.redis.hdel(this.cellLocksKey(docId), this.regionKey(existing));
+        }
+      }
+    }
+    locks.set(key, editor);
+
     if (this.redis.isReady()) {
-      await this.redis.setex(this.cellLockKey(docId), this.presenceTtlSec, JSON.stringify(editor));
+      await this.redis.hset(this.cellLocksKey(docId), key, JSON.stringify(editor));
+      await this.redis.expire(this.cellLocksKey(docId), this.presenceTtlSec);
+      return { ok: true, editors: await this.getActiveCellEditors(docId) };
     }
-    return { ok: true };
+
+    return { ok: true, editors: this.listMemoryEditors(docId) };
   }
 
-  async releaseCellEditor(docId: string, userId: string): Promise<ActiveCellEditor | null> {
-    const current = await this.getActiveCellEditor(docId);
-    if (!current || current.userId !== userId) return current;
-    if (this.redis.isReady()) {
-      await this.redis.del(this.cellLockKey(docId));
+  /** 释放某用户全部区域锁，返回剩余锁列表 */
+  async releaseCellEditor(docId: string, userId: string): Promise<ActiveCellEditor[]> {
+    const editors = await this.getActiveCellEditors(docId);
+    const locks = this.getMemoryLocks(docId);
+    let removed = false;
+
+    for (const existing of editors) {
+      if (existing.userId !== userId) continue;
+      locks.delete(this.regionKey(existing));
+      if (this.redis.isReady()) {
+        await this.redis.hdel(this.cellLocksKey(docId), this.regionKey(existing));
+      }
+      removed = true;
     }
-    return null;
+
+    if (!removed) {
+      return editors;
+    }
+
+    if (this.redis.isReady()) {
+      const remaining = await this.getActiveCellEditors(docId);
+      if (remaining.length > 0) {
+        await this.redis.expire(this.cellLocksKey(docId), this.presenceTtlSec);
+      } else {
+        await this.redis.del(this.cellLocksKey(docId));
+      }
+      return remaining;
+    }
+
+    const remaining = this.listMemoryEditors(docId);
+    if (remaining.length === 0) {
+      this.memoryCellLocks.delete(docId);
+    }
+    return remaining;
   }
 }

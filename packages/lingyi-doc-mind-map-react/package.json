@@ -1,7 +1,9 @@
 {
   "name": "@lingyi-doc/mind-map-react",
   "version": "0.1.0",
-  "private": true,
+  "private": false,
+  "license": "Apache-2.0",
+  "description": "React bindings for @lingyi-doc/mind-map (Open Core)",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -16,7 +18,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@lingyi-doc/core": "*",
+    "@lingyi-doc/core-mindmap": "*",
     "@lingyi-doc/mind-map": "*"
   },
   "devDependencies": {

@@ -151,11 +151,27 @@ export const FormSharePanel: React.FC<FormSharePanelProps> = ({
     }
   };
 
-  const shareUrl = linkScope === 'collaborators'
-    ? shareConfig?.memberShareUrl
-    : shareConfig?.shareUrl;
+  // 表单填写页走文档 canonical 路径 + token，不能用协作者 join 页地址
+  const shareUrlForForm = (() => {
+    if (!shareConfig) return null;
+    if (linkScope === 'collaborators') {
+      if (!shareConfig.memberShareToken || !shareConfig.docUrl) return null;
+      const base = shareConfig.docUrl.startsWith('http')
+        ? shareConfig.docUrl
+        : `${window.location.origin}${shareConfig.docUrl.startsWith('/') ? shareConfig.docUrl : `/${shareConfig.docUrl}`}`;
+      try {
+        const url = new URL(base);
+        url.searchParams.set('token', shareConfig.memberShareToken);
+        url.searchParams.set('source', 'doc_form');
+        return url.toString();
+      } catch {
+        return null;
+      }
+    }
+    return shareConfig.shareUrl;
+  })();
   const formLink = enabled
-    ? buildFormShareLink(shareUrl, { sheetId, viewId: formView.viewId })
+    ? buildFormShareLink(shareUrlForForm, { sheetId, viewId: formView.viewId })
     : null;
 
   const copyLink = async () => {

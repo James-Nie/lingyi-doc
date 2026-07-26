@@ -290,7 +290,15 @@ export const HomePage: React.FC = () => {
             </div>
           </div>
           <div className="home-footer-bottom">
-            © 2026 零一文档 版权所有 | ICP 备案号 | 公安备案号
+            <span>© 2026 零一文档 版权所有</span>
+            <span className="home-footer-sep">|</span>
+            <a
+              href="https://beian.miit.gov.cn/"
+              target="_blank"
+              rel="noreferrer noopener"
+            >
+              浙ICP备2026054701号
+            </a>
           </div>
         </div>
       </footer>

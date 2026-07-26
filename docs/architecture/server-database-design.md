@@ -71,7 +71,8 @@ documents ◄── document_permissions
   ├── crdt_oplog (协同操作日志，Phase 2)
   ├── doc_comment_threads (文档评论线程)
   │     └── doc_comment_replies (评论回复)
-  └── ...
+  ├── base_dashboards (Base 仪表盘配置，独立于 content_json)
+  └── base_dashboard_prefs (文档当前激活仪表盘)
 
 base_tables ── base_records
      │
@@ -148,6 +149,35 @@ Phase 1 采用 **文档级 JSON 快照** 存储完整 Workbook，与现有 `Work
 - `base_tables`：列定义、关联、权限 JSON
 - `base_records`：行存储 `{ fieldId: value }`
 - `base_views`：视图配置（grid/kanban/gantt 等）
+
+### 4.5.1 Base 仪表盘（独立表，20260715）
+
+仪表盘配置从 `documents.content_json`（Workbook 内嵌）拆出，与管理后台运营 Dashboard **无关**。
+
+**base_dashboards**
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | VARCHAR(64) PK | 如 `dash_…` |
+| doc_id | VARCHAR(64) FK | `documents.id` |
+| name | VARCHAR(255) | 显示名 |
+| source_sheet_id | VARCHAR(64) | 默认绑定 Base sheetId |
+| layout | JSON | `{columns,rowHeight,gap}` |
+| widgets | JSON | `DashboardWidget[]` |
+| global_filters | JSON NULL | 全局筛选 |
+| version | INT | 乐观锁 |
+| sort_order | INT | 侧栏排序 |
+| created_by / updated_by | CHAR(36) | 用户 |
+| is_deleted / deleted_at | 软删 | |
+
+**base_dashboard_prefs**
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| doc_id | VARCHAR(64) PK | 文档 |
+| active_dashboard_id | VARCHAR(64) NULL | 当前激活仪表盘 |
+
+HTTP：`/api/v1/c/docs/:docId/dashboards`（CRUD + `PATCH .../active` + `POST .../import`）。
 
 ### 4.6 文档评论（`FEATURE_COMMENTS_ENABLED`）
 

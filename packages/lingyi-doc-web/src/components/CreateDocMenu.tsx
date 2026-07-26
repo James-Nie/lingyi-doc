@@ -1,5 +1,7 @@
-import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
+import { authStore } from '../stores/authStore';
+import { CREATE_MENU_KEY_TO_MODULE, isModuleEnabled } from '../utils/membershipModules';
 
 const VIEWPORT_PAD = 8;
 
@@ -159,8 +161,29 @@ export const CreateDocMenu: React.FC<CreateDocMenuProps> = ({
   const isDropdown = variant === 'dropdown';
   const isWikiSpace = context === 'wikiSpace';
   const usePortal = placement === 'sidebar-right';
-  const docTypes = bindDocTypeItems(onCreate, onStub, onClose);
-  const appTypes = bindAppTypeItems(onCreate, onStub, onClose);
+  const modules = useSyncExternalStore(
+    authStore.subscribe,
+    () => authStore.getState().membershipSummary?.modules,
+  );
+  const docTypes = useMemo(
+    () => bindDocTypeItems(onCreate, onStub, onClose).filter(
+      (item) => {
+        const mod = CREATE_MENU_KEY_TO_MODULE[item.key];
+        return !mod || isModuleEnabled(modules, mod);
+      },
+    ),
+    [onCreate, onStub, onClose, modules],
+  );
+  const appTypes = useMemo(
+    () => bindAppTypeItems(onCreate, onStub, onClose).filter(
+      (item) => {
+        const mod = CREATE_MENU_KEY_TO_MODULE[item.key];
+        return !mod || isModuleEnabled(modules, mod);
+      },
+    ),
+    [onCreate, onStub, onClose, modules],
+  );
+  const knowledgeEnabled = isModuleEnabled(modules, 'mod.knowledge');
   const [portalStyle, setPortalStyle] = useState<{ top: number; left: number } | null>(null);
 
   useLayoutEffect(() => {
@@ -307,20 +330,22 @@ export const CreateDocMenu: React.FC<CreateDocMenuProps> = ({
         </>
       )}
 
-      {!isWikiSpace && (
+      {!isWikiSpace && knowledgeEnabled && (
         <div style={{ padding: '6px 0' }}>
           <MenuRow item={wikiItem} />
         </div>
       )}
 
-      {!isWikiSpace && <div style={{ height: 1, background: '#eee', margin: '0 12px' }} />}
+      {!isWikiSpace && knowledgeEnabled && <div style={{ height: 1, background: '#eee', margin: '0 12px' }} />}
 
-      <div style={{ padding: '8px 0 6px' }}>
-        <div style={{ padding: '4px 14px 6px', fontSize: 12, color: '#8f959e' }}>画板</div>
-        {appTypes.map(item => (
-          <MenuRow key={item.key} item={item} />
-        ))}
-      </div>
+      {appTypes.length > 0 && (
+        <div style={{ padding: '8px 0 6px' }}>
+          <div style={{ padding: '4px 14px 6px', fontSize: 12, color: '#8f959e' }}>画板</div>
+          {appTypes.map(item => (
+            <MenuRow key={item.key} item={item} />
+          ))}
+        </div>
+      )}
 
       {(isDropdown || isWikiSpace) && (
         <>

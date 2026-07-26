@@ -13,7 +13,7 @@ export interface QuotaUsage {
 }
 
 export interface QuotaWarning {
-  metric: 'documents' | 'storageBytes' | 'dailyExports' | 'members';
+  metric: 'documents' | 'storageBytes' | 'dailyExports' | 'members' | 'knowledgeBases';
   percent: number;
   message: string;
 }
@@ -32,8 +32,20 @@ export interface MembershipSummary {
     storageBytes: QuotaUsage;
     dailyExports: QuotaUsage;
     members: QuotaUsage | null;
+    knowledgeBases: QuotaUsage;
+    /** 当前版本单文件上传上限（字节）；null = 使用系统默认大文件上限 */
+    maxFileBytes: number | null;
   };
   features: Record<string, boolean>;
+  /** 产品模块开通表（与 MembershipModuleKey 对齐） */
+  modules: Record<string, boolean>;
+  /** 部署 License 状态（未配置 License 源时为 absent） */
+  license: {
+    status: 'absent' | 'ok' | 'expired' | 'invalid';
+    reason?: string;
+    expireAt: string | null;
+    message: string | null;
+  };
 }
 
 export interface MembershipContext {
@@ -69,3 +81,16 @@ export type MembershipFeatureKey =
   | 'audit_log'
   | 'watermark'
   | 'advanced_share_link';
+
+/** 产品模块授权 Key（可独立售卖 / 私有化裁剪 / 开源分层） */
+export type MembershipModuleKey =
+  | 'mod.doc'
+  | 'mod.sheet'
+  | 'mod.whiteboard'
+  | 'mod.mindmap'
+  | 'mod.form'
+  | 'mod.knowledge'
+  | 'mod.collab'
+  | 'mod.ai'
+  | 'mod.mcp'
+  | 'mod.enterprise';

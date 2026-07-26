@@ -8,6 +8,7 @@ import {
   Param,
   Post,
   Put,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -80,6 +81,25 @@ export class DocumentShareController {
       if (err instanceof BusinessException) throw err;
       this.logger.error('closeShare failed', err);
       throw new BusinessException(100005, '关闭分享失败', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  @Get('collaborators/search-users')
+  async searchUsersForCollaborator(
+    @CurrentUser() user: AuthUser,
+    @Param('docId') docId: string,
+    @Query('q') q?: string,
+  ) {
+    try {
+      return this.documentShareService.searchUsersForCollaborator(
+        user,
+        docId,
+        typeof q === 'string' ? q : '',
+      );
+    } catch (err) {
+      if (err instanceof BusinessException) throw err;
+      this.logger.error('searchUsersForCollaborator failed', err);
+      throw new BusinessException(100005, '搜索用户失败', HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 

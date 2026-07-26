@@ -1,7 +1,10 @@
 import React, { forwardRef, useCallback, useImperativeHandle, useRef, useState } from 'react';
 import { isTextBlock } from '@lingyi-doc/core';
-import { RichDocEditor } from '@lingyi-doc/editor';
+import { RichDocEditor } from '@lingyi-doc/editor-doc';
 import { richDocFromContent } from '../templateContentUtils';
+import type { TemplateContentEditorHandle } from './TemplateContentEditorHandle';
+
+export type { TemplateContentEditorHandle };
 
 type RichDocModel = ReturnType<typeof richDocFromContent>;
 type DocBlock = RichDocModel['blocks'][number];
@@ -24,10 +27,6 @@ type TemplateToolbarAction =
   | { type: 'image'; url: string; width?: number }
   | { type: 'new' }
   | { type: 'indent'; direction: 'increase' | 'decrease' };
-
-export interface TemplateContentEditorHandle {
-  getContentJson: () => unknown;
-}
 
 interface Props {
   documentTitle: string;

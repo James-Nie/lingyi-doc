@@ -243,6 +243,15 @@ export class DocumentCommentService implements OnModuleInit {
     auth: AuthUser,
     pinX: number,
     pinY: number,
+    meta?: {
+      quote?: string;
+      anchorType?: DocCommentAnchorDto['anchorType'];
+      elementId?: string;
+      mindNodeId?: string;
+      pinOffsetX?: number;
+      pinOffsetY?: number;
+      clearBind?: boolean;
+    },
   ): Promise<DocCommentThreadDto> {
     this.assertEnabled();
     await this.assertCanComment(docId, auth);
@@ -253,6 +262,7 @@ export class DocumentCommentService implements OnModuleInit {
       pinX,
       pinY,
       auth.userId,
+      meta,
     );
     if (!thread) {
       throw new BusinessException(220002, '评论不存在或已解决', HttpStatus.NOT_FOUND);

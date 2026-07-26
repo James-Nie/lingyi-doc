@@ -22,7 +22,13 @@ export {
 } from './renderer/imageCache';
 export { applyMindmapAction, childActionForGrowDirection, isMindmapInsertAction } from './commands';
 export type { MindmapNodeAction, MindmapActionResult } from './commands';
-export { hitMindmapNode, getMindmapNodeRect } from './hitTest';
+export { hitMindmapNode, getMindmapNodeRect, getMindmapNodeImageScreenLayoutRect } from './hitTest';
+export {
+  getMindmapNodeImageRect,
+  resolveMindmapNodeImageRect,
+  pointInMindmapNodeImageRect,
+} from './renderer/nodeImage';
+export type { MindmapNodeImageRect } from './renderer/nodeImage';
 export { measureMindmapElementSize } from './measureBounds';
 export { computeThemedMindMapLayout, createThemeMeasureOptions } from './themeMeasure';
 

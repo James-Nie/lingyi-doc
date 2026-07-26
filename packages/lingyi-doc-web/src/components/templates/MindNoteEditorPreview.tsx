@@ -6,7 +6,7 @@ import {
   type MindNode,
   type MindNoteSettings,
 } from '@lingyi-doc/core';
-import { MindNoteEditor } from '@lingyi-doc/editor';
+import { MindNoteEditor } from '@lingyi-doc/editor-pro';
 
 interface MindNoteEditorPreviewProps {
   title: string;

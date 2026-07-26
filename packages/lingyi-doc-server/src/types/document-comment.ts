@@ -3,13 +3,15 @@ export interface DocCommentAnchorDto {
   start: number;
   end: number;
   quote: string;
-  anchorType?: 'text' | 'sheet_cell' | 'sheet_record' | 'freeform_cell' | 'whiteboard_element' | 'whiteboard_mind_node';
+  anchorType?: 'text' | 'sheet_cell' | 'sheet_record' | 'freeform_cell' | 'whiteboard_element' | 'whiteboard_mind_node' | 'whiteboard_point';
   sheetId?: string;
   recordId?: string;
   fieldId?: string;
   viewId?: string;
   elementId?: string;
   mindNodeId?: string;
+  pinOffsetX?: number;
+  pinOffsetY?: number;
 }
 
 export interface DocCommentReplyDto {

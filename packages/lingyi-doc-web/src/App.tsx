@@ -1,13 +1,14 @@
 import React, { useEffect, useSyncExternalStore } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { message } from 'antd';
-import { SheetAntdProvider } from '@lingyi-doc/editor';
+import { SheetAntdProvider } from '@lingyi-doc/editor-pro';
 import { configureDocumentManager } from '@lingyi-doc/core';
 import { AppShell, AppShellFrame } from './components/layout/AppLayout';
 import { AuthGuard, GuestGuard } from './components/AuthGuard';
 import { DocumentListPage } from './pages/DocumentListPage';
 import { KnowledgeBasePage } from './pages/KnowledgeBasePage';
 import { WikiSpacePage } from './pages/WikiSpacePage';
+import { WikiKbSettingsPage } from './pages/WikiKbSettingsPage';
 import { WikiSpaceShell } from './components/wiki/WikiSpaceShell';
 import { RecycleBinPage } from './pages/RecycleBinPage';
 import { DocIdCanonicalRedirect } from './pages/DocIdCanonicalRedirect';
@@ -18,6 +19,7 @@ import { AccountPage } from './pages/account/AccountPage';
 import { HomeRoute } from './components/HomeRoute';
 import { ShareLegacyRedirectPage } from './pages/ShareLegacyRedirectPage';
 import { CollaboratorJoinPage, PublicLinkJoinPage } from './pages/CollaboratorJoinPage';
+import { KbInviteJoinPage } from './pages/KbInviteJoinPage';
 import { DocPublicEditorPage } from './pages/DocPublicEditorPage';
 import { PublicFormFillPage } from './pages/PublicFormFillPage';
 import { authStore } from './stores/authStore';
@@ -90,14 +92,20 @@ const AppRoutes: React.FC = () => (
     <Route path="/share/:token" element={<ShareLegacyRedirectPage />} />
     <Route path="/g/:spaceSlug/:bookSlug/:docSlug/collaborator/join" element={<CollaboratorJoinPage />} />
     <Route path="/g/:spaceSlug/:bookSlug/:docSlug/link/join" element={<PublicLinkJoinPage />} />
-    <Route path="/:spaceSlug/:bookSlug/:docSlug" element={<DocPublicRoute />} />
+    {/* 须在 /:spaceSlug/:bookSlug/:docSlug 之前，避免被文档公开路由吞掉 */}
     <Route element={<AuthGuard />}>
+      <Route path="/invite/kb/:token" element={<KbInviteJoinPage />} />
+    </Route>
+    <Route path="/:spaceSlug/:bookSlug/:docSlug" element={<DocPublicRoute />} />
+      <Route element={<AuthGuard />}>
       <Route path={appPath.workspaceSelect} element={<WorkspaceSelectPage />} />
+      {/* 个人中心独立页面：不含左侧全局菜单 */}
+      <Route path={appPath.account} element={<AccountPage />} />
+      <Route path={`${appPath.wiki}/:kbId/settings`} element={<WikiKbSettingsPage />} />
       <Route element={<AppShell />}>
         <Route path={appPath.home} element={<DocumentListPage />} />
         <Route path={appPath.wiki} element={<KnowledgeBasePage />} />
         <Route path={appPath.recycleBin} element={<RecycleBinPage />} />
-        <Route path={appPath.account} element={<AccountPage />} />
         <Route path={`${appPath.home}/doc/:docId`} element={<DocIdCanonicalRedirect />} />
       </Route>
       <Route element={<WikiSpaceShell />}>
@@ -108,7 +116,7 @@ const AppRoutes: React.FC = () => (
     </Route>
     {/* 旧路径兼容 */}
     <Route path="/recycle-bin" element={<Navigate to={appPath.recycleBin} replace />} />
-    <Route path="/account" element={<Navigate to={appPath.account} replace />} />
+    <Route path="/workspace/account" element={<Navigate to={appPath.account} replace />} />
     <Route path="/doc/:docId" element={<LegacyDocRedirect />} />
     <Route path="*" element={<Navigate to="/" replace />} />
   </Routes>

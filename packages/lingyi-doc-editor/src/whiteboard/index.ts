@@ -1,8 +1,1 @@
-export { WhiteboardEditor } from './WhiteboardEditor';
-export type { WhiteboardEditorProps } from './WhiteboardEditor';
-export { WhiteboardEmbedPreview } from './WhiteboardEmbedPreview';
-export {
-  downloadWhiteboardElementsAsPng,
-  renderWhiteboardElementsToDataUrl,
-  resolveWhiteboardElementsForExport,
-} from './exportWhiteboardImage';
+export * from '@lingyi-doc/editor-whiteboard';

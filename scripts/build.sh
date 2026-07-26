@@ -21,34 +21,19 @@ if [[ "$NODE_MAJOR" -lt 18 ]]; then
 fi
 
 if [[ ! -d node_modules ]]; then
-  echo "1/9 安装依赖..."
+  echo "1/10 安装依赖..."
   npm install
 else
-  echo "1/9 依赖已存在，跳过 npm install"
+  echo "1/10 依赖已存在，跳过 npm install"
 fi
 
-echo "2/9 构建 @lingyi-doc/core..."
-npm -w @lingyi-doc/core run build
+echo "2/4 按依赖拓扑顺序构建全部 @lingyi-doc/* 包..."
+node "$ROOT_DIR/scripts/build-packages.mjs"
 
-echo "3/9 构建 @lingyi-doc/mind-map..."
-npm -w @lingyi-doc/mind-map run build
+echo "3/4 校验 OSS 依赖边界..."
+bash "$ROOT_DIR/scripts/check-oss-boundary.sh"
 
-echo "4/9 构建 @lingyi-doc/mind-map-react..."
-npm -w @lingyi-doc/mind-map-react run build
-
-echo "5/9 构建 @lingyi-doc/editor..."
-npm -w @lingyi-doc/editor run build
-
-echo "6/9 构建 @lingyi-doc/web..."
-npm -w @lingyi-doc/web run build
-
-echo "7/9 构建 @lingyi-doc/admin..."
-npm -w @lingyi-doc/admin run build
-
-echo "8/9 构建 @lingyi-doc/server..."
-npm -w @lingyi-doc/server run build
-
-echo "9/9 组装部署包..."
+echo "4/4 组装部署包..."
 bash "$ROOT_DIR/scripts/deploy/dev/assemble-release.sh"
 
 echo ""

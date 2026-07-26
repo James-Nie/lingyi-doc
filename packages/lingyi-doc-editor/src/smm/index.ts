@@ -1,2 +1,1 @@
-export * from './smmAdapter';
-export * from './imageUtils';
+export * from '@lingyi-doc/editor-mindmap';

@@ -1,2 +1,2 @@
-export { SheetContainer } from './sheet/SheetContainer';
-export type { SheetContainerProps } from './sheet/SheetContainer.types';
+export { SheetContainer } from '@lingyi-doc/editor-sheet';
+export type { SheetContainerProps } from '@lingyi-doc/editor-sheet';

@@ -11,7 +11,6 @@ CREATE TABLE IF NOT EXISTS doc_templates (
     usage_label     VARCHAR(100)  DEFAULT NULL,
     is_new          TINYINT(1)    NOT NULL DEFAULT 0,
     is_blank        TINYINT(1)    NOT NULL DEFAULT 0,
-    thumb_gradient  VARCHAR(500)  NOT NULL DEFAULT 'linear-gradient(135deg, #e3f2fd 0%, #90caf9 100%)',
     content_json    JSON          DEFAULT NULL COMMENT '模板内容快照',
     status          VARCHAR(20)   NOT NULL DEFAULT 'draft' COMMENT 'draft|published|archived',
     sort_order      INT           NOT NULL DEFAULT 0,
@@ -31,13 +30,12 @@ CREATE TABLE IF NOT EXISTS doc_templates (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 空白模板种子
-INSERT INTO doc_templates (id, title, subtitle, doc_type, document_title, categories, is_blank, status, sort_order, thumb_gradient)
+INSERT INTO doc_templates (id, title, subtitle, doc_type, document_title, categories, is_blank, status, sort_order)
 VALUES
-  ('blank-richtext', '空白文档', '从零开始撰写', 'richtext', '未命名文档', JSON_ARRAY('recommended'), 1, 'published', 1000, 'linear-gradient(135deg, #f5f5f5 0%, #e0e0e0 100%)'),
-  ('blank-freeform', '空白表格', '普通表格', 'freeform', '未命名表格', JSON_ARRAY('recommended'), 1, 'published', 990, 'linear-gradient(135deg, #e8f5e9 0%, #a5d6a7 100%)'),
-  ('blank-base', '空白多维表格', '多维表格', 'base', '未命名多维表格', JSON_ARRAY('recommended'), 1, 'published', 980, 'linear-gradient(135deg, #e3f2fd 0%, #90caf9 100%)'),
-  ('blank-mindnote', '空白思维笔记', '思维导图', 'mindnote', '未命名思维笔记', JSON_ARRAY('recommended'), 1, 'published', 970, 'linear-gradient(135deg, #fff3e0 0%, #ffcc80 100%)'),
-  ('blank-slides', '空白幻灯片', '幻灯片', 'slides', '未命名幻灯片', JSON_ARRAY('recommended'), 1, 'published', 960, 'linear-gradient(135deg, #fce4ec 0%, #f48fb1 100%)')
+  ('blank-richtext', '空白文档', '从零开始撰写', 'richtext', '未命名文档', JSON_ARRAY('recommended'), 1, 'published', 1000),
+  ('blank-freeform', '空白表格', '普通表格', 'freeform', '未命名表格', JSON_ARRAY('recommended'), 1, 'published', 990),
+  ('blank-base', '空白多维表格', '多维表格', 'base', '未命名多维表格', JSON_ARRAY('recommended'), 1, 'published', 980),
+  ('blank-mindnote', '空白思维笔记', '思维导图', 'mindnote', '未命名思维笔记', JSON_ARRAY('recommended'), 1, 'published', 970)
 ON DUPLICATE KEY UPDATE updated_at = updated_at;
 
 INSERT IGNORE INTO schema_migrations (version) VALUES ('20260704_doc_templates');

@@ -12,6 +12,9 @@ import { AccountProfileSection } from './AccountProfileSection';
 import { AccountSettingsSection } from './AccountSettingsSection';
 import { AccountLoginLogsSection } from './AccountLoginLogsSection';
 import { AccountMembershipSection } from './AccountMembershipSection';
+import { AccountAiUsageSection } from './AccountAiUsageSection';
+import { AccountMcpTokensSection } from './AccountMcpTokensSection';
+import { appPath } from '../../utils/appPaths';
 
 const BRAND = '#3370ff';
 const BORDER = '#dee0e3';
@@ -29,6 +32,10 @@ function sectionContent(section: AccountSection, focusPassword: boolean) {
       return <AccountLoginLogsSection />;
     case 'membership':
       return <AccountMembershipSection />;
+    case 'ai-usage':
+      return <AccountAiUsageSection />;
+    case 'mcp-tokens':
+      return <AccountMcpTokensSection />;
     default:
       return <AccountProfileSection />;
   }
@@ -53,10 +60,10 @@ export const AccountPage: React.FC = () => {
   };
 
   return (
-    <div style={{ flex: 1, overflow: 'auto', background: BG }}>
-      <div style={{ maxWidth: 1080, margin: '0 auto', padding: '28px 24px 48px' }}>
+    <div style={{ flex: 1, minHeight: '100%', overflow: 'auto', background: BG }}>
+      <div style={{ maxWidth: 1280, margin: '0 auto', padding: '28px 24px 48px' }}>
         <div style={{ marginBottom: 20 }}>
-          <ButtonLink onClick={() => navigate(-1)}>← 返回</ButtonLink>
+          <ButtonLink onClick={() => navigate(appPath.home)}>← 返回工作台</ButtonLink>
           <h1 style={{ margin: '8px 0 0', fontSize: 22, fontWeight: 600, color: TEXT }}>个人中心</h1>
           <p style={{ margin: '6px 0 0', color: MUTED, fontSize: 14 }}>管理个人资料、账号安全与会员权益</p>
         </div>

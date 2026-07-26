@@ -2,11 +2,19 @@
 
 零一文档是一套完整的文档处理解决方案，提供表格、多维表、画板、文档、问卷、思维笔记、思维导图等文档类型的处理能力。
 
+## 架构演进（优先阅读）
+
+- [工程架构优化方案](./architecture-optimization.md) — Open Core、模块授权、拆包原则  
+- [执行看板](./architecture-execution-plan.md) — Phase 0～5 任务与状态  
+- [会员功能对照表](./architecture/membership-account-feature-matrix.md) — `mod.*` / `ENABLED_MODULES` / Community
+
 ## 目录结构
 
 ```
 docs/
 ├── README.md                              # 本文档
+├── architecture-optimization.md           # 工程架构优化方案
+├── architecture-execution-plan.md         # 架构执行看板
 ├── guide/                                 # 开发指南
 │   ├── README.md                          # SDK 总览
 │   └── development.md                     # 二次开发指南

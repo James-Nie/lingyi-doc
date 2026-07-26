@@ -8,6 +8,24 @@ import Dypnsapi20170525, {
 import { Config as OpenApiConfig } from '@alicloud/openapi-client';
 import { RuntimeOptions } from '@alicloud/tea-util';
 
+/** 阿里云校验类失败（验证码错误/过期等），应返回 false 而非抛业务异常 */
+function isAliyunValidateFailure(err: unknown): boolean {
+  const parts: string[] = [];
+  if (err instanceof Error) {
+    parts.push(err.message, err.name);
+  } else if (err != null) {
+    parts.push(String(err));
+  }
+  const anyErr = err as { code?: string; data?: { Code?: string; Message?: string }; message?: string };
+  if (anyErr?.code) parts.push(String(anyErr.code));
+  if (anyErr?.message) parts.push(String(anyErr.message));
+  if (anyErr?.data?.Code) parts.push(String(anyErr.data.Code));
+  if (anyErr?.data?.Message) parts.push(String(anyErr.data.Message));
+  const text = parts.join(' ');
+  return /ValidateFail|验证失败|verify.*fail|INVALID_PARAM|CodeVerifyFailed/i.test(text)
+    || /\bcode:\s*400\b/i.test(text);
+}
+
 @Injectable()
 export class AliyunSmsService {
   private readonly logger = new Logger(AliyunSmsService.name);
@@ -117,17 +135,26 @@ export class AliyunSmsService {
     });
 
     const runtime = new RuntimeOptions({});
-    const resp = await this.getClient().checkSmsVerifyCodeWithOptions(request, runtime);
-    const body = resp.body as Record<string, unknown> | undefined;
-    const code = String(body?.code ?? body?.Code ?? '');
-    if (code !== 'OK') {
-      const message = String(body?.message ?? body?.Message ?? '验证码校验失败');
-      this.logger.debug(`CheckSmsVerifyCode failed: ${code} ${message}`);
-      return false;
-    }
+    try {
+      const resp = await this.getClient().checkSmsVerifyCodeWithOptions(request, runtime);
+      const body = resp.body as Record<string, unknown> | undefined;
+      const code = String(body?.code ?? body?.Code ?? '');
+      if (code !== 'OK') {
+        const message = String(body?.message ?? body?.Message ?? '验证码校验失败');
+        this.logger.debug(`CheckSmsVerifyCode failed: ${code} ${message}`);
+        return false;
+      }
 
-    const model = (body?.model ?? body?.Model) as Record<string, unknown> | undefined;
-    const verifyResult = String(model?.verifyResult ?? model?.VerifyResult ?? '');
-    return verifyResult === 'PASS' || verifyResult === '1' || verifyResult === 'true';
+      const model = (body?.model ?? body?.Model) as Record<string, unknown> | undefined;
+      const verifyResult = String(model?.verifyResult ?? model?.VerifyResult ?? '');
+      return verifyResult === 'PASS' || verifyResult === '1' || verifyResult === 'true';
+    } catch (err) {
+      if (isAliyunValidateFailure(err)) {
+        this.logger.debug(`CheckSmsVerifyCode validate fail: ${err instanceof Error ? err.message : String(err)}`);
+        return false;
+      }
+      this.logger.error('CheckSmsVerifyCode unexpected error', err);
+      throw err;
+    }
   }
 }

@@ -26,16 +26,23 @@ import {
   type ToolbarState,
   type DocSelectionContext,
   type RichDocExportFormat,
+  setCurrentRecordOperator,
 } from '@lingyi-doc/core';
-import { RichDocEditor, prepareRichDocBlocksForExport, type ToolbarAction, type RichDocEditorSaveRef } from '@lingyi-doc/editor';
+import { RichDocEditor, prepareRichDocBlocksForExport, type ToolbarAction, type RichDocEditorSaveRef } from '@lingyi-doc/editor-pro';
 import { DocumentBar } from '../components/DocumentBar';
 import { CollabStatusBar } from '../components/CollabStatusBar';
-import { isCollabViewOnly, useCollabBlockLock } from '../hooks/useCollabBlockLock';
+import { useCollabBlockLock } from '../hooks/useCollabBlockLock';
 import { appPath } from '../utils/appPaths';
 import { authStore } from '../stores/authStore';
 import type { EditorAccessProps } from '../types/editorAccess';
 import { isRichDocDownloadFormat, type DownloadFormat } from '../utils/downloadAs';
 import { fetchSystemFeatures } from '../api/system';
+import { DocAiPanel } from '../components/ai/DocAiPanel';
+import {
+  DocumentHistoryPanelSlot,
+  DocumentHistoryToolbarSlot,
+} from '../components/history/DocumentHistoryChrome';
+import { useDocumentHistory } from '../hooks/useDocumentHistory';
 import {
   createDocumentComment,
   deleteDocumentCommentReply,
@@ -73,10 +80,7 @@ export const DocEditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiR
 
   const [collabUsers, setCollabUsers] = useState<OnlineUser[]>([]);
   const [collabState, setCollabState] = useState<CollabConnectionState>('idle');
-  const [activeBlockEditor, setActiveBlockEditor] = useState<ActiveCellEditor | null>(null);
-  const myUserIdRef = useRef(authStore.getState().user?.id ?? '');
-
-  const collabViewOnly = isCollabViewOnly(readOnly, collabState, activeBlockEditor, myUserIdRef.current);
+  const [activeBlockEditors, setActiveBlockEditors] = useState<ActiveCellEditor[]>([]);
 
   const [loading, setLoading] = useState(true);
   const [title, setTitle] = useState('未命名文档');
@@ -94,6 +98,8 @@ export const DocEditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiR
   const [exporting, setExporting] = useState(false);
   const editorSaveRef = useRef<RichDocEditorSaveRef | null>(null);
   const [commentsEnabled, setCommentsEnabled] = useState(false);
+  const [aiEnabled, setAiEnabled] = useState(false);
+  const [showAiPanel, setShowAiPanel] = useState(false);
   const [commentThreads, setCommentThreads] = useState<DocCommentThread[]>([]);
   const [remoteCommentUpdate, setRemoteCommentUpdate] = useState<CommentUpdatePayload | null>(null);
   const [docPermission, setDocPermission] = useState<DocumentPermission>('owner');
@@ -116,6 +122,10 @@ export const DocEditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiR
     };
   }, []);
 
+  useEffect(() => {
+    setCurrentRecordOperator(commentAuthor.authorName);
+  }, [commentAuthor.authorName]);
+
   useEffect(() => { titleRef.current = title; }, [title]);
 
   const syncFromDoc = useCallback((doc: RichDocument, index?: number) => {
@@ -124,17 +134,76 @@ export const DocEditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiR
     setToolbarState(doc.getToolbarState(index ?? activeIndexRef.current));
   }, []);
 
-  const handleSnapshotReplace = useCallback((snapshot: Record<string, unknown>) => {
+  const reloadDocumentFromServer = useCallback(async () => {
+    if (!docId) return;
+    const result = await DocumentManager.loadRichText(docId);
+    if (!result) return;
+    docRef.current = result.document;
+    setTitle(result.title);
+    titleRef.current = result.title;
+    syncFromDoc(result.document, activeIndexRef.current);
+    setLastModified(Date.now());
+    setDirty(false);
+    setSaveStatus('saved');
+    saveManagerRef.current?.initialize(
+      result.version,
+      result.document.toJSON() as unknown as Record<string, unknown>,
+      result.title,
+    );
+  }, [docId, syncFromDoc]);
+
+  const applyDocumentSnapshot = useCallback((
+    snapshot: Record<string, unknown>,
+    opts?: { markDirty?: boolean; syncTitle?: boolean; preserveCaret?: boolean },
+  ) => {
+    // 1. 在替换前保存当前光标位置（远端协同变更时不丢失输入焦点）
+    const caret = opts?.preserveCaret
+      ? (editorSaveRef.current?.captureHistoryCaret() ?? null)
+      : null;
+
+    // 2. 应用 snapshot
     const doc = RichDocument.fromJSON(snapshot as unknown as RichDocumentJSON);
     docRef.current = doc;
+    if (opts?.syncTitle !== false && typeof snapshot.title === 'string' && snapshot.title.trim()) {
+      setTitle(snapshot.title);
+      titleRef.current = snapshot.title;
+    }
     syncFromDoc(doc, activeIndexRef.current);
     setHistoryRevision(v => v + 1);
-    saveManagerRef.current?.markDirty();
+
+    // 3. 恢复光标位置（等 DOM 更新完成后）
+    if (caret) {
+      requestAnimationFrame(() => {
+        editorSaveRef.current?.restoreHistoryCaret(caret);
+      });
+    }
+
+    if (opts?.markDirty) {
+      saveManagerRef.current?.markDirty();
+    }
   }, [syncFromDoc]);
+
+  const history = useDocumentHistory({
+    docId,
+    canRestore: canEdit && !readOnly,
+    saveManagerRef,
+    applyPreviewSnapshot: (snapshot) => {
+      applyDocumentSnapshot(snapshot, { markDirty: false, syncTitle: true });
+    },
+    reloadCurrentDocument: reloadDocumentFromServer,
+    onBeforeOpen: () => setShowAiPanel(false),
+  });
+
+  const handleSnapshotReplace = useCallback((snapshot: Record<string, unknown>) => {
+    if (history.historyOpenRef.current) return;
+    // 远端协同变更：不 markDirty，避免过期 baseVersion 触发 patch 冲突
+    // preserveCaret: 保留本地光标位置，避免远端 patch 应用后光标消失
+    applyDocumentSnapshot(snapshot, { markDirty: false, syncTitle: false, preserveCaret: true });
+    saveManagerRef.current?.adoptRemoteSnapshot(snapshot);
+  }, [applyDocumentSnapshot, history.historyOpenRef]);
 
   const handleSnapshotReplaceRef = useRef(handleSnapshotReplace);
   handleSnapshotReplaceRef.current = handleSnapshotReplace;
-
   const resolveRichTextLock = useCallback((target: HTMLElement): BlockLockTarget | null => {
     if (target.closest('[data-doc-title]')) return richTextTitleLock();
     const blockEl = target.closest('[data-block-index]');
@@ -149,6 +218,12 @@ export const DocEditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiR
     collabBridgeRef,
     resolveLock: resolveRichTextLock,
     isComposing: isRichTextComposing,
+    onLockDenied: (lock) => {
+      const holder = collabBridgeRef.current
+        ?.getRemoteBlockEditors()
+        .find(e => e.sheetId === lock.sheetId && e.row === lock.row && e.col === lock.col);
+      message.warning(holder ? `${holder.displayName} 正在编辑该区域` : '该区域正在被他人编辑');
+    },
   });
 
   useEffect(() => {
@@ -163,9 +238,10 @@ export const DocEditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiR
     let cancelled = false;
     (async () => {
       setLoading(true);
-      const features = await fetchSystemFeatures().catch(() => ({ collab: false, comments: false }));
+      const features = await fetchSystemFeatures().catch(() => ({ collab: false, comments: false, ai: false }));
       if (cancelled) return;
       setCommentsEnabled(features.comments);
+      setAiEnabled(features.ai);
 
       const result = await DocumentManager.loadRichText(docId, prefetched);
       if (cancelled) return;
@@ -236,27 +312,44 @@ export const DocEditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiR
         saveManagerRef.current = manager;
 
         collabBridgeRef.current?.disconnect();
-        const bridge = new DocumentCollabBridge({
-          docId,
-          userId: authStore.getState().user?.id ?? '',
-          patchKind: 'richtext',
-          getToken: () => authStore.getAccessToken(),
-          getSnapshot: () => docRef.current?.toJSON() as unknown as Record<string, unknown> | null,
-          onSnapshotReplace: (snap) => handleSnapshotReplaceRef.current(snap),
-          isLocalEditing: isRichTextComposing,
-          onBeforeLocalFlush: () => editorSaveRef.current?.flushBeforeSave(),
-          onPresenceChange: setCollabUsers,
-          onBlockEditingChange: setActiveBlockEditor,
-          onStateChange: setCollabState,
-          onError: (err) => message.warning(`协同: ${err.message}`),
-          onCommentUpdate: (senderId, payload) => {
-            if (senderId === authStore.getState().user?.id) return;
-            setRemoteCommentUpdate(payload);
-          },
-        });
-        bridge.initialize(document.toJSON() as unknown as Record<string, unknown>);
-        collabBridgeRef.current = bridge;
-        bridge.connect();
+        if (features.collab) {
+          const bridge = new DocumentCollabBridge({
+            docId,
+            userId: authStore.getState().user?.id ?? '',
+            patchKind: 'richtext',
+            getToken: () => authStore.getAccessToken(),
+            getSnapshot: () => docRef.current?.toJSON() as unknown as Record<string, unknown> | null,
+            onSnapshotReplace: (snap) => handleSnapshotReplaceRef.current(snap),
+            isLocalEditing: isRichTextComposing,
+            onBeforeLocalFlush: () => editorSaveRef.current?.flushBeforeSave(),
+            /** 广播 debounce 800ms：减少协同 patch 频率，降低服务端压力 */
+            broadcastDebounceMs: 800,
+            onPresenceChange: setCollabUsers,
+            onBlockEditingChange: setActiveBlockEditors,
+            onStateChange: setCollabState,
+            onError: (err) => {
+              if (err.message.includes('210009') || err.message.includes('正在编辑')) {
+                const active = globalThis.document.activeElement;
+                if (active instanceof HTMLElement) {
+                  active.blur();
+                }
+              }
+              message.warning(`协同: ${err.message}`);
+            },
+            onCommentUpdate: (senderId, payload) => {
+              if (senderId === authStore.getState().user?.id) return;
+              setRemoteCommentUpdate(payload);
+            },
+          });
+          bridge.initialize(document.toJSON() as unknown as Record<string, unknown>);
+          collabBridgeRef.current = bridge;
+          bridge.connect();
+        } else {
+          collabBridgeRef.current = null;
+          setCollabState('idle');
+          setCollabUsers([]);
+          setActiveBlockEditors([]);
+        }
       } else {
         saveManagerRef.current?.dispose();
         saveManagerRef.current = null;
@@ -272,12 +365,21 @@ export const DocEditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiR
       collabBridgeRef.current = null;
       setCollabState('idle');
       setCollabUsers([]);
-      setActiveBlockEditor(null);
+      setActiveBlockEditors([]);
     };
   }, [docId, navigate, syncFromDoc, prefetched, readOnly]);
 
   useEffect(() => {
-    const onLeave = () => { void saveManagerRef.current?.flush(true); };
+    const onLeave = (e: BeforeUnloadEvent) => {
+      const manager = saveManagerRef.current;
+      if (!manager) return;
+      const hadDirty = manager.isDirty();
+      void manager.flush(false);
+      if (hadDirty) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
     window.addEventListener('beforeunload', onLeave);
     return () => window.removeEventListener('beforeunload', onLeave);
   }, []);
@@ -338,12 +440,15 @@ export const DocEditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiR
       .catch(() => hide());
   }, [handleDownloadAs]);
 
-  const applyBlocks = useCallback((next: DocBlock[], recordHistory = false) => {
+  const applyBlocks = useCallback((next: DocBlock[], recordHistory = false, skipSave = false) => {
     const doc = docRef.current;
     if (!doc) return;
-    doc.setBlocks(next, recordHistory);
+    const caret = recordHistory
+      ? (editorSaveRef.current?.captureHistoryCaret() ?? null)
+      : null;
+    doc.setBlocks(next, recordHistory, caret);
     syncFromDoc(doc, activeIndex);
-    markDirty();
+    if (!skipSave) markDirty();
   }, [activeIndex, syncFromDoc, markDirty]);
 
   const handlePersistCommentCreate = useCallback(async (input: {
@@ -351,9 +456,11 @@ export const DocEditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiR
     blocks: DocBlock[];
   }) => {
     if (!docId) return input.thread;
+    const firstReply = input.thread.replies[0];
     const saved = await createDocumentComment(docId, {
       id: input.thread.id,
       anchor: input.thread.anchor,
+      text: firstReply?.text,
     });
     setCommentThreads(prev => {
       const exists = prev.some(t => t.id === saved.id);
@@ -401,18 +508,28 @@ export const DocEditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiR
     const indices = blockIndicesFromCtx(ctx, idx);
 
     switch (action.type) {
-      case 'undo':
-        doc.undo();
+      case 'undo': {
+        const caret = editorSaveRef.current?.captureHistoryCaret() ?? null;
+        if (!doc.undo(caret)) break;
         syncFromDoc(doc, idx);
         setHistoryRevision(v => v + 1);
         markDirty();
+        requestAnimationFrame(() => {
+          editorSaveRef.current?.restoreHistoryCaret(doc.lastRestoredCaret);
+        });
         break;
-      case 'redo':
-        doc.redo();
+      }
+      case 'redo': {
+        const caret = editorSaveRef.current?.captureHistoryCaret() ?? null;
+        if (!doc.redo(caret)) break;
         syncFromDoc(doc, idx);
         setHistoryRevision(v => v + 1);
         markDirty();
+        requestAnimationFrame(() => {
+          editorSaveRef.current?.restoreHistoryCaret(doc.lastRestoredCaret);
+        });
         break;
+      }
       case 'paragraphStyle':
         indices.forEach(i => doc.applyStyleToBlock(i, action.style));
         syncFromDoc(doc, indices[0] ?? idx);
@@ -504,8 +621,26 @@ export const DocEditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiR
           effectiveViewMode={effectiveViewMode}
           onTogglePreview={onTogglePreview}
           breadcrumbItems={breadcrumbItems}
+          showAiToggle={aiEnabled && !!docId && canEdit && !readOnly && !history.historyOpen}
+          aiPanelOpen={showAiPanel}
+          onToggleAi={() => setShowAiPanel(v => !v)}
+          onOpenHistory={() => { void history.openHistory(); }}
         />
       )}
+      <DocumentHistoryToolbarSlot
+        historyOpen={history.historyOpen}
+        selectedIndex={history.selectedHistoryIndex}
+        items={history.historyItems}
+        canRestore={canEdit && !readOnly}
+        restoring={history.historyRestoring}
+        previewLoading={history.historyPreviewLoading}
+        onRestore={() => { void history.restoreHistoryVersion(); }}
+        onPrev={history.goPrevHistory}
+        onNext={history.goNextHistory}
+        onClose={() => { void history.closeHistory(); }}
+      />
+      <div style={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <RichDocEditor
         documentId={docId || ''}
         title={title}
@@ -514,7 +649,7 @@ export const DocEditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiR
         outline={outline}
         showOutline={showOutline}
         fullscreen={fullscreen}
-        readOnly={readOnly || collabViewOnly}
+        readOnly={readOnly || history.historyOpen}
         onTitleChange={handleTitleChange}
         onBlocksChange={applyBlocks}
         onToolbarAction={handleToolbarAction}
@@ -539,14 +674,33 @@ export const DocEditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiR
         onPersistCommentDelete={commentsEnabled && canComment ? handlePersistCommentDelete : undefined}
         onPersistCommentLike={commentsEnabled ? handlePersistCommentLike : undefined}
       />
-      {!readOnly && (
+      {!readOnly && !history.historyOpen && (
         <CollabStatusBar
           collabState={collabState}
           collabUsers={collabUsers}
-          collabViewOnly={collabViewOnly}
-          activeBlockEditor={activeBlockEditor}
+          activeEditors={activeBlockEditors}
         />
       )}
+        </div>
+        {docId && (
+          <DocumentHistoryPanelSlot
+            docId={docId}
+            historyOpen={history.historyOpen}
+            selectedVersion={history.selectedHistoryVersion}
+            onSelectVersion={(version) => { void history.previewHistoryVersion(version); }}
+            onVersionsChange={history.handleHistoryVersionsChange}
+            onClose={() => { void history.closeHistory(); }}
+          />
+        )}
+        {aiEnabled && showAiPanel && !history.historyOpen && docId && (
+          <DocAiPanel
+            documentId={docId}
+            documentTitle={title}
+            onClose={() => setShowAiPanel(false)}
+            onDocumentUpdated={reloadDocumentFromServer}
+          />
+        )}
+      </div>
     </div>
   );
 };

@@ -2,7 +2,7 @@ import {
   type MindNode,
   type MindNoteBranchStyle,
   type MindNoteStructure,
-} from '@lingyi-doc/core';
+} from '@lingyi-doc/core-mindmap';
 import {
   MINDMAP_CONTENT_PADDING,
   MINDMAP_MIN_HEIGHT,

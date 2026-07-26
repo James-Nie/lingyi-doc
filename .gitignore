@@ -17,6 +17,7 @@
 
 /packages/**/dist/
 /packages/**/node_modules/
+/examples/**/node_modules/
 
 # misc
 .DS_Store
@@ -30,9 +31,19 @@ deploy/dev/.env
 packages/lingyi-doc-server/data/dev-rsa-private.pem
 deploy/dev/release/
 scripts/deploy/dev/deploy.config.local
+scripts
+docs
 
 # history
 .history
 *.tar.gz
 
 /deploy
+
+packages/lingyi-doc-server/
+packages/lingyi-doc-admin/
+packages/lingyi-doc-ai-ui/
+packages/lingyi-doc-editor/
+packages/lingyi-doc-web/
+packages/lingyi-doc-license/
+packages/lingyi-doc-editor-pro/

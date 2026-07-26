@@ -5,8 +5,8 @@ import type {
   MindNode,
   MindNoteBranchStyle,
   MindNoteStructure,
-} from '@lingyi-doc/core';
-import { computeMindMapLayout } from '@lingyi-doc/core';
+} from '@lingyi-doc/core-mindmap';
+import { computeMindMapLayout } from '@lingyi-doc/core-mindmap';
 import { resolveTheme } from './theme/presets';
 import type { MindmapTheme, MindmapThemeId } from './types';
 

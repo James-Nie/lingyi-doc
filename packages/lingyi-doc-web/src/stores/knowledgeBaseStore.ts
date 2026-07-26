@@ -1,5 +1,6 @@
 import {
   KnowledgeBaseApi,
+  type KbMemberRole,
   flattenKbNodeTree,
   mapKbNodeToLegacy,
   mapKnowledgeBaseToLegacy,
@@ -16,6 +17,7 @@ export interface KnowledgeBase {
   emoji: string;
   visibility: KnowledgeBaseVisibility;
   cover: KnowledgeBaseCover;
+  myRole?: KbMemberRole;
   tag?: string;
   createdAt: number;
   updatedAt: number;
@@ -148,6 +150,20 @@ export const knowledgeBaseStore = {
     items = sortItems([mapped, ...items.filter(item => item.id !== mapped.id)]);
     notify();
     return { kb: mapped, defaultNodeId: result.defaultNodeId };
+  },
+
+  async update(kbId: string, input: {
+    name?: string;
+    description?: string;
+    emoji?: string;
+    cover?: KnowledgeBaseCover;
+    visibility?: KnowledgeBaseVisibility;
+  }): Promise<KnowledgeBase> {
+    const result = await KnowledgeBaseApi.update(kbId, input);
+    const mapped = mapKnowledgeBaseToLegacy(result);
+    items = sortItems([mapped, ...items.filter(item => item.id !== kbId)]);
+    notify();
+    return mapped;
   },
 
   async renameNode(kbId: string, nodeId: string, title: string): Promise<void> {

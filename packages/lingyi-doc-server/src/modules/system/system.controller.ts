@@ -28,6 +28,7 @@ export class SystemController {
     return {
       collab: this.collabService.isEnabled(),
       comments: this.commentService.isEnabled(),
+      ai: this.config.get<boolean>('ai.enabled'),
     };
   }
 

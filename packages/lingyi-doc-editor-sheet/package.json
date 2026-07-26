@@ -1,0 +1,41 @@
+{
+  "name": "@lingyi-doc/editor-sheet",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ant-design/charts": "^2.6.7",
+    "@ant-design/icons": "^6.2.5",
+    "@lingyi-doc/core-client": "*",
+    "@lingyi-doc/core-doc": "*",
+    "@lingyi-doc/core-sheet": "*",
+    "@lingyi-doc/core-types": "*",
+    "@lingyi-doc/editor-shared": "*",
+    "antd": "^6.4.5",
+    "dayjs": "^1.11.21",
+    "react-grid-layout": "^1.5.3",
+    "zustand": "^4.5.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "@types/react-grid-layout": "^1.3.6",
+    "typescript": "^5.3.0"
+  },
+  "peerDependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  }
+}

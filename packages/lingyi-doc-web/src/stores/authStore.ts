@@ -52,8 +52,17 @@ export interface MembershipSummary {
     storageBytes: { used: number; limit: number | null; percent: number | null };
     dailyExports: { used: number; limit: number | null; percent: number | null };
     members: { used: number; limit: number | null; percent: number | null } | null;
+    knowledgeBases: { used: number; limit: number | null; percent: number | null };
+    maxFileBytes: number | null;
   };
   features: Record<string, boolean>;
+  modules?: Record<string, boolean>;
+  license?: {
+    status: 'absent' | 'ok' | 'expired' | 'invalid';
+    reason?: string;
+    expireAt: string | null;
+    message: string | null;
+  };
 }
 
 interface AuthState {
@@ -186,6 +195,25 @@ export async function authFetch<T>(path: string, options?: RequestInit, retried 
   }
 
   return parsed.data as T;
+}
+
+/** 带 Token 的原始 fetch，用于 SSE 等场景 */
+export async function authRawFetch(path: string, options?: RequestInit, retried = false): Promise<Response> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options?.headers as Record<string, string> | undefined),
+  };
+  if (state.accessToken) {
+    headers.Authorization = `Bearer ${state.accessToken}`;
+  }
+
+  const res = await fetch(path, { ...options, headers });
+  if (res.status === 401 && !retried) {
+    const refreshed = await authStore.tryRefresh();
+    if (refreshed) return authRawFetch(path, options, true);
+    sessionExpiredHandler?.();
+  }
+  return res;
 }
 
 export const authStore = {

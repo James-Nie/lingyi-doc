@@ -3,7 +3,7 @@ export { DocumentEntity } from './document.entity';
 export { DocumentSnapshotEntity } from './document-snapshot.entity';
 export { CrdtOplogEntity } from './crdt-oplog.entity';
 export { DocumentSheetEntity } from './document-sheet.entity';
-export { BaseTableEntity, BaseRecordEntity, BaseViewEntity } from './base.entity';
+export { BaseTableEntity, BaseRecordEntity, BaseViewEntity, BaseDashboardEntity, BaseDashboardPrefsEntity } from './base.entity';
 export { TenantEntity, TenantMemberEntity, OrganizationEntity, TenantPositionGroupEntity, TenantPositionEntity, TenantRoleEntity } from './tenant.entity';
 export {
   SchemaMigrationEntity,
@@ -31,15 +31,18 @@ export {
   DocShareAuditLogEntity,
 } from './document-share.entity';
 export { DocTemplateEntity } from './doc-template.entity';
-export { DocCommentThreadEntity, DocCommentReplyEntity } from './document-comment.entity';
+export { DocCommentThreadEntity, DocCommentReplyEntity, DocCommentReplyLikeEntity } from './document-comment.entity';
+export { DocUserVisitEntity } from './doc-user-visit.entity';
 export { QuotaDailyLogEntity } from './quota-daily-log.entity';
+export { AI_ENTITIES } from '../../modules/ai/entities';
+export { MCP_ENTITIES } from '../../modules/mcp/entities';
 
 import { UserEntity } from './user.entity';
 import { DocumentEntity } from './document.entity';
 import { DocumentSnapshotEntity } from './document-snapshot.entity';
 import { CrdtOplogEntity } from './crdt-oplog.entity';
 import { DocumentSheetEntity } from './document-sheet.entity';
-import { BaseTableEntity, BaseRecordEntity, BaseViewEntity } from './base.entity';
+import { BaseTableEntity, BaseRecordEntity, BaseViewEntity, BaseDashboardEntity, BaseDashboardPrefsEntity } from './base.entity';
 import { TenantEntity, TenantMemberEntity, OrganizationEntity, TenantPositionGroupEntity, TenantPositionEntity, TenantRoleEntity } from './tenant.entity';
 import {
   SchemaMigrationEntity,
@@ -67,8 +70,11 @@ import {
   DocShareAuditLogEntity,
 } from './document-share.entity';
 import { DocTemplateEntity } from './doc-template.entity';
-import { DocCommentReplyEntity, DocCommentThreadEntity } from './document-comment.entity';
+import { DocCommentReplyEntity, DocCommentReplyLikeEntity, DocCommentThreadEntity } from './document-comment.entity';
+import { DocUserVisitEntity } from './doc-user-visit.entity';
 import { QuotaDailyLogEntity } from './quota-daily-log.entity';
+import { AI_ENTITIES } from '../../modules/ai/entities';
+import { MCP_ENTITIES } from '../../modules/mcp/entities';
 
 /** 与现有 MySQL schema 对应的全部 TypeORM 实体 */
 export const ALL_ENTITIES = [
@@ -80,6 +86,8 @@ export const ALL_ENTITIES = [
   BaseTableEntity,
   BaseRecordEntity,
   BaseViewEntity,
+  BaseDashboardEntity,
+  BaseDashboardPrefsEntity,
   TenantEntity,
   TenantMemberEntity,
   OrganizationEntity,
@@ -106,5 +114,9 @@ export const ALL_ENTITIES = [
   DocTemplateEntity,
   DocCommentThreadEntity,
   DocCommentReplyEntity,
+  DocCommentReplyLikeEntity,
+  DocUserVisitEntity,
   QuotaDailyLogEntity,
+  ...AI_ENTITIES,
+  ...MCP_ENTITIES,
 ];

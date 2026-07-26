@@ -79,10 +79,19 @@ export async function updateDocumentCommentAnchor(
   threadId: string,
   pinX: number,
   pinY: number,
+  meta?: {
+    quote?: string;
+    anchorType?: DocCommentThread['anchor']['anchorType'];
+    elementId?: string;
+    mindNodeId?: string;
+    pinOffsetX?: number;
+    pinOffsetY?: number;
+    clearBind?: boolean;
+  },
 ): Promise<DocCommentThread> {
   return authFetch<DocCommentThread>(`${DOC_BASE}/${docId}/comments/${threadId}/anchor`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ pinX, pinY }),
+    body: JSON.stringify({ pinX, pinY, ...meta }),
   });
 }

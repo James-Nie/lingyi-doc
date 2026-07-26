@@ -11,37 +11,45 @@
       "types": "./dist/index.d.ts"
     },
     "./types": {
-      "import": "./dist/types/index.js",
-      "types": "./dist/types/index.d.ts"
+      "import": "./dist/types-reexport.js",
+      "types": "./dist/types-reexport.d.ts"
     },
     "./model": {
-      "import": "./dist/model/index.js",
-      "types": "./dist/model/index.d.ts"
+      "import": "./dist/model-reexport.js",
+      "types": "./dist/model-reexport.d.ts"
     },
     "./renderer": {
-      "import": "./dist/renderer/index.js",
-      "types": "./dist/renderer/index.d.ts"
+      "import": "./dist/renderer-reexport.js",
+      "types": "./dist/renderer-reexport.d.ts"
     },
     "./formula": {
-      "import": "./dist/formula/index.js",
-      "types": "./dist/formula/index.d.ts"
+      "import": "./dist/formula-reexport.js",
+      "types": "./dist/formula-reexport.d.ts"
     },
     "./collab": {
-      "import": "./dist/collab/index.js",
-      "types": "./dist/collab/index.d.ts"
+      "import": "./dist/collab-reexport.js",
+      "types": "./dist/collab-reexport.d.ts"
+    },
+    "./client": {
+      "import": "./dist/client-reexport.js",
+      "types": "./dist/client-reexport.d.ts"
     }
   },
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit"
   },
+  "dependencies": {
+    "@lingyi-doc/core-types": "*",
+    "@lingyi-doc/core-sheet": "*",
+    "@lingyi-doc/core-doc": "*",
+    "@lingyi-doc/core-mindmap": "*",
+    "@lingyi-doc/core-whiteboard": "*",
+    "@lingyi-doc/core-io": "*",
+    "@lingyi-doc/core-collab": "*",
+    "@lingyi-doc/core-client": "*"
+  },
   "devDependencies": {
     "typescript": "^5.3.0"
-  },
-  "dependencies": {
-    "exceljs": "^4.4.0",
-    "jszip": "^3.10.1",
-    "mammoth": "^1.12.0",
-    "xlsx": "^0.18.5"
   }
 }

@@ -17,7 +17,6 @@ export interface ApiTemplateSummary {
   usageLabel: string | null;
   isNew: boolean;
   isBlank: boolean;
-  thumbGradient: string;
   sortOrder: number;
   useCount: number;
   hasContent: boolean;

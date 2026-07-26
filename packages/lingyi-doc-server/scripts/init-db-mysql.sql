@@ -37,7 +37,9 @@ CREATE TABLE IF NOT EXISTS users (
     created_at      TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     updated_at      TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     UNIQUE KEY uk_users_email (email),
-    UNIQUE KEY uk_users_personal_space_slug (personal_space_slug)
+    UNIQUE KEY uk_users_personal_space_slug (personal_space_slug),
+    KEY idx_users_type_status (user_type, status),
+    KEY idx_users_display_name (display_name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ==========================================
@@ -80,7 +82,8 @@ CREATE TABLE IF NOT EXISTS document_snapshots (
     id                CHAR(36)     NOT NULL PRIMARY KEY COMMENT '主键 UUID',
     doc_id            VARCHAR(64)  NOT NULL COMMENT 'documents.id',
     version           INT          NOT NULL COMMENT '快照版本号',
-    snapshot_type     VARCHAR(20)  NOT NULL DEFAULT 'checkpoint' COMMENT 'checkpoint|auto 等',
+    snapshot_type     VARCHAR(20)  NOT NULL DEFAULT 'checkpoint' COMMENT 'checkpoint|auto|named|restore 等',
+    action_type       VARCHAR(32)  NULL DEFAULT NULL COMMENT 'create|auto|named|restore',
     parent_version    INT          NULL DEFAULT NULL COMMENT '父版本号（增量链）',
     snapshot_data     JSON         DEFAULT NULL COMMENT 'JSON 快照内容',
     binary_ref        VARCHAR(500) NULL DEFAULT NULL COMMENT '外部二进制存储引用',
@@ -186,6 +189,38 @@ CREATE TABLE IF NOT EXISTS base_views (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ==========================================
+-- Base 仪表盘（独立于 documents.content_json）
+-- ==========================================
+CREATE TABLE IF NOT EXISTS base_dashboards (
+    id                   VARCHAR(64)  NOT NULL PRIMARY KEY COMMENT '仪表盘 ID',
+    doc_id               VARCHAR(64)  NOT NULL COMMENT '所属文档 documents.id',
+    name                 VARCHAR(255) NOT NULL COMMENT '显示名称',
+    source_sheet_id      VARCHAR(64)  NOT NULL COMMENT '默认绑定的 Base sheetId',
+    layout               JSON         NOT NULL COMMENT '{columns,rowHeight,gap}',
+    widgets              JSON         NOT NULL COMMENT 'DashboardWidget[]',
+    global_filters       JSON         DEFAULT NULL COMMENT '全局筛选 FilterCondition[]',
+    version              INT          NOT NULL DEFAULT 1 COMMENT '乐观版本号',
+    sort_order           INT          NOT NULL DEFAULT 0 COMMENT '侧栏排序',
+    created_by           CHAR(36)     NOT NULL COMMENT '创建人 users.id',
+    updated_by           CHAR(36)     NOT NULL COMMENT '更新人 users.id',
+    is_deleted           TINYINT(1)   NOT NULL DEFAULT 0 COMMENT '软删除',
+    deleted_at           TIMESTAMP    NULL DEFAULT NULL COMMENT '软删除时间',
+    created_at           TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updated_at           TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    KEY idx_base_dashboards_doc (doc_id, is_deleted, sort_order),
+    KEY idx_base_dashboards_sheet (doc_id, source_sheet_id, is_deleted),
+    CONSTRAINT fk_base_dashboards_doc FOREIGN KEY (doc_id) REFERENCES documents(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS base_dashboard_prefs (
+    doc_id               VARCHAR(64)  NOT NULL PRIMARY KEY COMMENT 'documents.id',
+    active_dashboard_id  VARCHAR(64)  DEFAULT NULL COMMENT 'base_dashboards.id',
+    updated_by           CHAR(36)     DEFAULT NULL COMMENT '最近更新人',
+    updated_at           TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    CONSTRAINT fk_base_dashboard_prefs_doc FOREIGN KEY (doc_id) REFERENCES documents(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ==========================================
 -- 租户 / 组织 / 成员（P0）
 -- ==========================================
 CREATE TABLE IF NOT EXISTS tenants (
@@ -207,6 +242,7 @@ CREATE TABLE IF NOT EXISTS tenants (
     created_at              TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     updated_at              TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     KEY idx_tenants_status (status),
+    KEY idx_tenants_created (created_at DESC),
     UNIQUE KEY uk_tenants_space_slug (space_slug),
     CONSTRAINT fk_tenants_admin FOREIGN KEY (admin_user_id) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -284,6 +320,9 @@ CREATE TABLE IF NOT EXISTS knowledge_bases (
     emoji           VARCHAR(16)  DEFAULT '📘' COMMENT '封面 emoji',
     cover           VARCHAR(20)  NOT NULL DEFAULT 'blue' COMMENT 'blue|sunset',
     visibility      VARCHAR(20)  NOT NULL DEFAULT 'members' COMMENT 'members|organization',
+    invite_token    VARCHAR(64)  DEFAULT NULL COMMENT '成员邀请 Token',
+    invite_role     VARCHAR(20)  NOT NULL DEFAULT 'editor' COMMENT '邀请链接默认角色',
+    invite_enabled  TINYINT(1)   NOT NULL DEFAULT 1 COMMENT '1=邀请开启 0=关闭',
     created_by      CHAR(36)     NOT NULL COMMENT '创建人 users.id',
     updated_by      CHAR(36)     NOT NULL COMMENT '更新人 users.id',
     is_deleted      TINYINT(1)   NOT NULL DEFAULT 0 COMMENT '1=已软删除',
@@ -294,6 +333,7 @@ CREATE TABLE IF NOT EXISTS knowledge_bases (
     KEY idx_kb_owner (owner_id, is_deleted, updated_at),
     KEY idx_kb_scope (scope, is_deleted),
     UNIQUE KEY uk_kb_slug (kb_slug),
+    UNIQUE KEY uk_kb_invite_token (invite_token),
     CONSTRAINT fk_kb_owner FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE SET NULL,
     CONSTRAINT fk_kb_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
     CONSTRAINT fk_kb_org FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE SET NULL,
@@ -398,7 +438,8 @@ CREATE TABLE IF NOT EXISTS doc_share_visit_log (
     operate_content     VARCHAR(500) NULL DEFAULT NULL COMMENT '操作摘要',
     created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '访问时间',
     KEY idx_doc_share_visit_doc (doc_id, created_at),
-    KEY idx_doc_share_visit_token (share_token, created_at)
+    KEY idx_doc_share_visit_token (share_token, created_at),
+    KEY idx_doc_share_visit_visitor (visitor_id, visit_status, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS doc_share_audit_log (
@@ -441,13 +482,12 @@ CREATE TABLE IF NOT EXISTS doc_templates (
     id              VARCHAR(64)   NOT NULL PRIMARY KEY COMMENT '模板 slug，如 weekly-report',
     title           VARCHAR(200)  NOT NULL COMMENT '模板展示标题',
     subtitle        VARCHAR(500)  NOT NULL DEFAULT '' COMMENT '副标题',
-    doc_type        VARCHAR(20)   NOT NULL COMMENT 'richtext|freeform|base|mindnote|slides|whiteboard',
+    doc_type        VARCHAR(20)   NOT NULL COMMENT 'richtext|freeform|base|questionnaire|mindnote|slides|whiteboard',
     document_title  VARCHAR(500)  NOT NULL COMMENT '用模板创建时的默认文档标题',
     categories      JSON          NOT NULL COMMENT '分类 ID 数组',
     usage_label     VARCHAR(100)  DEFAULT NULL COMMENT '使用量展示文案',
     is_new          TINYINT(1)    NOT NULL DEFAULT 0 COMMENT '1=标新',
     is_blank        TINYINT(1)    NOT NULL DEFAULT 0 COMMENT '1=空白模板',
-    thumb_gradient  VARCHAR(500)  NOT NULL DEFAULT 'linear-gradient(135deg, #e3f2fd 0%, #90caf9 100%)' COMMENT '缩略图渐变 CSS',
     content_json    JSON          DEFAULT NULL COMMENT '模板内容快照',
     status          VARCHAR(20)   NOT NULL DEFAULT 'draft' COMMENT 'draft|published|archived',
     sort_order      INT           NOT NULL DEFAULT 0 COMMENT '列表排序，越大越靠前',
@@ -463,17 +503,18 @@ CREATE TABLE IF NOT EXISTS doc_templates (
     KEY idx_doc_templates_deleted_sort (is_deleted, sort_order, updated_at),
     KEY idx_doc_templates_type (doc_type, status, is_deleted),
     CONSTRAINT chk_doc_templates_status CHECK (status IN ('draft', 'published', 'archived')),
-    CONSTRAINT chk_doc_templates_doc_type CHECK (doc_type IN ('richtext', 'freeform', 'base', 'mindnote', 'slides', 'whiteboard'))
+    CONSTRAINT chk_doc_templates_doc_type CHECK (doc_type IN ('richtext', 'freeform', 'base', 'questionnaire', 'mindnote', 'slides', 'whiteboard'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-INSERT INTO doc_templates (id, title, subtitle, doc_type, document_title, categories, is_blank, status, sort_order, thumb_gradient)
+INSERT INTO doc_templates (id, title, subtitle, doc_type, document_title, categories, is_blank, status, sort_order)
 VALUES
-  ('blank-richtext', '空白文档', '从零开始撰写', 'richtext', '未命名文档', JSON_ARRAY('recommended'), 1, 'published', 1000, 'linear-gradient(135deg, #f5f5f5 0%, #e0e0e0 100%)'),
-  ('blank-freeform', '空白表格', '普通表格', 'freeform', '未命名表格', JSON_ARRAY('recommended'), 1, 'published', 990, 'linear-gradient(135deg, #e8f5e9 0%, #a5d6a7 100%)'),
-  ('blank-base', '空白多维表格', '多维表格', 'base', '未命名多维表格', JSON_ARRAY('recommended'), 1, 'published', 980, 'linear-gradient(135deg, #e3f2fd 0%, #90caf9 100%)'),
-  ('blank-mindnote', '空白思维笔记', '思维导图', 'mindnote', '未命名思维笔记', JSON_ARRAY('recommended'), 1, 'published', 970, 'linear-gradient(135deg, #fff3e0 0%, #ffcc80 100%)'),
-  ('blank-slides', '空白幻灯片', '幻灯片', 'slides', '未命名幻灯片', JSON_ARRAY('recommended'), 1, 'published', 960, 'linear-gradient(135deg, #fce4ec 0%, #f48fb1 100%)'),
-  ('blank-whiteboard', '空白画板', '无限画布协作', 'whiteboard', '未命名画板', JSON_ARRAY('recommended'), 1, 'published', 950, 'linear-gradient(135deg, #e6f4ea 0%, #c8e6c9 100%)')
+  ('blank-richtext', '新建空白文档', '从零开始撰写', 'richtext', '未命名文档', JSON_ARRAY('recommended'), 1, 'published', 1000),
+  ('blank-freeform', '新建空白表格', '普通表格', 'freeform', '未命名表格', JSON_ARRAY('recommended'), 1, 'published', 990),
+  ('blank-base', '新建空白多维表格', '多维表格', 'base', '未命名多维表格', JSON_ARRAY('recommended'), 1, 'published', 980),
+  ('blank-questionnaire', '新建空白问卷', '表单收集', 'questionnaire', '未命名问卷', JSON_ARRAY('recommended'), 1, 'published', 975),
+  ('blank-mindnote', '新建空白思维笔记', '思维导图', 'mindnote', '未命名思维笔记', JSON_ARRAY('recommended'), 1, 'published', 970),
+  ('blank-slides', '新建空白幻灯片', '幻灯片', 'slides', '未命名幻灯片', JSON_ARRAY('recommended'), 1, 'published', 960),
+  ('blank-whiteboard', '新建空白画板', '无限画布协作', 'whiteboard', '未命名画板', JSON_ARRAY('recommended'), 1, 'published', 950)
 ON DUPLICATE KEY UPDATE updated_at = updated_at;
 
 -- ==========================================
@@ -578,6 +619,56 @@ CREATE TABLE IF NOT EXISTS auth_sessions (
     CONSTRAINT fk_sessions_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS doc_comment_threads (
+    id              VARCHAR(64)   NOT NULL PRIMARY KEY COMMENT '评论线程 ID',
+    doc_id          VARCHAR(64)   NOT NULL COMMENT '文档 ID',
+    block_id        VARCHAR(128)  NOT NULL COMMENT '锚点 blockId',
+    anchor_start    INT           NOT NULL COMMENT '锚点 start',
+    anchor_end      INT           NOT NULL COMMENT '锚点 end',
+    quote           VARCHAR(500)  NOT NULL DEFAULT '' COMMENT '引用摘要',
+    anchor_meta     TEXT          NULL COMMENT '扩展锚点 JSON',
+    resolved        TINYINT(1)    NOT NULL DEFAULT 0 COMMENT '是否已解决',
+    created_by      CHAR(36)      NOT NULL COMMENT '创建人 users.id',
+    created_at      TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updated_at      TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    KEY idx_dct_doc (doc_id),
+    KEY idx_dct_doc_resolved (doc_id, resolved)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS doc_comment_replies (
+    id              VARCHAR(64)   NOT NULL PRIMARY KEY COMMENT '回复 ID',
+    thread_id       VARCHAR(64)   NOT NULL COMMENT '线程 ID',
+    author_id       CHAR(36)      NOT NULL COMMENT '作者 users.id',
+    author_name     VARCHAR(100)  NOT NULL COMMENT '作者显示名',
+    author_avatar   VARCHAR(500)  DEFAULT NULL COMMENT '作者头像',
+    text            TEXT          NOT NULL COMMENT '回复正文',
+    created_at      TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updated_at      TIMESTAMP     NULL DEFAULT NULL COMMENT '更新时间',
+    KEY idx_dcr_thread (thread_id),
+    CONSTRAINT fk_dcr_thread FOREIGN KEY (thread_id) REFERENCES doc_comment_threads(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS doc_comment_reply_likes (
+    reply_id        VARCHAR(64)   NOT NULL COMMENT '回复 ID',
+    user_id         CHAR(36)      NOT NULL COMMENT '点赞用户 users.id',
+    created_at      TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '点赞时间',
+    PRIMARY KEY (reply_id, user_id),
+    KEY idx_dcrl_user (user_id),
+    CONSTRAINT fk_dcrl_reply FOREIGN KEY (reply_id) REFERENCES doc_comment_replies(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 用户级文档访问（首页「最近访问」per-user）
+CREATE TABLE IF NOT EXISTS doc_user_visits (
+    user_id         CHAR(36)     NOT NULL COMMENT 'users.id',
+    doc_id          VARCHAR(64)  NOT NULL COMMENT 'documents.id',
+    last_visited_at TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '该用户最近打开时间',
+    PRIMARY KEY (user_id, doc_id),
+    KEY idx_doc_user_visits_user_time (user_id, last_visited_at DESC),
+    KEY idx_doc_user_visits_doc (doc_id),
+    CONSTRAINT fk_doc_user_visits_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_doc_user_visits_doc FOREIGN KEY (doc_id) REFERENCES documents(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 INSERT IGNORE INTO schema_migrations (version) VALUES ('20260623_init');
 INSERT IGNORE INTO schema_migrations (version) VALUES ('20260623_last_visited');
 INSERT IGNORE INTO schema_migrations (version) VALUES ('20260626_scheme3_versioning');
@@ -596,3 +687,6 @@ INSERT IGNORE INTO schema_migrations (version) VALUES ('20260705_doc_templates_w
 INSERT IGNORE INTO schema_migrations (version) VALUES ('20260706_membership');
 INSERT IGNORE INTO schema_migrations (version) VALUES ('20260706_membership_p1');
 INSERT IGNORE INTO schema_migrations (version) VALUES ('20260706_column_comments');
+INSERT IGNORE INTO schema_migrations (version) VALUES ('20260709_doc_comments');
+INSERT IGNORE INTO schema_migrations (version) VALUES ('20260717_doc_user_visits');
+INSERT IGNORE INTO schema_migrations (version) VALUES ('20260720_doc_templates_questionnaire');

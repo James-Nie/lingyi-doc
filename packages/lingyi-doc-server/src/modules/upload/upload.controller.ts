@@ -44,6 +44,8 @@ export class UploadController {
         throw new BusinessException(100002, '缺少上传文件');
       }
 
+      await this.membershipService.assertFileSize(user, file.size);
+
       const mctx = await this.membershipService.resolveContext(user);
       await this.membershipService.assertWritableForDocument(user, {
         scope: mctx.spaceKind === 'team' ? 2 : 1,

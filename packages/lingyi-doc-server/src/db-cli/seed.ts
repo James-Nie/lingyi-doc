@@ -2,7 +2,7 @@ import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import { closePool, query, execute } from './pool';
 
-const SEED_EMAIL = process.env.SEED_CONSUMER_EMAIL || 'user@example.com';
+const SEED_EMAIL = process.env.SEED_CONSUMER_EMAIL || 'user@lingyidoc.com';
 const SEED_PASSWORD = process.env.SEED_CONSUMER_PASSWORD || 'user123456';
 const SEED_NAME = process.env.SEED_CONSUMER_NAME || '测试用户';
 

@@ -8,13 +8,20 @@ import { MoveDocumentModal } from '../MoveDocumentModal';
 import { CreateDocSidebarTrigger } from '../createDoc';
 import { useCreateDocument } from '../../hooks/useCreateDocument';
 import { documentLibraryStore } from '../../stores/documentLibraryStore';
-import { appPath, isDocPublicPath } from '../../utils/appPaths';
+import { activeDocumentStore } from '../../stores/activeDocumentStore';
+import { appPath, isDocPublicPath, decodePathSegment } from '../../utils/appPaths';
 import { confirmDeleteToRecycleBin } from '../../utils/appDialog';
 import { DocumentShareApi } from '../../api/documentShare';
-import { navigateToDoc, openDocInNewTab } from '../../utils/navigateToDoc';
+import {
+  lookupDocIdByHref,
+  navigateToDoc,
+  openDocInNewTab,
+  rememberDocPathContext,
+  rememberDocPathsFromList,
+} from '../../utils/navigateToDoc';
 import { resolveMoveDocumentSource, type MoveDocumentSource } from '../../utils/moveDocument';
-import { SidebarDirectorySection } from './sidebar/SidebarDirectorySection';
-import { SidebarIconBtn } from './sidebar/SidebarIconBtn';
+import { SidebarDocumentDirectory } from './sidebar/SidebarDocumentDirectory';
+import { mapDocumentsToDirectoryItems } from './sidebar/mapToDirectoryItems';
 import { AppLogoWithName } from '../AppLogo';
 import { SidebarResizeHandle } from './sidebar/SidebarResizeHandle';
 import { useSidebarContextMenu } from './sidebar/useSidebarContextMenu';
@@ -94,19 +101,31 @@ interface AppSidebarProps {
 export const AppSidebar: React.FC<AppSidebarProps> = ({ onStub, onToast, workspaceRevision = 0 }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { docId: routeDocId } = useParams<{ docId?: string }>();
-  const [activeDocId, setActiveDocId] = useState<string | undefined>(routeDocId);
+  const {
+    docId: routeDocId,
+    spaceSlug: routeSpaceSlug,
+    bookSlug: routeBookSlug,
+    docSlug: routeDocSlug,
+  } = useParams<{
+    docId?: string;
+    spaceSlug?: string;
+    bookSlug?: string;
+    docSlug?: string;
+  }>();
   const createDoc = useCreateDocument();
   const [search, setSearch] = useState('');
   const [documents, setDocuments] = useState<DocumentListItem[]>([]);
-  const [libraryExpanded, setLibraryExpanded] = useState(true);
   const [sortAsc, setSortAsc] = useState(true);
   const [busyDocId, setBusyDocId] = useState<string | null>(null);
   const [renameDoc, setRenameDoc] = useState<DocumentListItem | null>(null);
   const [moveSource, setMoveSource] = useState<MoveDocumentSource | null>(null);
+  /** 公开路径下编辑页尚未写入 store 时的兜底 doc.id */
+  const [pathDocId, setPathDocId] = useState<string | undefined>(() => {
+    if (routeDocId) return routeDocId;
+    if (isDocPublicPath(location.pathname)) return lookupDocIdByHref(location.pathname);
+    return undefined;
+  });
   const {
-    hoveredItemId: hoveredDocId,
-    setHoveredItemId: setHoveredDocId,
     menuItemId: menuDocId,
     menuAnchor,
     openMenu,
@@ -129,47 +148,91 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({ onStub, onToast, workspa
   const libraryRevision = useSyncExternalStore(
     documentLibraryStore.subscribe,
     documentLibraryStore.getRevision,
+    documentLibraryStore.getRevision,
+  );
+
+  /** 当前打开文档的 doc.id（由 DocPublicEditorPage 写入） */
+  const viewingDocId = useSyncExternalStore(
+    activeDocumentStore.subscribe,
+    activeDocumentStore.getDocId,
+    activeDocumentStore.getServerSnapshot,
+  );
+
+  /** 与列表项 id 一致：均为文档 doc.id */
+  const activeItemId = viewingDocId ?? routeDocId ?? pathDocId;
+
+  const onDocRoute = !!(
+    routeDocId
+    || (routeSpaceSlug && routeBookSlug && routeDocSlug && isDocPublicPath(location.pathname))
   );
 
   const reloadDocs = useCallback(() => {
-    DocumentManager.list('lastVisited').then(setDocuments).catch(() => { /* ignore */ });
+    DocumentManager.list('lastVisited')
+      .then(docs => {
+        rememberDocPathsFromList(docs);
+        setDocuments(docs);
+      })
+      .catch(() => { /* ignore */ });
   }, []);
 
   useEffect(() => {
     reloadDocs();
   }, [reloadDocs, workspaceRevision, libraryRevision]);
 
+  // 离开文档页时再清空选中；勿在编辑页 unmount cleanup 里清，否则会冲掉点击时的乐观选中
+  // （普通表格加载慢时尤其明显）
+  useEffect(() => {
+    if (!onDocRoute) activeDocumentStore.setDocId(undefined);
+  }, [onDocRoute]);
+
   useEffect(() => {
     if (routeDocId) {
-      setActiveDocId(routeDocId);
+      setPathDocId(routeDocId);
       return;
     }
-    if (isDocPublicPath(location.pathname)) {
-      const [spaceSlug, bookSlug, docSlug] = location.pathname.split('/').filter(Boolean);
+
+    // 优先用路由 params（React Router 已解码），避免 pathname 二次 encode
+    const spaceSlug = routeSpaceSlug ? decodePathSegment(routeSpaceSlug) : undefined;
+    const bookSlug = routeBookSlug ? decodePathSegment(routeBookSlug) : undefined;
+    const docSlug = routeDocSlug ? decodePathSegment(routeDocSlug) : undefined;
+
+    if (spaceSlug && bookSlug && docSlug && isDocPublicPath(location.pathname)) {
+      const cachedId = lookupDocIdByHref(location.pathname);
+      if (cachedId) {
+        setPathDocId(cachedId);
+        // 有缓存也同步到 store，保证普通表格等慢加载场景选中不丢
+        activeDocumentStore.setDocId(cachedId);
+        return;
+      }
+
       let cancelled = false;
       DocumentShareApi.resolveDocByPath(spaceSlug, bookSlug, docSlug)
         .then(ctx => {
-          if (!cancelled) setActiveDocId(ctx.docId);
+          if (cancelled || !ctx?.docId) return;
+          rememberDocPathContext(ctx);
+          setPathDocId(ctx.docId);
+          activeDocumentStore.setDocId(ctx.docId);
         })
         .catch(() => {
-          if (!cancelled) setActiveDocId(undefined);
+          // 失败时保留已有 viewingDocId / pathDocId，避免清空选中
         });
       return () => { cancelled = true; };
     }
-    setActiveDocId(undefined);
-  }, [routeDocId, location.pathname]);
+
+    setPathDocId(undefined);
+  }, [routeDocId, routeSpaceSlug, routeBookSlug, routeDocSlug, location.pathname]);
 
   useEffect(() => {
-    if (!activeDocId) return;
+    if (!activeItemId) return;
     setDocuments(prev => {
-      const idx = prev.findIndex(d => d.id === activeDocId);
+      const idx = prev.findIndex(d => d.id === activeItemId);
       if (idx <= 0) return prev;
       const next = [...prev];
       const [item] = next.splice(idx, 1);
       next.unshift({ ...item, lastVisitedAt: Date.now() });
       return next;
     });
-  }, [activeDocId]);
+  }, [activeItemId]);
 
   const stub = (name: string) => onStub?.(name);
   const toast = (msg: string) => onToast?.(msg);
@@ -189,11 +252,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({ onStub, onToast, workspa
   const menuDoc = menuDocId ? documents.find(d => d.id === menuDocId) : null;
 
   const directoryItems = useMemo(
-    () => filteredDocs.map(doc => ({
-      id: doc.id,
-      title: doc.title || '未命名文档',
-      docType: doc.docType,
-    })),
+    () => mapDocumentsToDirectoryItems(filteredDocs),
     [filteredDocs],
   );
 
@@ -202,7 +261,12 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({ onStub, onToast, workspa
     const doc = menuDoc;
 
     if (action === 'openNewTab') {
-      void openDocInNewTab(doc.id);
+      void openDocInNewTab(
+        doc.id,
+        doc.spaceSlug && doc.bookSlug && doc.docSlug
+          ? { spaceSlug: doc.spaceSlug, bookSlug: doc.bookSlug, docSlug: doc.docSlug }
+          : null,
+      );
       closeMenu();
       return;
     }
@@ -253,7 +317,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({ onStub, onToast, workspa
         await DocumentManager.delete(doc.id);
         toast('文档已移入回收站');
         reloadDocs();
-        if (activeDocId === doc.id) navigate(appPath.home);
+        if (activeItemId === doc.id) navigate(appPath.home);
       } catch (err) {
         toast(`删除失败: ${(err as Error).message}`);
       } finally {
@@ -346,23 +410,24 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({ onStub, onToast, workspa
         })}
       </nav>
 
-      <div style={{ flex: 1, overflow: 'auto', padding: '4px 8px 16px' }}>
-
-        <SidebarDirectorySection
+      <div style={{ flex: 1, overflow: 'auto', padding: '4px 0 16px 8px' }}>
+        <SidebarDocumentDirectory
           title="我的文档库"
-          expanded={libraryExpanded}
-          onToggleExpanded={() => setLibraryExpanded(v => !v)}
-          onToggleSort={() => setSortAsc(v => !v)}
+          emptyText="暂无文档"
           items={directoryItems}
-          activeItemId={activeDocId}
-          hoveredItemId={hoveredDocId}
+          activeItemId={activeItemId}
           menuItemId={menuDocId}
-          onItemClick={item => { void navigateToDoc(navigate, item.id); }}
-          onItemMouseEnter={setHoveredDocId}
-          onItemMouseLeave={id => {
-            if (menuDocId !== id) setHoveredDocId(null);
+          onToggleSort={() => setSortAsc(v => !v)}
+          onItemClick={item => {
+            // item.id === doc.id；navigateToDoc 内会写入 activeDocumentStore
+            const doc = documents.find(d => d.id === item.id);
+            void navigateToDoc(navigate, item.id, {
+              path: doc?.spaceSlug && doc.bookSlug && doc.docSlug
+                ? { spaceSlug: doc.spaceSlug, bookSlug: doc.bookSlug, docSlug: doc.docSlug }
+                : null,
+            });
           }}
-          onItemQuickAdd={(id, e) => {
+          onItemQuickAdd={(_id, e) => {
             e.stopPropagation();
             stub('添加快捷方式');
           }}

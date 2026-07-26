@@ -1,11 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { UserEntity } from '../database/entities/user.entity';
 import { DeployService } from '../config/deploy.service';
 import { planLabel, resolveEffectivePlan, storedPlanLabel } from '../modules/membership/membership-policy';
 import type { MembershipPlanCode } from '../types/membership';
 import type { AdminConsumerUser, DbUser, PublicUser, UserSource, UserStatus, UserType } from '../types/database';
+
+function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
 
 function toDbUser(entity: UserEntity): DbUser {
   return {
@@ -75,8 +79,44 @@ export class UserRepository {
   ) {}
 
   async findByEmail(email: string): Promise<DbUser | null> {
-    const entity = await this.repo.findOne({ where: { email } });
+    // 等值匹配走 uk_users_email；调用方/入库统一小写，禁止 LOWER() 包列
+    const entity = await this.repo.findOne({
+      where: { email: normalizeEmail(email) },
+    });
     return entity ? toDbUser(entity) : null;
+  }
+
+  async findByIds(ids: string[]): Promise<DbUser[]> {
+    const unique = [...new Set(ids.filter(Boolean))];
+    if (!unique.length) return [];
+    const entities = await this.repo.findBy({ id: In(unique) });
+    return entities.map(toDbUser);
+  }
+
+  /** C 端按名称/邮箱/手机号搜索活跃消费者（优先走索引，避免双侧通配全表扫） */
+  async searchPublic(keyword: string, limit = 20): Promise<DbUser[]> {
+    const raw = keyword.trim();
+    if (!raw) return [];
+    const take = Math.min(Math.max(limit, 1), 50);
+    const qb = this.repo
+      .createQueryBuilder('u')
+      .where('u.userType = :userType', { userType: 'consumer' })
+      .andWhere('u.status = :status', { status: 'active' });
+
+    if (raw.includes('@')) {
+      qb.andWhere('u.email = :email', { email: normalizeEmail(raw) });
+    } else if (/^\d{5,}$/.test(raw.replace(/[\s-]/g, ''))) {
+      qb.andWhere('u.phone = :phone', { phone: raw.replace(/[\s-]/g, '') });
+    } else {
+      // 前缀匹配可用到 display_name 索引（若存在）；避免 '%x%' 强制全表扫
+      qb.andWhere(
+        '(u.displayName LIKE :prefix OR u.email LIKE :prefix OR u.phone LIKE :prefix)',
+        { prefix: `${raw}%` },
+      );
+    }
+
+    const rows = await qb.orderBy('u.displayName', 'ASC').take(take).getMany();
+    return rows.map(toDbUser);
   }
 
   async findByPhone(phone: string): Promise<DbUser | null> {
@@ -108,7 +148,7 @@ export class UserRepository {
     const userSource = input.userSource ?? this.deployService.defaultUserSource();
     await this.repo.save({
       id: input.id,
-      email: input.email,
+      email: normalizeEmail(input.email),
       passwordHash: input.passwordHash,
       displayName: input.displayName,
       phone: input.phone ?? null,
@@ -188,8 +228,14 @@ export class UserRepository {
     const qb = this.repo.createQueryBuilder('u').where('u.userType = :userType', { userType });
 
     if (options.keyword) {
-      const kw = `%${options.keyword}%`;
-      qb.andWhere('(u.email LIKE :kw OR u.displayName LIKE :kw)', { kw });
+      const raw = options.keyword.trim();
+      if (raw.includes('@')) {
+        qb.andWhere('u.email = :email', { email: raw.toLowerCase() });
+      } else {
+        qb.andWhere('(u.email LIKE :prefix OR u.displayName LIKE :prefix)', {
+          prefix: `${raw}%`,
+        });
+      }
     }
     if (options.status) {
       qb.andWhere('u.status = :status', { status: options.status });
@@ -228,15 +274,34 @@ export class UserRepository {
       .getCount();
   }
 
+  /** 区间内每日新建消费者数（用于趋势回推，避免按天重复 COUNT） */
+  async countConsumersCreatedByDay(since: Date, until: Date): Promise<Map<string, number>> {
+    const rows = await this.repo
+      .createQueryBuilder('u')
+      .select("DATE_FORMAT(u.createdAt, '%Y-%m-%d')", 'day')
+      .addSelect('COUNT(*)', 'cnt')
+      .where('u.userType = :userType', { userType: 'consumer' })
+      .andWhere('u.createdAt >= :since', { since })
+      .andWhere('u.createdAt <= :until', { until })
+      .groupBy("DATE_FORMAT(u.createdAt, '%Y-%m-%d')")
+      .getRawMany<{ day: string; cnt: string }>();
+
+    const map = new Map<string, number>();
+    for (const row of rows) {
+      map.set(String(row.day).slice(0, 10), Number(row.cnt));
+    }
+    return map;
+  }
+
   async countDailyActiveConsumers(since: Date, until: Date): Promise<Map<string, number>> {
     const rows = await this.repo
       .createQueryBuilder('u')
-      .select('DATE(u.lastLoginAt)', 'day')
+      .select("DATE_FORMAT(u.lastLoginAt, '%Y-%m-%d')", 'day')
       .addSelect('COUNT(*)', 'cnt')
       .where('u.userType = :userType', { userType: 'consumer' })
       .andWhere('u.lastLoginAt >= :since', { since })
       .andWhere('u.lastLoginAt <= :until', { until })
-      .groupBy('DATE(u.lastLoginAt)')
+      .groupBy("DATE_FORMAT(u.lastLoginAt, '%Y-%m-%d')")
       .getRawMany<{ day: string | Date; cnt: string }>();
 
     const map = new Map<string, number>();

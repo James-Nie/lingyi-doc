@@ -188,6 +188,59 @@ export class CollabGateway implements OnGatewayConnection, OnGatewayDisconnect, 
     }
   }
 
+  @SubscribeMessage('crdt_op_batch')
+  async onCrdtOpBatch(
+    @ConnectedSocket() client: AuthedSocket,
+    @MessageBody() body: { operations: import('./collab.types').CrdtOperation[] },
+  ): Promise<void> {
+    const ctx = client.collab;
+    if (!ctx) return;
+
+    if (!ctx.canWrite) {
+      this.send(client, { type: 'error', code: COLLAB_ERROR.FORBIDDEN, message: '无编辑权限' });
+      return;
+    }
+
+    const operations = body.operations;
+    if (!Array.isArray(operations) || operations.length === 0) {
+      this.send(client, { type: 'error', code: COLLAB_ERROR.OP_INVALID, message: '无效的操作批次' });
+      return;
+    }
+
+    try {
+      const results = await this.collabService.handleOperations(
+        ctx.docId,
+        ctx.userId,
+        operations,
+      );
+
+      for (let i = 0; i < operations.length; i++) {
+        const op = operations[i];
+        const result = results[i];
+
+        if (!result || result.duplicate) continue;
+
+        const message: ServerMessage = {
+          type: 'crdt_op',
+          operation: op,
+          globalVersion: result.globalVersion,
+          senderId: ctx.userId,
+        };
+
+        await this.collabService.broadcast(ctx.docId, message, {
+          excludeSocketId: ctx.socketId,
+        });
+      }
+    } catch (err) {
+      const code = (err as { code?: number }).code ?? COLLAB_ERROR.OP_INVALID;
+      this.send(client, {
+        type: 'error',
+        code,
+        message: err instanceof Error ? err.message : '操作批次处理失败',
+      });
+    }
+  }
+
   @SubscribeMessage('cursor_move')
   async onCursorMove(
     @ConnectedSocket() client: AuthedSocket,
@@ -227,30 +280,44 @@ export class CollabGateway implements OnGatewayConnection, OnGatewayDisconnect, 
     if (!ctx) return;
 
     if (body.action === 'start') {
+      const sheetId = typeof body.sheetId === 'string' ? body.sheetId : '';
+      const row = Number(body.row);
+      const col = Number(body.col);
+      if (!sheetId || !Number.isFinite(row) || !Number.isFinite(col)) {
+        this.send(client, {
+          type: 'error',
+          code: COLLAB_ERROR.OP_INVALID,
+          message: '无效的编辑区域',
+        });
+        return;
+      }
+
       const result = await this.collabService.tryAcquireCellEditor(ctx.docId, {
         userId: ctx.userId,
         displayName: ctx.displayName,
-        sheetId: body.sheetId,
-        row: body.row,
-        col: body.col,
+        sheetId,
+        row,
+        col,
       });
       if (!result.ok) {
         this.send(client, {
           type: 'error',
           code: COLLAB_ERROR.CELL_EDIT_LOCKED,
-          message: `${result.holder.displayName} 正在编辑`,
+          message: `${result.holder.displayName} 正在编辑该区域`,
         });
         return;
       }
+      const editor = {
+        userId: ctx.userId,
+        displayName: ctx.displayName,
+        sheetId,
+        row,
+        col,
+      };
       await this.collabService.broadcast(ctx.docId, {
         type: 'cell_editing_update',
-        editor: {
-          userId: ctx.userId,
-          displayName: ctx.displayName,
-          sheetId: body.sheetId,
-          row: body.row,
-          col: body.col,
-        },
+        editor,
+        editors: result.editors.length > 0 ? result.editors : [editor],
       }, { excludeSocketId: ctx.socketId });
       return;
     }
@@ -259,11 +326,11 @@ export class CollabGateway implements OnGatewayConnection, OnGatewayDisconnect, 
   }
 
   private async handleCellEditorRelease(docId: string, userId: string, excludeSocketId?: string): Promise<void> {
-    const released = await this.collabService.releaseCellEditor(docId, userId);
-    if (released !== null) return;
+    const remaining = await this.collabService.releaseCellEditor(docId, userId);
     await this.collabService.broadcast(docId, {
       type: 'cell_editing_update',
-      editor: null,
+      editor: remaining[0] ?? null,
+      editors: remaining,
     }, { excludeSocketId });
   }
 
@@ -328,14 +395,15 @@ export class CollabGateway implements OnGatewayConnection, OnGatewayDisconnect, 
 
       const onlineUser = this.collabService.makeOnlineUser(ctx.userId, ctx.displayName, ctx.avatarUrl);
       await this.collabService.touchPresence(docId, onlineUser);
-      const activeCellEditor = await this.collabService.getActiveCellEditor(docId);
+      const activeCellEditors = await this.collabService.getActiveCellEditors(docId);
 
       this.send(client, {
         type: 'connected',
         docVersion: access.docVersion,
         globalVersion: access.globalVersion,
         onlineUsers: this.roomManager.listOnlineUsers(docId),
-        activeCellEditor,
+        activeCellEditor: activeCellEditors[0] ?? null,
+        activeCellEditors,
       });
 
       await this.collabService.broadcast(docId, { type: 'user_joined', user: onlineUser }, {

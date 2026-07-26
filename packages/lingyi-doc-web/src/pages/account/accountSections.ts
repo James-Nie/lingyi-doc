@@ -1,4 +1,4 @@
-export type AccountSection = 'profile' | 'settings' | 'logs' | 'membership';
+export type AccountSection = 'profile' | 'settings' | 'logs' | 'membership' | 'ai-usage' | 'mcp-tokens';
 
 export interface AccountMenuItem {
   key: AccountSection;
@@ -11,6 +11,8 @@ export const ACCOUNT_MENU_ITEMS: AccountMenuItem[] = [
   { key: 'settings', label: '账号设置', description: '密码与安全相关设置' },
   { key: 'logs', label: '登录日志', description: '最近登录设备与 IP 记录' },
   { key: 'membership', label: '会员信息', description: '当前版本、配额与权益' },
+  { key: 'ai-usage', label: 'AI 用量', description: 'Token 消耗与调用监控' },
+  { key: 'mcp-tokens', label: 'MCP Token', description: '外部 AI 客户端接入授权' },
 ];
 
 export const DEFAULT_ACCOUNT_SECTION: AccountSection = 'profile';
@@ -23,5 +25,5 @@ export function parseAccountSection(raw: string | null): AccountSection {
 }
 
 export function accountSectionPath(section: AccountSection): string {
-  return `/workspace/account?section=${section}`;
+  return `/account?section=${section}`;
 }

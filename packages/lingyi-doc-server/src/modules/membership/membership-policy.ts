@@ -7,27 +7,39 @@ import type {
   QuotaWarning,
 } from '../../types/membership';
 
-export const GB = 1024 * 1024 * 1024;
+export const MB = 1024 * 1024;
+export const GB = 1024 * MB;
 
 export interface PlanQuotaLimits {
   maxStorageBytes: number | null;
   maxDocuments: number | null;
   maxMembers: number | null;
   maxDailyExports: number | null;
+  /** 知识库数量上限；null = 不限 */
+  maxKnowledgeBases: number | null;
+  /** 单个上传文件大小上限；null = 使用默认大文件上限 */
+  maxFileBytes: number | null;
 }
 
+/** 试用 / 会员默认单文件上限（无显式不限时兜底） */
+export const DEFAULT_VIP_MAX_FILE_BYTES = 50 * MB;
+
 const PERSONAL_FREE: PlanQuotaLimits = {
-  maxStorageBytes: 10 * GB,
-  maxDocuments: 500,
-  maxMembers: null,
+  maxStorageBytes: 2 * GB,
+  maxDocuments: 100,
+  maxMembers: 5,
   maxDailyExports: 20,
+  maxKnowledgeBases: 10,
+  maxFileBytes: 10 * MB,
 };
 
 const TEAM_FREE: PlanQuotaLimits = {
-  maxStorageBytes: 50 * GB,
-  maxDocuments: 2000,
-  maxMembers: 10,
+  maxStorageBytes: 10 * GB,
+  maxDocuments: 1000,
+  maxMembers: 20,
   maxDailyExports: 100,
+  maxKnowledgeBases: 100,
+  maxFileBytes: 10 * MB,
 };
 
 const UNLIMITED: PlanQuotaLimits = {
@@ -35,6 +47,8 @@ const UNLIMITED: PlanQuotaLimits = {
   maxDocuments: null,
   maxMembers: null,
   maxDailyExports: null,
+  maxKnowledgeBases: null,
+  maxFileBytes: null,
 };
 
 export function quotaLimitsFor(
@@ -43,6 +57,11 @@ export function quotaLimitsFor(
 ): PlanQuotaLimits {
   if (plan === 'vip' || plan === 'trial') return UNLIMITED;
   return spaceKind === 'personal' ? PERSONAL_FREE : TEAM_FREE;
+}
+
+/** 解析实际上传单文件上限（字节） */
+export function resolveMaxFileBytes(limits: PlanQuotaLimits): number {
+  return limits.maxFileBytes ?? DEFAULT_VIP_MAX_FILE_BYTES;
 }
 
 const FEATURE_MATRIX: Record<MembershipFeatureKey, Record<EffectivePlan, boolean>> = {
@@ -135,6 +154,7 @@ export function buildQuotaWarnings(quotas: {
   storageBytes: QuotaUsage;
   dailyExports: QuotaUsage;
   members: QuotaUsage | null;
+  knowledgeBases?: QuotaUsage | null;
 }): QuotaWarning[] {
   const warnings: QuotaWarning[] = [];
   const push = (
@@ -153,14 +173,15 @@ export function buildQuotaWarnings(quotas: {
   push('documents', quotas.documents, '文档数量');
   push('storageBytes', quotas.storageBytes, '存储空间');
   push('dailyExports', quotas.dailyExports, '今日导出次数');
-  if (quotas.members) push('members', quotas.members, '团队成员');
+  if (quotas.members) push('members', quotas.members, '协作人数');
+  if (quotas.knowledgeBases) push('knowledgeBases', quotas.knowledgeBases, '知识库数量');
   return warnings;
 }
 
 function formatBytesOrCount(value: number, metric: string): string {
   if (metric === 'storageBytes') {
     if (value >= GB) return `${(value / GB).toFixed(1)} GB`;
-    if (value >= 1024 * 1024) return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+    if (value >= MB) return `${(value / MB).toFixed(1)} MB`;
     return `${Math.round(value / 1024)} KB`;
   }
   return String(value);

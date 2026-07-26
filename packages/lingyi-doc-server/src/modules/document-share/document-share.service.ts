@@ -29,10 +29,21 @@ import { DocPathService } from '../../services/doc-path.service';
 import { StorageService } from '../../services/storage.service';
 import { generateInviteToken } from '../../utils/docSlug';
 import { buildDocOwnerPath } from '../../utils/docPublicPath';
+import { buildDocumentRecordJson, wrapApiDataJson, type DocumentLoadHttpResult } from '../../utils/documentRecordJson';
 import { computeDocumentStats, formatStorageSize } from '../../utils/documentContentStats';
 import { formatAuditOperation } from '../../utils/documentInfoFormat';
 import type { DocumentInfoDto } from '../../types/document-info';
 import { appendBaseFormRecord } from '../../utils/appendBaseFormRecord';
+import {
+  assertFormViewShareEnabled,
+  countPublicFormSubmissions,
+  extractPublicFormSchema,
+  getPublicFormSubmissionValues,
+  listPublicFormSubmissions,
+  listSubmissionCreatedBy,
+  type PublicFormSchemaDto,
+  type PublicFormSubmissionSummaryDto,
+} from '../../utils/publicFormSchema';
 import { OssService } from '../../services/oss.service';
 
 function generateShareToken(): string {
@@ -49,14 +60,35 @@ function toIso(value: Date | null | undefined): string | null {
   return value.toISOString();
 }
 
+/** 分享给他人时允许的权限（不含 manage，管理权仅拥有者） */
+const SHAREE_PERMISSION_LEVELS: DocSharePermissionLevel[] = ['read', 'comment', 'edit'];
+
+const PERMISSION_RANK: Record<DocSharePermissionLevel, number> = {
+  none: 0,
+  read: 1,
+  comment: 2,
+  edit: 3,
+  manage: 4,
+};
+
 function assertPermissionLevel(level: string): DocSharePermissionLevel {
   if (!DOC_SHARE_PERMISSION_LEVELS.includes(level as DocSharePermissionLevel)) {
     throw new BusinessException(100002, '无效的权限级别');
   }
-  if (level === 'none') {
+  if (level === 'none' || level === 'manage') {
+    throw new BusinessException(100002, '被分享者不支持该权限级别');
+  }
+  if (!SHAREE_PERMISSION_LEVELS.includes(level as DocSharePermissionLevel)) {
     throw new BusinessException(100002, '无效的权限级别');
   }
   return level as DocSharePermissionLevel;
+}
+
+/** 链接/历史 manage 降为可编辑，保证写入协作者表合法 */
+function toShareePermissionLevel(level: string): DocSharePermissionLevel {
+  if (level === 'manage' || level === 'edit') return 'edit';
+  if (level === 'comment') return 'comment';
+  return 'read';
 }
 
 function shareLevelToAccess(level: DocSharePermissionLevel): {
@@ -332,10 +364,16 @@ export class DocumentShareService {
     const doc = await this.requireManageableDoc(auth, docId);
     const permissionLevel = assertPermissionLevel(input.permissionLevel);
     if (!input.userId) throw new BusinessException(100002, '用户 ID 不能为空');
+    if (input.userId === auth.userId) {
+      throw new BusinessException(100002, '不能添加自己为协作者');
+    }
 
     if (doc.scope === 2 && doc.tenantId) {
       const isMember = await this.tenantMemberRepository.isActiveMember(input.userId, doc.tenantId);
       if (!isMember) throw new BusinessException(100002, '只能添加租户内成员');
+    } else {
+      const user = await this.userRepository.findById(input.userId);
+      if (!user) throw new BusinessException(100004, '用户不存在', HttpStatus.NOT_FOUND);
     }
 
     const saved = await this.shareRepository.addCollaborator({
@@ -366,6 +404,54 @@ export class DocumentShareService {
     };
   }
 
+  async searchUsersForCollaborator(
+    auth: AuthUser,
+    docId: string,
+    keyword: string,
+  ): Promise<{ items: Array<{ userId: string; displayName: string; email: string; phone: string | null }> }> {
+    const doc = await this.requireManageableDoc(auth, docId);
+    const q = keyword.trim();
+    if (q.length < 2) return { items: [] };
+
+    const existing = new Set(
+      (await this.shareRepository.listCollaborators(docId)).map(row => row.subjectId),
+    );
+    existing.add(auth.userId);
+    if (doc.ownerId) existing.add(doc.ownerId);
+
+    if (doc.scope === 2 && doc.tenantId) {
+      const members = await this.tenantMemberRepository.listByTenant(doc.tenantId);
+      const needle = q.toLowerCase();
+      const items = members
+        .filter(m => (m.status ?? 1) === 1 && !existing.has(m.userId))
+        .filter(m =>
+          (m.displayName || '').toLowerCase().includes(needle)
+          || (m.email || '').toLowerCase().includes(needle)
+          || (m.phone || '').toLowerCase().includes(needle),
+        )
+        .slice(0, 20)
+        .map(m => ({
+          userId: m.userId,
+          displayName: m.displayName || m.email,
+          email: m.email,
+          phone: m.phone ?? null,
+        }));
+      return { items };
+    }
+
+    const users = await this.userRepository.searchPublic(q, 20);
+    return {
+      items: users
+        .filter(u => !existing.has(u.id))
+        .map(u => ({
+          userId: u.id,
+          displayName: u.display_name,
+          email: u.email,
+          phone: u.phone ?? null,
+        })),
+    };
+  }
+
   async removeCollaborator(
     auth: AuthUser,
     docId: string,
@@ -391,34 +477,55 @@ export class DocumentShareService {
     auth: AuthUser,
     sortBy: 'lastVisited' | 'created' | 'updated' = 'lastVisited',
   ): Promise<{ items: SharedDocumentListItemDto[]; total: number }> {
+    // 历史数据回填（clearInheritedLinkExpire / backfillCollaborators）已移出热路径，
+    // 避免每次打开「与我共享」都扫 visit_log + N+1 写协作者。
     const rows = await this.shareRepository.listSharedWithUser(auth.userId, sortBy);
+    const toMs = (value: Date | string | number | null | undefined, fallback: number): number => {
+      if (value instanceof Date) return value.getTime();
+      if (typeof value === 'number') return value;
+      if (typeof value === 'string') {
+        const ms = new Date(value).getTime();
+        return Number.isFinite(ms) ? ms : fallback;
+      }
+      return fallback;
+    };
     const items = rows.map(row => {
-      const updatedAt = row.updatedAt instanceof Date ? row.updatedAt.getTime() : Date.now();
-      const createdAt = row.createdAt instanceof Date ? row.createdAt.getTime() : updatedAt;
-      const lastVisitedAt = row.lastVisitedAt instanceof Date
-        ? row.lastVisitedAt.getTime()
-        : updatedAt;
+      const updatedAt = toMs(row.updatedAt, Date.now());
+      const createdAt = toMs(row.createdAt, updatedAt);
+      const lastVisitedAt = toMs(row.lastVisitedAt, updatedAt);
       const scope = (row.scope ?? 1) as DocumentScope;
       return {
         id: row.id,
-        title: row.title,
-        docType: row.docType,
+        title: row.title || '未命名文档',
+        docType: row.docType || 'richtext',
         ownerId: row.ownerId,
         ownerName: row.ownerName ?? '—',
         location: documentLocation(scope, row.tenantName),
         createdAt,
         updatedAt,
         lastVisitedAt,
-        sharePermission: row.sharePermission as DocSharePermissionLevel,
+        docSlug: row.docSlug ?? null,
+        spaceSlug: row.spaceSlug ?? null,
+        bookSlug: row.bookSlug ?? null,
+        sharePermission: toShareePermissionLevel(row.sharePermission || 'read'),
         sharedByName: row.sharedByName ?? undefined,
       };
-    });
+    }).filter(item => !!item.id);
     return { items, total: items.length };
   }
 
   private async loadShareForPublic(token: string): Promise<DocShareEntity> {
     const share = await this.shareRepository.findByToken(token);
     if (!share || share.shareType !== 'link') {
+      throw new BusinessException(100004, '分享链接不存在', HttpStatus.NOT_FOUND);
+    }
+    return share;
+  }
+
+  /** 表单填写/提交：链接分享与成员分享 token 均可 */
+  private async loadShareForFormAccess(token: string): Promise<DocShareEntity> {
+    const share = await this.shareRepository.findByToken(token);
+    if (!share || (share.shareType !== 'link' && share.shareType !== 'member')) {
       throw new BusinessException(100004, '分享链接不存在', HttpStatus.NOT_FOUND);
     }
     return share;
@@ -481,6 +588,7 @@ export class DocumentShareService {
     password: string | undefined,
     visitorIp?: string | null,
     deviceInfo?: string | null,
+    userId?: string | null,
   ): Promise<PublicShareDocumentDto> {
     const share = await this.loadShareForPublic(token);
 
@@ -488,6 +596,7 @@ export class DocumentShareService {
       await this.shareRepository.appendVisitLog({
         docId: share.docId,
         shareToken: token,
+        visitorId: userId ?? null,
         visitorIp,
         deviceInfo,
         visitStatus: 'closed',
@@ -499,6 +608,7 @@ export class DocumentShareService {
       await this.shareRepository.appendVisitLog({
         docId: share.docId,
         shareToken: token,
+        visitorId: userId ?? null,
         visitorIp,
         deviceInfo,
         visitStatus: 'expired',
@@ -512,6 +622,7 @@ export class DocumentShareService {
         await this.shareRepository.appendVisitLog({
           docId: share.docId,
           shareToken: token,
+          visitorId: userId ?? null,
           visitorIp,
           deviceInfo,
           visitStatus: 'password_error',
@@ -525,6 +636,7 @@ export class DocumentShareService {
       await this.shareRepository.appendVisitLog({
         docId: share.docId,
         shareToken: token,
+        visitorId: userId ?? null,
         visitorIp,
         deviceInfo,
         visitStatus: 'denied',
@@ -535,10 +647,21 @@ export class DocumentShareService {
     await this.shareRepository.appendVisitLog({
       docId: share.docId,
       shareToken: token,
+      visitorId: userId ?? null,
       visitorIp,
       deviceInfo,
       visitStatus: 'success',
     });
+
+    if (userId && userId !== doc.ownerId) {
+      await this.grantCollaboratorFromInviteLink({
+        docId: share.docId,
+        userId,
+        permissionLevel: share.permissionLevel as DocSharePermissionLevel,
+        grantedBy: share.createdBy || doc.ownerId || userId,
+        expireTime: null,
+      });
+    }
 
     return {
       title: doc.title,
@@ -596,7 +719,7 @@ export class DocumentShareService {
       visitorIp?: string | null;
       deviceInfo?: string | null;
     },
-  ): Promise<DocumentRecord | DocPathAccessPendingDto> {
+  ): Promise<DocumentLoadHttpResult> {
     const pathCtx = await this.docPathService.resolveDocIdByPath(spaceSlug, bookSlug, docSlug);
     if (!pathCtx) {
       throw new BusinessException(100004, '文档不存在', HttpStatus.NOT_FOUND);
@@ -604,10 +727,10 @@ export class DocumentShareService {
 
     if (options.auth) {
       const accessCtx = documentAccessFromAuth(options.auth);
-      const doc = await this.storageService.loadDocumentForUser(pathCtx.docId, accessCtx);
-      if (doc) {
+      const body = await this.storageService.loadDocumentWrappedJson(pathCtx.docId, accessCtx);
+      if (body) {
         await this.storageService.touchLastVisited(pathCtx.docId, accessCtx);
-        return doc;
+        return { type: 'raw', body };
       }
     }
 
@@ -616,6 +739,7 @@ export class DocumentShareService {
         password: options.password,
         visitorIp: options.visitorIp,
         deviceInfo: options.deviceInfo,
+        userId: options.auth?.userId ?? null,
       });
     }
 
@@ -632,9 +756,11 @@ export class DocumentShareService {
       password?: string | null;
       visitorIp?: string | null;
       deviceInfo?: string | null;
+      userId?: string | null;
     },
-  ): Promise<DocumentRecord | DocPathAccessPendingDto> {
-    const share = await this.loadShareForPublic(token);
+  ): Promise<DocumentLoadHttpResult> {
+    // 表单分享可能使用 link / member 两类 token
+    const share = await this.loadShareForFormAccess(token);
     if (share.docId !== docId) {
       throw new BusinessException(100403, '分享链接无效', HttpStatus.FORBIDDEN);
     }
@@ -643,6 +769,7 @@ export class DocumentShareService {
       await this.shareRepository.appendVisitLog({
         docId,
         shareToken: token,
+        visitorId: options.userId ?? null,
         visitorIp: options.visitorIp ?? null,
         deviceInfo: options.deviceInfo ?? null,
         visitStatus: 'closed',
@@ -654,6 +781,7 @@ export class DocumentShareService {
       await this.shareRepository.appendVisitLog({
         docId,
         shareToken: token,
+        visitorId: options.userId ?? null,
         visitorIp: options.visitorIp ?? null,
         deviceInfo: options.deviceInfo ?? null,
         visitStatus: 'expired',
@@ -661,8 +789,8 @@ export class DocumentShareService {
       throw new BusinessException(100403, '分享链接已过期', HttpStatus.GONE);
     }
 
-    const doc = await this.documentRepository.findById(docId);
-    if (!doc) {
+    const row = await this.documentRepository.findByIdWithRawContent(docId);
+    if (!row) {
       throw new BusinessException(100004, '文档不存在', HttpStatus.NOT_FOUND);
     }
 
@@ -670,10 +798,13 @@ export class DocumentShareService {
 
     if (share.passwordHash && !options.password) {
       return {
-        requirePassword: true,
-        title: doc.title,
-        docType: doc.docType,
-        permissionLevel: level,
+        type: 'data',
+        data: {
+          requirePassword: true,
+          title: row.meta.title,
+          docType: row.meta.docType,
+          permissionLevel: level,
+        },
       };
     }
 
@@ -685,6 +816,7 @@ export class DocumentShareService {
         await this.shareRepository.appendVisitLog({
           docId,
           shareToken: token,
+          visitorId: options.userId ?? null,
           visitorIp: options.visitorIp ?? null,
           deviceInfo: options.deviceInfo ?? null,
           visitStatus: 'password_error',
@@ -696,16 +828,63 @@ export class DocumentShareService {
     await this.shareRepository.appendVisitLog({
       docId,
       shareToken: token,
+      visitorId: options.userId ?? null,
       visitorIp: options.visitorIp ?? null,
       deviceInfo: options.deviceInfo ?? null,
       visitStatus: 'success',
     });
 
+    if (options.userId) {
+      await this.documentRepository.upsertUserVisit(docId, options.userId);
+    }
+
+    // 已登录用户通过邀请链接打开后，写入协作者，便于「与我共享」列表与后续无 token 访问。
+    // 链接过期只约束「能否新开链接」；一旦成为协作者，其权限由协作者记录独立管理（不继承链接过期时间）。
+    if (options.userId && options.userId !== row.meta.ownerId) {
+      await this.grantCollaboratorFromInviteLink({
+        docId,
+        userId: options.userId,
+        permissionLevel: level,
+        grantedBy: share.createdBy || row.meta.ownerId || options.userId,
+        expireTime: null,
+      });
+    }
+
     const access = shareLevelToAccess(level);
-    return {
-      ...doc,
-      ...access,
-    };
+    const body = wrapApiDataJson(
+      buildDocumentRecordJson({ ...row.meta, ...access }, row.contentJsonRaw),
+    );
+    return { type: 'raw', body };
+  }
+
+  /** 通过邀请链接获得访问权时写入/升级协作者（不降级已有更高权限） */
+  private async grantCollaboratorFromInviteLink(input: {
+    docId: string;
+    userId: string;
+    permissionLevel: DocSharePermissionLevel;
+    grantedBy: string;
+    expireTime?: Date | null;
+  }): Promise<void> {
+    const nextLevel = toShareePermissionLevel(input.permissionLevel);
+    const existing = await this.shareRepository.findCollaborator(input.docId, input.userId);
+    if (existing && existing.permissionLevel !== 'none') {
+      const current = existing.permissionLevel as DocSharePermissionLevel;
+      const expired = !!(existing.expireTime && existing.expireTime.getTime() <= Date.now());
+      const hasLinkExpireCopied = existing.expireTime != null;
+      const needUpgrade = (PERMISSION_RANK[current] ?? 0) < (PERMISSION_RANK[nextLevel] ?? 0);
+      // 已有更高/同等权限且未过期、且无残留链接过期时间时跳过
+      if (!expired && !needUpgrade && !hasLinkExpireCopied) {
+        return;
+      }
+    }
+    await this.shareRepository.addCollaborator({
+      docId: input.docId,
+      userId: input.userId,
+      permissionLevel: nextLevel,
+      grantedBy: input.grantedBy,
+      // 邀请链接过期时间不写入协作者；否则会出现「能打开编辑却无法保存」
+      expireTime: null,
+    });
   }
 
   async getCollaboratorJoinInfo(
@@ -849,10 +1028,17 @@ export class DocumentShareService {
       throw new BusinessException(100005, '审核失败', HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
+    const rawLevel = target.permissionLevel as DocSharePermissionLevel;
+    const joinLevel: DocSharePermissionLevel = SHAREE_PERMISSION_LEVELS.includes(rawLevel)
+      ? rawLevel
+      : rawLevel === 'manage'
+        ? 'edit'
+        : 'read';
+
     await this.shareRepository.addCollaborator({
       docId,
       userId: target.applicantId,
-      permissionLevel: target.permissionLevel as DocSharePermissionLevel,
+      permissionLevel: joinLevel,
       grantedBy: auth.userId,
     });
 
@@ -861,7 +1047,7 @@ export class DocumentShareService {
       operatorId: auth.userId,
       operatorIp,
       action: 'approve_join',
-      afterJson: { requestId, applicantId: target.applicantId },
+      afterJson: { requestId, applicantId: target.applicantId, permissionLevel: joinLevel },
     });
 
     const pathCtx = await this.buildPathContext(docId);
@@ -989,7 +1175,319 @@ export class DocumentShareService {
     };
   }
 
-  /** 公开表单填写提交（仅追加记录，不暴露完整编辑能力） */
+  /**
+   * 表单分享统一鉴权：强制校验 token，不因登录有文档权限而跳过。
+   * 需要密码且未提供时返回 requirePassword pending。
+   */
+  private async assertFormShareAccess(params: {
+    spaceSlug: string;
+    bookSlug: string;
+    docSlug: string;
+    token: string;
+    password?: string | null;
+    sheetId: string;
+    viewId: string;
+    visitorIp?: string | null;
+    deviceInfo?: string | null;
+    userId?: string | null;
+  }): Promise<
+    | { pending: DocPathAccessPendingDto }
+    | { docId: string; docData: unknown; shareToken: string; docTitle: string; docType: string }
+  > {
+    const token = params.token?.trim() ?? '';
+    if (!token) {
+      throw new BusinessException(100002, '缺少分享 token', HttpStatus.BAD_REQUEST);
+    }
+    if (!params.sheetId || !params.viewId) {
+      throw new BusinessException(100002, '缺少表单参数', HttpStatus.BAD_REQUEST);
+    }
+
+    const pathCtx = await this.docPathService.resolveDocIdByPath(
+      params.spaceSlug,
+      params.bookSlug,
+      params.docSlug,
+    );
+    if (!pathCtx) {
+      throw new BusinessException(100004, '文档不存在', HttpStatus.NOT_FOUND);
+    }
+
+    const share = await this.loadShareForFormAccess(token);
+    if (share.docId !== pathCtx.docId) {
+      throw new BusinessException(100403, '分享链接无效', HttpStatus.FORBIDDEN);
+    }
+
+    if (share.status !== 1) {
+      await this.shareRepository.appendVisitLog({
+        docId: pathCtx.docId,
+        shareToken: token,
+        visitorId: params.userId ?? null,
+        visitorIp: params.visitorIp ?? null,
+        deviceInfo: params.deviceInfo ?? null,
+        visitStatus: 'closed',
+      });
+      throw new BusinessException(100403, '分享已关闭', HttpStatus.GONE);
+    }
+
+    if (isShareExpired(share)) {
+      await this.shareRepository.appendVisitLog({
+        docId: pathCtx.docId,
+        shareToken: token,
+        visitorId: params.userId ?? null,
+        visitorIp: params.visitorIp ?? null,
+        deviceInfo: params.deviceInfo ?? null,
+        visitStatus: 'expired',
+      });
+      throw new BusinessException(100403, '分享链接已过期', HttpStatus.GONE);
+    }
+
+    const doc = await this.documentRepository.findById(pathCtx.docId);
+    if (!doc) {
+      throw new BusinessException(100004, '文档不存在', HttpStatus.NOT_FOUND);
+    }
+
+    const level = share.permissionLevel as DocSharePermissionLevel;
+    if (share.passwordHash && !params.password) {
+      return {
+        pending: {
+          requirePassword: true,
+          title: doc.title,
+          docType: doc.docType,
+          permissionLevel: level,
+        },
+      };
+    }
+
+    if (share.passwordHash) {
+      const valid = params.password
+        ? await bcrypt.compare(params.password, share.passwordHash)
+        : false;
+      if (!valid) {
+        await this.shareRepository.appendVisitLog({
+          docId: pathCtx.docId,
+          shareToken: token,
+          visitorId: params.userId ?? null,
+          visitorIp: params.visitorIp ?? null,
+          deviceInfo: params.deviceInfo ?? null,
+          visitStatus: 'password_error',
+        });
+        throw new BusinessException(100401, '访问密码错误', HttpStatus.UNAUTHORIZED);
+      }
+    }
+
+    assertFormViewShareEnabled(doc.data, params.sheetId, params.viewId);
+
+    return {
+      docId: pathCtx.docId,
+      docData: doc.data,
+      shareToken: token,
+      docTitle: doc.title,
+      docType: doc.docType,
+    };
+  }
+
+  private async requireFormManageAccess(
+    docId: string,
+    auth?: AuthUser | null,
+  ): Promise<void> {
+    if (!auth) {
+      throw new BusinessException(100403, '无权查看表单管理数据', HttpStatus.FORBIDDEN);
+    }
+    const canWrite = await this.documentRepository.hasWriteAccess(
+      docId,
+      documentAccessFromAuth(auth),
+    );
+    if (!canWrite) {
+      throw new BusinessException(100403, '无权查看表单管理数据', HttpStatus.FORBIDDEN);
+    }
+  }
+
+  /** 公开表单 schema（不含多维表记录） */
+  async getPublicForm(
+    spaceSlug: string,
+    bookSlug: string,
+    docSlug: string,
+    query: {
+      token: string;
+      password?: string;
+      sheetId: string;
+      viewId: string;
+    },
+    visitorIp?: string | null,
+    deviceInfo?: string | null,
+    auth?: AuthUser | null,
+  ): Promise<
+    | DocPathAccessPendingDto
+    | (PublicFormSchemaDto & { docId: string; canManage: boolean })
+  > {
+    const access = await this.assertFormShareAccess({
+      spaceSlug,
+      bookSlug,
+      docSlug,
+      token: query.token,
+      password: query.password,
+      sheetId: query.sheetId,
+      viewId: query.viewId,
+      visitorIp,
+      deviceInfo,
+      userId: auth?.userId ?? null,
+    });
+    if ('pending' in access) return access.pending;
+
+    const schema = extractPublicFormSchema(access.docData, query.sheetId, query.viewId);
+    let canManage = false;
+    if (auth) {
+      canManage = await this.documentRepository.hasWriteAccess(
+        access.docId,
+        documentAccessFromAuth(auth),
+      );
+    }
+
+    await this.shareRepository.appendVisitLog({
+      docId: access.docId,
+      shareToken: access.shareToken,
+      visitorId: auth?.userId ?? null,
+      visitorIp: visitorIp ?? null,
+      deviceInfo: deviceInfo ?? null,
+      visitStatus: 'success',
+      operateContent: 'form_open',
+    });
+
+    return { docId: access.docId, canManage, ...schema };
+  }
+
+  /** 表单统计（需有效 token + 写权限） */
+  async getPublicFormStats(
+    spaceSlug: string,
+    bookSlug: string,
+    docSlug: string,
+    query: {
+      token: string;
+      password?: string;
+      sheetId: string;
+      viewId: string;
+    },
+    auth?: AuthUser | null,
+  ): Promise<{
+    submittedCount: number;
+    requiredCount: number;
+    submittedPeopleCount: number;
+    pendingRequiredCount: number;
+  }> {
+    const access = await this.assertFormShareAccess({
+      spaceSlug,
+      bookSlug,
+      docSlug,
+      token: query.token,
+      password: query.password,
+      sheetId: query.sheetId,
+      viewId: query.viewId,
+      userId: auth?.userId ?? null,
+    });
+    if ('pending' in access) {
+      throw new BusinessException(100401, '需要访问密码', HttpStatus.UNAUTHORIZED);
+    }
+    await this.requireFormManageAccess(access.docId, auth);
+
+    const schema = extractPublicFormSchema(access.docData, query.sheetId, query.viewId);
+    const submittedCount = countPublicFormSubmissions(access.docData, query.sheetId, query.viewId);
+    const creators = listSubmissionCreatedBy(access.docData, query.sheetId, query.viewId);
+
+    let requiredCount = 0;
+    let submittedPeopleCount = 0;
+    if (schema.formShareLinkScope === 'collaborators') {
+      const collabs = await this.shareRepository.listCollaborators(access.docId);
+      requiredCount = collabs.length;
+      const submitterSet = new Set(
+        creators.map(c => c.trim().toLowerCase()).filter(Boolean),
+      );
+      for (const c of collabs) {
+        const name = (c.displayName || '').trim().toLowerCase();
+        const id = (c.subjectId || '').trim().toLowerCase();
+        if ((name && submitterSet.has(name)) || (id && submitterSet.has(id))) {
+          submittedPeopleCount += 1;
+        }
+      }
+    }
+
+    return {
+      submittedCount,
+      requiredCount,
+      submittedPeopleCount,
+      pendingRequiredCount: Math.max(0, requiredCount - submittedPeopleCount),
+    };
+  }
+
+  /** 提交记录列表（需有效 token + 写权限） */
+  async listPublicFormSubmissions(
+    spaceSlug: string,
+    bookSlug: string,
+    docSlug: string,
+    query: {
+      token: string;
+      password?: string;
+      sheetId: string;
+      viewId: string;
+    },
+    auth?: AuthUser | null,
+  ): Promise<{ items: PublicFormSubmissionSummaryDto[]; total: number }> {
+    const access = await this.assertFormShareAccess({
+      spaceSlug,
+      bookSlug,
+      docSlug,
+      token: query.token,
+      password: query.password,
+      sheetId: query.sheetId,
+      viewId: query.viewId,
+      userId: auth?.userId ?? null,
+    });
+    if ('pending' in access) {
+      throw new BusinessException(100401, '需要访问密码', HttpStatus.UNAUTHORIZED);
+    }
+    await this.requireFormManageAccess(access.docId, auth);
+
+    const items = listPublicFormSubmissions(access.docData, query.sheetId, query.viewId);
+    return { items, total: items.length };
+  }
+
+  /** 单条提交详情（需有效 token + 写权限） */
+  async getPublicFormSubmissionDetail(
+    spaceSlug: string,
+    bookSlug: string,
+    docSlug: string,
+    recordId: string,
+    query: {
+      token: string;
+      password?: string;
+      sheetId: string;
+      viewId: string;
+    },
+    auth?: AuthUser | null,
+  ): Promise<{ recordId: string; fieldValues: Record<string, unknown> }> {
+    const access = await this.assertFormShareAccess({
+      spaceSlug,
+      bookSlug,
+      docSlug,
+      token: query.token,
+      password: query.password,
+      sheetId: query.sheetId,
+      viewId: query.viewId,
+      userId: auth?.userId ?? null,
+    });
+    if ('pending' in access) {
+      throw new BusinessException(100401, '需要访问密码', HttpStatus.UNAUTHORIZED);
+    }
+    await this.requireFormManageAccess(access.docId, auth);
+
+    const fieldValues = getPublicFormSubmissionValues(
+      access.docData,
+      query.sheetId,
+      query.viewId,
+      recordId,
+    );
+    return { recordId, fieldValues };
+  }
+
+  /** 公开表单填写提交（仅追加记录；必须有效分享 token） */
   async submitPublicForm(
     spaceSlug: string,
     bookSlug: string,
@@ -1003,82 +1501,53 @@ export class DocumentShareService {
     },
     visitorIp?: string | null,
     deviceInfo?: string | null,
+    auth?: AuthUser | null,
   ): Promise<{ success: true; version: number }> {
-    if (!body.token?.trim()) {
-      throw new BusinessException(100002, '缺少分享 token', HttpStatus.BAD_REQUEST);
-    }
-    if (!body.sheetId || !body.viewId) {
-      throw new BusinessException(100002, '缺少表单参数', HttpStatus.BAD_REQUEST);
-    }
-
-    const pathCtx = await this.docPathService.resolveDocIdByPath(spaceSlug, bookSlug, docSlug);
-    if (!pathCtx) {
-      throw new BusinessException(100004, '文档不存在', HttpStatus.NOT_FOUND);
-    }
-
-    const share = await this.loadShareForPublic(body.token);
-    if (share.docId !== pathCtx.docId) {
-      throw new BusinessException(100403, '分享链接无效', HttpStatus.FORBIDDEN);
-    }
-
-    if (share.status !== 1) {
-      await this.shareRepository.appendVisitLog({
-        docId: pathCtx.docId,
-        shareToken: body.token,
-        visitorIp: visitorIp ?? null,
-        deviceInfo: deviceInfo ?? null,
-        visitStatus: 'closed',
-      });
-      throw new BusinessException(100403, '分享已关闭', HttpStatus.GONE);
+    const access = await this.assertFormShareAccess({
+      spaceSlug,
+      bookSlug,
+      docSlug,
+      token: body.token,
+      password: body.password,
+      sheetId: body.sheetId,
+      viewId: body.viewId,
+      visitorIp,
+      deviceInfo,
+      userId: auth?.userId ?? null,
+    });
+    if ('pending' in access) {
+      throw new BusinessException(100401, '需要访问密码', HttpStatus.UNAUTHORIZED);
     }
 
-    if (isShareExpired(share)) {
-      await this.shareRepository.appendVisitLog({
-        docId: pathCtx.docId,
-        shareToken: body.token,
-        visitorIp: visitorIp ?? null,
-        deviceInfo: deviceInfo ?? null,
-        visitStatus: 'expired',
-      });
-      throw new BusinessException(100403, '分享链接已过期', HttpStatus.GONE);
+    let submitterName = '填写者';
+    if (auth?.userId) {
+      const user = await this.userRepository.findById(auth.userId);
+      submitterName =
+        user?.display_name?.trim()
+        || auth.email?.split('@')[0]
+        || '填写者';
     }
 
-    if (share.passwordHash) {
-      const valid = body.password ? await bcrypt.compare(body.password, share.passwordHash) : false;
-      if (!valid) {
-        await this.shareRepository.appendVisitLog({
-          docId: pathCtx.docId,
-          shareToken: body.token,
-          visitorIp: visitorIp ?? null,
-          deviceInfo: deviceInfo ?? null,
-          visitStatus: 'password_error',
-        });
-        throw new BusinessException(100401, '访问密码错误', HttpStatus.UNAUTHORIZED);
-      }
-    }
-
-    const doc = await this.documentRepository.findById(pathCtx.docId);
-    if (!doc) {
-      throw new BusinessException(100004, '文档不存在', HttpStatus.NOT_FOUND);
-    }
-
-    const nextData = appendBaseFormRecord(doc.data, {
+    const nextData = appendBaseFormRecord(access.docData, {
       sheetId: body.sheetId,
       viewId: body.viewId,
       fieldValues: body.fieldValues as Record<string, Record<string, unknown> & { type: string }>,
+      submitterName,
     });
 
-    const saved = await this.documentRepository.saveContentInternal(pathCtx.docId, nextData);
+    const saved = await this.documentRepository.saveContentInternal(access.docId, nextData);
     if (!saved) {
       throw new BusinessException(100005, '保存失败', HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
     await this.shareRepository.appendVisitLog({
-      docId: pathCtx.docId,
-      shareToken: body.token,
+      docId: access.docId,
+      shareToken: access.shareToken,
+      visitorId: auth?.userId ?? null,
       visitorIp: visitorIp ?? null,
       deviceInfo: deviceInfo ?? null,
       visitStatus: 'success',
+      operateContent: 'form_submit',
     });
 
     return { success: true, version: saved.version };

@@ -1,4 +1,4 @@
-import type { MindMapLayoutNode, MindNoteStructure } from '@lingyi-doc/core';
+import type { MindMapLayoutNode, MindNoteStructure } from '@lingyi-doc/core-mindmap';
 
 export const QUICK_DOT_SIZE = 8;
 export const QUICK_PLUS_SIZE = 20;
@@ -22,9 +22,9 @@ export function isTimelineStructure(structure: MindNoteStructure): boolean {
   return structure === 'timelineH' || structure === 'timelineV';
 }
 
-/** 主节点是否展示双侧（或上下双侧）添加子节点按钮 */
+/** 主节点是否展示双侧添加子节点：仅组织图(上下)与平衡图(左右)支持 */
 export function rootHasDualAddChild(structure: MindNoteStructure): boolean {
-  return structure === 'vertical' || structure === 'right' || structure === 'left' || structure === 'balanced';
+  return structure === 'vertical' || structure === 'balanced';
 }
 
 export function rootPrimaryGrowDirection(structure: MindNoteStructure): MindmapGrowDirection {
@@ -33,6 +33,7 @@ export function rootPrimaryGrowDirection(structure: MindNoteStructure): MindmapG
   return 'right';
 }
 
+/** 双侧布局下的可添加方向（仅 vertical / balanced 使用） */
 export function rootDualGrowDirections(structure: MindNoteStructure): MindmapGrowDirection[] {
   if (structure === 'vertical') return ['up', 'down'];
   return ['left', 'right'];
@@ -95,6 +96,10 @@ export function resolveMindmapGrowDirection(
   if (structure === 'vertical') {
     if (ln.isRoot) return 'down';
     return ln.vertDir ?? 'down';
+  }
+  // 单向向左/向右：根节点只在主侧显示添加子节点
+  if (ln.isRoot && (structure === 'left' || structure === 'right')) {
+    return rootPrimaryGrowDirection(structure);
   }
   return ln.side ?? 'right';
 }
@@ -179,7 +184,7 @@ export interface MindmapQuickActionLayout {
   addChild: MindmapQuickActionPoint;
   /** 子节点扩展方向，用于绘制节点到 + 号的连接线 */
   addChildDir: MindmapGrowDirection;
-  /** 主节点双侧添加子节点（上下/左右布局） */
+  /** 主节点双侧添加子节点（仅组织图上下 / 平衡图左右） */
   addChildSlots?: MindmapAddChildSlot[];
 }
 

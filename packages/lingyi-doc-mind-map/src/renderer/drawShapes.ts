@@ -99,6 +99,7 @@ export function drawAlignedNodeText(
     padRight: number;
     textAlign: CanvasTextAlign;
     textVerticalAlign: 'top' | 'center' | 'bottom';
+    lineThrough?: boolean;
   },
 ): void {
   const contentW = Math.max(1, box.width - opts.padLeft - opts.padRight);
@@ -123,6 +124,33 @@ export function drawAlignedNodeText(
       x = box.x + box.width - opts.padRight;
     }
     ctx.fillText(line, x, y, contentW);
+    if (opts.lineThrough) {
+      drawLineThrough(ctx, line, x, y, opts.textAlign, contentW);
+    }
     y += opts.lineHeight;
   }
+}
+
+/** 在已绘制的单行文字上画中划线 */
+export function drawLineThrough(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  anchorX: number,
+  midY: number,
+  textAlign: CanvasTextAlign,
+  maxWidth: number,
+): void {
+  const w = Math.min(ctx.measureText(text).width, maxWidth);
+  if (w <= 0) return;
+  let left = anchorX;
+  if (textAlign === 'center') left = anchorX - w / 2;
+  else if (textAlign === 'right') left = anchorX - w;
+  ctx.save();
+  ctx.strokeStyle = typeof ctx.fillStyle === 'string' ? ctx.fillStyle : '#8F959E';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(left, midY);
+  ctx.lineTo(left + w, midY);
+  ctx.stroke();
+  ctx.restore();
 }

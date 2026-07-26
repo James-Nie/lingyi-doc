@@ -1,19 +1,21 @@
-import React, { forwardRef } from 'react';
+import React, { forwardRef, Suspense } from 'react';
 import { Empty, Typography } from 'antd';
 import type { TemplateDocType } from './templateConstants';
-import {
-  TemplateRichDocContentEditor,
-  type TemplateContentEditorHandle,
-} from './editors/TemplateRichDocContentEditor';
-import {
-  TemplateSheetContentEditor,
-} from './editors/TemplateSheetContentEditor';
-import {
-  TemplateMindNoteContentEditor,
-} from './editors/TemplateMindNoteContentEditor';
-import {
-  TemplateWhiteboardContentEditor,
-} from './editors/TemplateWhiteboardContentEditor';
+import type { TemplateContentEditorHandle } from './editors/TemplateContentEditorHandle';
+import { createDefaultContentJson } from './templateContentUtils';
+
+const TemplateRichDocContentEditor = React.lazy(() =>
+  import('./editors/TemplateRichDocContentEditor').then(m => ({ default: m.TemplateRichDocContentEditor })),
+);
+const TemplateSheetContentEditor = React.lazy(() =>
+  import('./editors/TemplateSheetContentEditor').then(m => ({ default: m.TemplateSheetContentEditor })),
+);
+const TemplateMindNoteContentEditor = React.lazy(() =>
+  import('./editors/TemplateMindNoteContentEditor').then(m => ({ default: m.TemplateMindNoteContentEditor })),
+);
+const TemplateWhiteboardContentEditor = React.lazy(() =>
+  import('./editors/TemplateWhiteboardContentEditor').then(m => ({ default: m.TemplateWhiteboardContentEditor })),
+);
 
 interface TemplateContentPanelProps {
   docType: TemplateDocType;
@@ -25,6 +27,16 @@ interface TemplateContentPanelProps {
   /** 查看模式：与编辑相同布局，只读预览 */
   previewMode?: boolean;
 }
+
+function EditorLoading() {
+  return (
+    <div style={{ padding: '80px 0', textAlign: 'center', color: '#8f959e' }}>
+      正在加载编辑器…
+    </div>
+  );
+}
+
+export type { TemplateContentEditorHandle };
 
 export const TemplateContentPanel = forwardRef<TemplateContentEditorHandle, TemplateContentPanelProps>(
   function TemplateContentPanel({
@@ -59,6 +71,51 @@ export const TemplateContentPanel = forwardRef<TemplateContentEditorHandle, Temp
       );
     }
 
+    let editor: React.ReactNode = null;
+    if (docType === 'richtext') {
+      editor = (
+        <TemplateRichDocContentEditor
+          key={editorKey}
+          ref={ref}
+          documentTitle={documentTitle}
+          contentJson={contentJson}
+          previewMode={previewMode}
+        />
+      );
+    } else if (docType === 'freeform' || docType === 'base' || docType === 'questionnaire') {
+      const sheetContent = contentJson
+        ?? (docType === 'questionnaire' ? createDefaultContentJson('questionnaire', documentTitle) : null);
+      editor = (
+        <TemplateSheetContentEditor
+          key={editorKey}
+          ref={ref}
+          docType={docType === 'questionnaire' ? 'base' : docType}
+          contentJson={sheetContent}
+          previewMode={previewMode}
+        />
+      );
+    } else if (docType === 'mindnote') {
+      editor = (
+        <TemplateMindNoteContentEditor
+          key={editorKey}
+          ref={ref}
+          documentTitle={documentTitle}
+          contentJson={contentJson}
+          previewMode={previewMode}
+        />
+      );
+    } else if (docType === 'whiteboard') {
+      editor = (
+        <TemplateWhiteboardContentEditor
+          key={editorKey}
+          ref={ref}
+          documentTitle={documentTitle}
+          contentJson={contentJson}
+          previewMode={previewMode}
+        />
+      );
+    }
+
     return (
       <div>
         {!previewMode && (
@@ -66,42 +123,9 @@ export const TemplateContentPanel = forwardRef<TemplateContentEditorHandle, Temp
             在下方编辑器中设计模板默认内容，保存后将写入模板库。
           </Typography.Paragraph>
         )}
-        {docType === 'richtext' && (
-          <TemplateRichDocContentEditor
-            key={editorKey}
-            ref={ref}
-            documentTitle={documentTitle}
-            contentJson={contentJson}
-            previewMode={previewMode}
-          />
-        )}
-        {(docType === 'freeform' || docType === 'base') && (
-          <TemplateSheetContentEditor
-            key={editorKey}
-            ref={ref}
-            docType={docType}
-            contentJson={contentJson}
-            previewMode={previewMode}
-          />
-        )}
-        {docType === 'mindnote' && (
-          <TemplateMindNoteContentEditor
-            key={editorKey}
-            ref={ref}
-            documentTitle={documentTitle}
-            contentJson={contentJson}
-            previewMode={previewMode}
-          />
-        )}
-        {docType === 'whiteboard' && (
-          <TemplateWhiteboardContentEditor
-            key={editorKey}
-            ref={ref}
-            documentTitle={documentTitle}
-            contentJson={contentJson}
-            previewMode={previewMode}
-          />
-        )}
+        <Suspense fallback={<EditorLoading />}>
+          {editor}
+        </Suspense>
       </div>
     );
   },

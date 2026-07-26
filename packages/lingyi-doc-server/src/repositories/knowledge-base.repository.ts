@@ -9,7 +9,10 @@ import type {
   KbMemberRole,
 } from '../types/knowledge-base';
 import type { DocumentAccessContext } from '../types/session';
-import { applyKbAccessToSelectQueryBuilder, applyKbAccessToUpdateQueryBuilder } from '../utils/kbAccessContext';
+import {
+  applyKbAccessToUpdateQueryBuilder,
+  buildKbAccessClause,
+} from '../utils/kbAccessContext';
 
 function toIso(value: Date | string | null | undefined): string {
   if (value == null) return new Date().toISOString();
@@ -56,11 +59,26 @@ export class KnowledgeBaseRepository {
     return this.kbRepo.findOne({ where: { id, isDeleted: 0 } });
   }
 
+  async findByInviteToken(token: string): Promise<KnowledgeBaseEntity | null> {
+    if (!token.trim()) return null;
+    return this.kbRepo.findOne({
+      where: { inviteToken: token.trim(), isDeleted: 0 },
+    });
+  }
+
   async findAccessibleById(id: string, ctx: DocumentAccessContext): Promise<KnowledgeBaseEntity | null> {
     const qb = this.kbRepo.createQueryBuilder('kb')
       .where('kb.id = :id', { id })
       .andWhere('kb.isDeleted = 0');
-    applyKbAccessToSelectQueryBuilder(qb, ctx, 'kb');
+    // 所有者范围 OR 显式成员（邀请加入）
+    const access = buildKbAccessClause(ctx, 'kb');
+    qb.andWhere(
+      `(${access.sql} OR EXISTS (
+        SELECT 1 FROM kb_members m
+        WHERE m.kb_id = kb.id AND m.user_id = :memberUserId
+      ))`,
+      { ...access.params, memberUserId: ctx.userId },
+    );
     return qb.getOne();
   }
 
@@ -78,9 +96,9 @@ export class KnowledgeBaseRepository {
 
     const qb = this.kbRepo.createQueryBuilder('kb')
       .where('kb.isDeleted = 0');
-    applyKbAccessToSelectQueryBuilder(qb, ctx, 'kb');
 
     if (ctx.identityType === 'tenant' && ctx.tenantId) {
+      qb.andWhere('kb.scope = 2 AND kb.tenantId = :tenantId', { tenantId: ctx.tenantId });
       qb.andWhere(`(
         kb.visibility = 'organization'
         OR kb.createdBy = :userId
@@ -90,24 +108,53 @@ export class KnowledgeBaseRepository {
         )
       )`, { userId });
     } else {
-      qb.andWhere('kb.ownerId = :userId', { userId });
+      // 个人空间：自己拥有的 + 被邀请加入的（含他人个人库 / 所在企业库成员）
+      qb.andWhere(`(
+        (kb.scope = 1 AND kb.ownerId = :userId)
+        OR EXISTS (
+          SELECT 1 FROM kb_members m
+          WHERE m.kb_id = kb.id AND m.user_id = :userId
+        )
+      )`, { userId });
     }
 
     const keyword = options?.keyword?.trim();
     if (keyword) {
       qb.andWhere('(kb.name LIKE :keyword OR kb.description LIKE :keyword)', {
-        keyword: `%${keyword}%`,
+        keyword: `${keyword}%`,
       });
     }
 
     qb.orderBy(orderField, sortBy === 'name' ? 'ASC' : 'DESC');
+    qb.take(200);
     const rows = await qb.getMany();
     const roles = await this.loadRolesForUser(rows.map(row => row.id), userId);
-    return rows.map(row => toDto(row, roles.get(row.id)));
+    return rows.map(row => {
+      const memberRole = roles.get(row.id);
+      const myRole = memberRole
+        ?? (row.scope === 1 && row.ownerId === userId ? 'owner' : undefined)
+        ?? (row.createdBy === userId ? 'owner' : undefined);
+      return toDto(row, myRole);
+    });
   }
 
   async save(entity: Partial<KnowledgeBaseEntity> & { id: string }): Promise<KnowledgeBaseEntity> {
     return this.kbRepo.save(entity);
+  }
+
+  async updateInviteLink(
+    kbId: string,
+    input: { inviteToken: string; inviteRole: string; inviteEnabled: number; updatedBy: string },
+  ): Promise<void> {
+    await this.kbRepo.update(
+      { id: kbId },
+      {
+        inviteToken: input.inviteToken,
+        inviteRole: input.inviteRole,
+        inviteEnabled: input.inviteEnabled,
+        updatedBy: input.updatedBy,
+      },
+    );
   }
 
   async softDelete(id: string, ctx: DocumentAccessContext): Promise<boolean> {
@@ -120,6 +167,18 @@ export class KnowledgeBaseRepository {
     applyKbAccessToUpdateQueryBuilder(qb, ctx);
     const result = await qb.execute();
     return (result.affected ?? 0) > 0;
+  }
+
+  async countByOwner(ownerId: string): Promise<number> {
+    return this.kbRepo.count({
+      where: { isDeleted: 0, scope: 1, ownerId },
+    });
+  }
+
+  async countByTenant(tenantId: string): Promise<number> {
+    return this.kbRepo.count({
+      where: { isDeleted: 0, scope: 2, tenantId },
+    });
   }
 
   async getMemberRole(kbId: string, userId: string): Promise<KbMemberRole | null> {

@@ -12,7 +12,7 @@ import type {
   TemplateStatus,
 } from '../types/template';
 
-const VALID_DOC_TYPES = new Set<string>(['richtext', 'freeform', 'base', 'mindnote', 'slides', 'whiteboard']);
+const VALID_DOC_TYPES = new Set<string>(['richtext', 'freeform', 'base', 'questionnaire', 'mindnote', 'slides', 'whiteboard']);
 const VALID_STATUSES = new Set<string>(['draft', 'published', 'archived']);
 const ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,62}[a-z0-9]?$/;
 
@@ -54,7 +54,6 @@ function entityToSummary(
     usageLabel: entity.usageLabel,
     isNew: entity.isNew === 1,
     isBlank: entity.isBlank === 1,
-    thumbGradient: entity.thumbGradient,
     status: entity.status as TemplateStatus,
     sortOrder: entity.sortOrder,
     useCount: entity.useCount,
@@ -84,7 +83,6 @@ const LIST_SUMMARY_SELECT = [
   't.usageLabel',
   't.isNew',
   't.isBlank',
-  't.thumbGradient',
   't.status',
   't.sortOrder',
   't.useCount',
@@ -234,7 +232,6 @@ export class DocTemplateRepository {
       usageLabel: input.usageLabel ?? null,
       isNew: input.isNew ? 1 : 0,
       isBlank: input.isBlank ? 1 : 0,
-      thumbGradient: input.thumbGradient ?? 'linear-gradient(135deg, #e3f2fd 0%, #90caf9 100%)',
       contentJson: input.contentJson ?? null,
       status: input.status ?? 'draft',
       sortOrder: input.sortOrder ?? 0,
@@ -260,7 +257,6 @@ export class DocTemplateRepository {
     if (input.usageLabel !== undefined) entity.usageLabel = input.usageLabel;
     if (input.isNew !== undefined) entity.isNew = input.isNew ? 1 : 0;
     if (input.isBlank !== undefined) entity.isBlank = input.isBlank ? 1 : 0;
-    if (input.thumbGradient !== undefined) entity.thumbGradient = input.thumbGradient;
     if (input.contentJson !== undefined) entity.contentJson = input.contentJson;
     if (input.sortOrder !== undefined) entity.sortOrder = input.sortOrder;
     if (input.status !== undefined) {

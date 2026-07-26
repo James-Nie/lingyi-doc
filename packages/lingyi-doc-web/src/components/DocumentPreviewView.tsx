@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { Suspense, useEffect, useMemo, useState } from 'react';
 import {
   Workbook,
   RichDocument,
@@ -10,15 +10,6 @@ import {
   type ToolbarState,
   isBaseSheet,
 } from '@lingyi-doc/core';
-import {
-  RichDocEditor,
-  MindNoteEditor,
-  WhiteboardEditor,
-  SheetContainer,
-  SheetTabs,
-  useSheetStore,
-  BASE_THEME,
-} from '@lingyi-doc/editor';
 
 export interface DocumentPreviewViewProps {
   title: string;
@@ -28,18 +19,40 @@ export interface DocumentPreviewViewProps {
 
 const noop = () => {};
 
-/** 分享页 / 公开访问：按文档类型渲染真实预览 */
+const RichDocEditor = React.lazy(() =>
+  import('@lingyi-doc/editor-doc').then(m => ({ default: m.RichDocEditor })),
+);
+const MindNoteEditor = React.lazy(() =>
+  import('@lingyi-doc/editor-mindmap').then(m => ({ default: m.MindNoteEditor })),
+);
+const WhiteboardEditor = React.lazy(() =>
+  import('@lingyi-doc/editor-whiteboard').then(m => ({ default: m.WhiteboardEditor })),
+);
+const SheetPreviewInner = React.lazy(() =>
+  import('./DocumentSheetPreview').then(m => ({ default: m.DocumentSheetPreview })),
+);
+
+function PreviewLoading() {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 480, color: '#8f959e' }}>
+      加载预览...
+    </div>
+  );
+}
+
+/** 分享页 / 公开访问：按文档类型懒加载真实预览 */
 export const DocumentPreviewView: React.FC<DocumentPreviewViewProps> = ({ title, docType, data }) => {
+  let body: React.ReactNode;
   if (docType === 'richtext') {
-    return <RichTextPreview title={title} data={data} />;
+    body = <RichTextPreview title={title} data={data} />;
+  } else if (docType === 'mindnote') {
+    body = <MindNotePreview title={title} data={data} />;
+  } else if (docType === 'whiteboard') {
+    body = <WhiteboardPreview title={title} data={data} />;
+  } else {
+    body = <SheetPreviewInner title={title} docType={docType} data={data} />;
   }
-  if (docType === 'mindnote') {
-    return <MindNotePreview title={title} data={data} />;
-  }
-  if (docType === 'whiteboard') {
-    return <WhiteboardPreview title={title} data={data} />;
-  }
-  return <SheetPreview title={title} docType={docType} data={data} />;
+  return <Suspense fallback={<PreviewLoading />}>{body}</Suspense>;
 };
 
 function RichTextPreview({ title, data }: { title: string; data: unknown }) {
@@ -153,77 +166,6 @@ function WhiteboardPreview({ title, data }: { title: string; data: unknown }) {
         onUndo={noop}
         onRedo={noop}
       />
-    </div>
-  );
-}
-
-function SheetPreview({ title, docType, data }: { title: string; docType: string; data: unknown }) {
-  const normalizedType = docType === 'base' ? 'base' : 'freeform';
-  const [workbook] = useState(() => {
-    const wb = Workbook.fromJSON(data as Record<string, unknown>);
-    wb.normalizeAfterLoad(normalizedType);
-    return wb;
-  });
-  const [activeSheetId, setActiveSheetId] = useState(workbook.activeSheetId);
-
-  useEffect(() => {
-    useSheetStore.getState().setEditingCell(null);
-    useSheetStore.getState().setFormulaBarText('');
-    useSheetStore.getState().setSelection(null, null);
-  }, []);
-
-  const activeTable = workbook.activeSheet;
-  const isBase = activeTable ? isBaseSheet(activeTable.sheet) : false;
-  const sheetInfos = useMemo(
-    () => workbook.sheets.map(s => ({ id: s.id, name: s.name, type: s.type })),
-    [workbook, activeSheetId],
-  );
-
-  if (!activeTable) {
-    return <div style={{ padding: 48, textAlign: 'center', color: '#8f959e' }}>空白文档</div>;
-  }
-
-  return (
-    <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      height: '100%',
-      minHeight: 480,
-      overflow: 'hidden',
-      background: isBase ? BASE_THEME.pageBg : '#fff',
-    }}>
-      {!isBase && title && (
-        <div style={{ padding: '12px 16px', fontSize: 16, fontWeight: 600, color: '#1f2329', background: '#fff', borderBottom: '1px solid #dee0e3' }}>
-          {title}
-        </div>
-      )}
-      <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', padding: isBase ? 8 : 0 }}>
-        <SheetContainer
-          key={activeSheetId}
-          table={activeTable}
-          previewMode
-          selectedChartId={null}
-          onSelectChart={noop}
-          onOpenFieldConfig={noop}
-          onToggleFieldVisibility={noop}
-          onDeleteField={noop}
-        />
-      </div>
-      {sheetInfos.length > 1 && (
-        <SheetTabs
-          sheets={sheetInfos}
-          activeId={activeSheetId}
-          onSwitch={id => {
-            workbook.switchSheet(id);
-            setActiveSheetId(id);
-            useSheetStore.getState().setEditingCell(null);
-            useSheetStore.getState().setFormulaBarText('');
-          }}
-          onAdd={noop}
-          onRename={noop}
-          onDelete={noop}
-        />
-      )}
     </div>
   );
 }

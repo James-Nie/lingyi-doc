@@ -332,6 +332,55 @@ function TemplateCard({
 }) {
   const [hovered, setHovered] = useState(false);
 
+  if (template.isBlank) {
+    return (
+      <button
+        type="button"
+        disabled={creating}
+        onClick={() => onUse()}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 14,
+          minHeight: 188,
+          width: '100%',
+          margin: 0,
+          padding: '24px 16px',
+          border: 'none',
+          borderRadius: 14,
+          background: '#f5f6f7',
+          boxShadow: hovered
+            ? '0 6px 20px rgba(15, 23, 42, 0.1)'
+            : '0 4px 14px rgba(15, 23, 42, 0.06)',
+          cursor: creating ? 'wait' : 'pointer',
+          transition: 'box-shadow 0.15s, background 0.15s',
+          fontFamily: 'inherit',
+        }}
+      >
+        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" aria-hidden>
+          <path
+            d="M12 5v14M5 12h14"
+            stroke="#4A89FF"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+          />
+        </svg>
+        <span style={{
+          fontSize: 14,
+          color: '#8a8f98',
+          lineHeight: 1.4,
+          textAlign: 'center',
+        }}>
+          {template.title}
+        </span>
+      </button>
+    );
+  }
+
   return (
     <div
       style={{
@@ -346,36 +395,23 @@ function TemplateCard({
       onMouseLeave={() => setHovered(false)}
     >
       <div style={{
-        height: 140, background: template.thumbGradient,
+        height: 140,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         position: 'relative', overflow: 'hidden',
       }}>
-        {template.isBlank ? (
-          <div style={{
-            width: 48, height: 48, borderRadius: '50%', background: '#3370ff',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5">
-              <path d="M12 5v14M5 12h14" />
-            </svg>
-          </div>
-        ) : (
-          <MiniPreview template={template} />
-        )}
+        <MiniPreview template={template} />
         {hovered && (
           <div style={{
-            position: 'absolute', inset: 0, background: template.isBlank ? 'rgba(51,112,255,0.15)' : 'rgba(0,0,0,0.35)',
+            position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.35)',
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
           }}>
-            {!template.isBlank && (
-              <button
-                type="button"
-                onClick={e => { e.stopPropagation(); onPreview(); }}
-                style={actionBtnStyle('#fff', '#3370ff')}
-              >
-                预览
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={e => { e.stopPropagation(); onPreview(); }}
+              style={actionBtnStyle('#fff', '#3370ff')}
+            >
+              预览
+            </button>
             <button
               type="button"
               disabled={creating}
@@ -387,15 +423,12 @@ function TemplateCard({
           </div>
         )}
       </div>
-      <div style={{ padding: '10px 12px 12px' }} onClick={() => template.isBlank ? onUse() : onPreview()}>
+      <div style={{ padding: '10px 12px 12px' }} onClick={() => onPreview()}>
         <div style={{ fontSize: 13, fontWeight: 500, color: '#1f2329', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {template.title}
         </div>
         {template.usageLabel && (
           <div style={{ fontSize: 11, color: '#8f959e', marginTop: 4 }}>{template.usageLabel}</div>
-        )}
-        {template.isBlank && (
-          <div style={{ fontSize: 11, color: '#8f959e', marginTop: 4 }}>{template.subtitle}</div>
         )}
       </div>
     </div>

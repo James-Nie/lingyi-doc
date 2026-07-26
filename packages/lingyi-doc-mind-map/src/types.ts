@@ -4,7 +4,7 @@ import type {
   MindNode,
   MindNoteBranchStyle,
   MindNoteStructure,
-} from '@lingyi-doc/core';
+} from '@lingyi-doc/core-mindmap';
 
 export type MindmapThemeId = 'default' | 'whiteboard' | 'print';
 
@@ -41,7 +41,7 @@ export interface MindmapPaintOptions {
 }
 
 export interface MindmapHitResult {
-  kind: 'node' | 'collapseButton' | 'none';
+  kind: 'node' | 'nodeImage' | 'collapseButton' | 'none';
   nodeId?: string;
 }
 

@@ -6,7 +6,7 @@ import {
   type DocSelectionContext,
   type ToolbarState,
 } from '@lingyi-doc/core';
-import { RichDocEditor, type ToolbarAction } from '@lingyi-doc/editor';
+import { RichDocEditor, type ToolbarAction } from '@lingyi-doc/editor-pro';
 
 function blockIndicesFromCtx(ctx: DocSelectionContext | null, fallback: number): number[] {
   if (!ctx) return [fallback];

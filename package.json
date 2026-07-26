@@ -4,7 +4,8 @@
   "private": true,
   "description": "零一文档 — 智能云文档系统（表格 / 文档 / 思维笔记）",
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "examples/*"
   ],
   "scripts": {
     "dev": "npm -w @lingyi-doc/web run dev",
@@ -18,7 +19,21 @@
     "admin:seed": "npm -w @lingyi-doc/server run admin:seed:dev",
     "setup": "bash scripts/setup.sh",
     "deploy:dev": "bash scripts/deploy/dev/deploy.sh",
-    "deploy:dev:bootstrap": "bash scripts/deploy/dev/bootstrap-remote.sh"
+    "deploy:dev:bootstrap": "bash scripts/deploy/dev/bootstrap-remote.sh",
+    "docker:build": "bash scripts/deploy/docker/build.sh",
+    "docker:build:release": "bash scripts/deploy/docker/build.sh --from-release",
+    "docker:up": "bash scripts/deploy/docker/up.sh",
+    "docker:up:release": "bash scripts/deploy/docker/up.sh --from-release",
+    "docker:down": "bash scripts/deploy/docker/down.sh",
+    "changeset": "changeset",
+    "version-packages": "changeset version",
+    "check:oss-boundary": "bash scripts/check-oss-boundary.sh",
+    "check:modules-matrix": "bash scripts/check-modules-matrix.sh",
+    "demo:mind-map": "npm -w mind-map-demo run dev",
+    "license:generate": "npm -w @lingyi-doc/license run generate --"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.31.1"
   },
   "engines": {
     "node": ">=18.0.0"

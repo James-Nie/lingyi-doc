@@ -8,9 +8,12 @@ import {
   Post,
   Query,
   Req,
+  Res,
   UseGuards,
 } from '@nestjs/common';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
+import { SkipResponseWrap } from '../../common/decorators/skip-response-wrap.decorator';
+import { sendDocumentLoadHttpResult } from '../../utils/documentRecordJson';
 import { BusinessException } from '../../common/exceptions/business.exception';
 import { AuthAudience } from '../../auth/decorators/auth-audience.decorator';
 import { CurrentUser, type AuthUser } from '../../auth/decorators/current-user.decorator';
@@ -78,6 +81,7 @@ export class DocumentShareJoinController {
 
   @Get('c/docs/by-path/:spaceSlug/:bookSlug/:docSlug')
   @UseGuards(OptionalJwtAuthGuard)
+  @SkipResponseWrap()
   async loadDocumentByPath(
     @Param('spaceSlug') spaceSlug: string,
     @Param('bookSlug') bookSlug: string,
@@ -85,15 +89,17 @@ export class DocumentShareJoinController {
     @Query('token') token: string | undefined,
     @CurrentUser() user?: AuthUser,
     @Req() req?: Request,
+    @Res() res?: Response,
   ) {
     try {
       const userAgent = req?.headers['user-agent'];
-      return this.documentShareService.loadDocumentByPath(spaceSlug, bookSlug, docSlug, {
+      const result = await this.documentShareService.loadDocumentByPath(spaceSlug, bookSlug, docSlug, {
         auth: user,
         token: token || null,
         visitorIp: req?.ip ?? null,
         deviceInfo: typeof userAgent === 'string' ? userAgent.slice(0, 500) : null,
       });
+      sendDocumentLoadHttpResult(res!, result);
     } catch (err) {
       if (err instanceof BusinessException) throw err;
       this.logger.error('loadDocumentByPath failed', err);
@@ -103,6 +109,7 @@ export class DocumentShareJoinController {
 
   @Post('docs/by-path/:spaceSlug/:bookSlug/:docSlug/access')
   @UseGuards(OptionalJwtAuthGuard)
+  @SkipResponseWrap()
   async verifyDocumentByPath(
     @Param('spaceSlug') spaceSlug: string,
     @Param('bookSlug') bookSlug: string,
@@ -110,22 +117,158 @@ export class DocumentShareJoinController {
     @Body() body: Record<string, unknown>,
     @Req() req: Request,
     @CurrentUser() user?: AuthUser,
+    @Res() res?: Response,
   ) {
     try {
       const token = typeof body.token === 'string' ? body.token : undefined;
       const password = typeof body.password === 'string' ? body.password : undefined;
       const userAgent = req.headers['user-agent'];
-      return this.documentShareService.loadDocumentByPath(spaceSlug, bookSlug, docSlug, {
+      const result = await this.documentShareService.loadDocumentByPath(spaceSlug, bookSlug, docSlug, {
         auth: user,
         token: token || null,
         password,
         visitorIp: req.ip ?? null,
         deviceInfo: typeof userAgent === 'string' ? userAgent.slice(0, 500) : null,
       });
+      sendDocumentLoadHttpResult(res!, result);
     } catch (err) {
       if (err instanceof BusinessException) throw err;
       this.logger.error('verifyDocumentByPath failed', err);
       throw new BusinessException(100005, '验证访问失败', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  @Get('docs/by-path/:spaceSlug/:bookSlug/:docSlug/form/stats')
+  @UseGuards(OptionalJwtAuthGuard)
+  async getPublicFormStats(
+    @Param('spaceSlug') spaceSlug: string,
+    @Param('bookSlug') bookSlug: string,
+    @Param('docSlug') docSlug: string,
+    @Query('token') token: string | undefined,
+    @Query('sheetId') sheetId: string | undefined,
+    @Query('viewId') viewId: string | undefined,
+    @Query('password') password: string | undefined,
+    @CurrentUser() auth?: AuthUser,
+  ) {
+    try {
+      return this.documentShareService.getPublicFormStats(
+        spaceSlug,
+        bookSlug,
+        docSlug,
+        {
+          token: token ?? '',
+          password,
+          sheetId: sheetId ?? '',
+          viewId: viewId ?? '',
+        },
+        auth ?? null,
+      );
+    } catch (err) {
+      if (err instanceof BusinessException) throw err;
+      this.logger.error('getPublicFormStats failed', err);
+      throw new BusinessException(100005, '获取表单统计失败', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  @Get('docs/by-path/:spaceSlug/:bookSlug/:docSlug/form/submissions/:recordId')
+  @UseGuards(OptionalJwtAuthGuard)
+  async getPublicFormSubmissionDetail(
+    @Param('spaceSlug') spaceSlug: string,
+    @Param('bookSlug') bookSlug: string,
+    @Param('docSlug') docSlug: string,
+    @Param('recordId') recordId: string,
+    @Query('token') token: string | undefined,
+    @Query('sheetId') sheetId: string | undefined,
+    @Query('viewId') viewId: string | undefined,
+    @Query('password') password: string | undefined,
+    @CurrentUser() auth?: AuthUser,
+  ) {
+    try {
+      return this.documentShareService.getPublicFormSubmissionDetail(
+        spaceSlug,
+        bookSlug,
+        docSlug,
+        recordId,
+        {
+          token: token ?? '',
+          password,
+          sheetId: sheetId ?? '',
+          viewId: viewId ?? '',
+        },
+        auth ?? null,
+      );
+    } catch (err) {
+      if (err instanceof BusinessException) throw err;
+      this.logger.error('getPublicFormSubmissionDetail failed', err);
+      throw new BusinessException(100005, '获取提交详情失败', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  @Get('docs/by-path/:spaceSlug/:bookSlug/:docSlug/form/submissions')
+  @UseGuards(OptionalJwtAuthGuard)
+  async listPublicFormSubmissions(
+    @Param('spaceSlug') spaceSlug: string,
+    @Param('bookSlug') bookSlug: string,
+    @Param('docSlug') docSlug: string,
+    @Query('token') token: string | undefined,
+    @Query('sheetId') sheetId: string | undefined,
+    @Query('viewId') viewId: string | undefined,
+    @Query('password') password: string | undefined,
+    @CurrentUser() auth?: AuthUser,
+  ) {
+    try {
+      return this.documentShareService.listPublicFormSubmissions(
+        spaceSlug,
+        bookSlug,
+        docSlug,
+        {
+          token: token ?? '',
+          password,
+          sheetId: sheetId ?? '',
+          viewId: viewId ?? '',
+        },
+        auth ?? null,
+      );
+    } catch (err) {
+      if (err instanceof BusinessException) throw err;
+      this.logger.error('listPublicFormSubmissions failed', err);
+      throw new BusinessException(100005, '获取提交记录失败', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  @Get('docs/by-path/:spaceSlug/:bookSlug/:docSlug/form')
+  @UseGuards(OptionalJwtAuthGuard)
+  async getPublicForm(
+    @Param('spaceSlug') spaceSlug: string,
+    @Param('bookSlug') bookSlug: string,
+    @Param('docSlug') docSlug: string,
+    @Query('token') token: string | undefined,
+    @Query('sheetId') sheetId: string | undefined,
+    @Query('viewId') viewId: string | undefined,
+    @Query('password') password: string | undefined,
+    @CurrentUser() auth?: AuthUser,
+    @Req() req?: Request,
+  ) {
+    try {
+      const userAgent = req?.headers['user-agent'];
+      return this.documentShareService.getPublicForm(
+        spaceSlug,
+        bookSlug,
+        docSlug,
+        {
+          token: token ?? '',
+          password,
+          sheetId: sheetId ?? '',
+          viewId: viewId ?? '',
+        },
+        req?.ip ?? null,
+        typeof userAgent === 'string' ? userAgent.slice(0, 500) : null,
+        auth ?? null,
+      );
+    } catch (err) {
+      if (err instanceof BusinessException) throw err;
+      this.logger.error('getPublicForm failed', err);
+      throw new BusinessException(100005, '加载表单失败', HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 
@@ -137,6 +280,7 @@ export class DocumentShareJoinController {
     @Param('docSlug') docSlug: string,
     @Body() body: Record<string, unknown>,
     @Req() req: Request,
+    @CurrentUser() auth?: AuthUser,
   ) {
     try {
       const token = typeof body.token === 'string' ? body.token : '';
@@ -154,6 +298,7 @@ export class DocumentShareJoinController {
         { token, password, sheetId, viewId, fieldValues },
         req.ip ?? null,
         typeof userAgent === 'string' ? userAgent.slice(0, 500) : null,
+        auth ?? null,
       );
     } catch (err) {
       if (err instanceof BusinessException) throw err;

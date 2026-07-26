@@ -35,9 +35,6 @@ export class DocTemplateEntity {
   @Column({ name: 'is_blank', type: 'tinyint', width: 1, default: 0 })
   isBlank!: number;
 
-  @Column({ name: 'thumb_gradient', type: 'varchar', length: 500 })
-  thumbGradient!: string;
-
   @Column({ name: 'content_json', type: 'json', nullable: true })
   contentJson!: unknown | null;
 

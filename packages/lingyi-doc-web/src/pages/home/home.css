@@ -716,6 +716,24 @@
   text-align: center;
   font-size: 13px;
   color: #64748b;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.home-footer-bottom a {
+  color: #94a3b8;
+  text-decoration: none;
+}
+
+.home-footer-bottom a:hover {
+  color: #e2e8f0;
+}
+
+.home-footer-sep {
+  color: #475569;
 }
 
 /* Responsive */

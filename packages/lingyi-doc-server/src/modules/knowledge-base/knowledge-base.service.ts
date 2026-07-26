@@ -1,5 +1,6 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
+import { randomBytes } from 'crypto';
 import { DataSource } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
 import { BusinessException } from '../../common/exceptions/business.exception';
@@ -72,6 +73,7 @@ export class KnowledgeBaseService {
 
     const ctx = this.ctx(auth);
     const scope = resolveKbScope(ctx);
+    await this.membershipService.assertCanCreateKnowledgeBase(auth);
     const kbId = uuidv4();
     const homeNodeId = uuidv4();
     const nowUserId = auth.userId;
@@ -133,7 +135,7 @@ export class KnowledgeBaseService {
       orgId?: string | null;
     },
   ): Promise<KnowledgeBaseDto> {
-    const kb = await this.requireWritableKb(auth, kbId);
+    const kb = await this.requireManageKb(auth, kbId);
     const patch: Partial<KnowledgeBaseEntity> = { updatedBy: auth.userId };
 
     if (input.name != null) {
@@ -156,8 +158,13 @@ export class KnowledgeBaseService {
 
   async remove(auth: AuthUser, kbId: string): Promise<{ id: string }> {
     const kb = await this.requireWritableKb(auth, kbId, true);
+    const ctx = this.ctx(auth);
+    const docIds = await this.kbNodeRepository.listDocIdsByKbId(kb.id);
+    if (docIds.length > 0) {
+      await this.storageService.deleteDocuments(docIds, ctx);
+    }
     await this.kbNodeRepository.softDeleteByKbId(kb.id);
-    const ok = await this.kbRepository.softDelete(kb.id, this.ctx(auth));
+    const ok = await this.kbRepository.softDelete(kb.id, ctx);
     if (!ok) throw new BusinessException(100004, '知识库不存在', HttpStatus.NOT_FOUND);
     return { id: kbId };
   }
@@ -265,16 +272,16 @@ export class KnowledgeBaseService {
     auth: AuthUser,
     kbId: string,
     parentNodeId: string,
-    input: { title: string; docType: string },
+    input: { title: string; docType: string; data?: unknown },
   ): Promise<{ docId: string; nodeId: string; docType: string; title: string }> {
     await this.requireWritableKb(auth, kbId);
     const parent = await this.kbNodeRepository.findById(kbId, parentNodeId);
     if (!parent) throw new BusinessException(100004, '父节点不存在', HttpStatus.NOT_FOUND);
 
     const title = input.title.trim() || '未命名文档';
-    const docType = input.docType || 'freeform';
+    const docType = input.docType || 'richtext';
     const ctx = this.ctx(auth);
-    await this.membershipService.assertCanCreateDocument(auth, ctx);
+    await this.membershipService.assertCanCreateDocument(auth, ctx, docType);
     const scope = resolveKbScope(ctx);
     const docId = `doc_${uuidv4().slice(0, 8)}`;
     const nodeId = uuidv4();
@@ -284,7 +291,7 @@ export class KnowledgeBaseService {
         id: docId,
         title,
         docType,
-        data: null,
+        data: input.data ?? null,
         ownerId: auth.userId,
         scope,
         tenantId: scope === 2 ? ctx.tenantId : null,
@@ -309,15 +316,13 @@ export class KnowledgeBaseService {
   }
 
   async listMembers(auth: AuthUser, kbId: string): Promise<{ items: KbMemberDto[]; total: number }> {
-    const kb = await this.requireReadableKb(auth, kbId);
-    if (kb.visibility !== 'members') {
-      return { items: [], total: 0 };
-    }
+    await this.requireManageKb(auth, kbId);
     const members = await this.kbRepository.listMembers(kbId);
-    const items: KbMemberDto[] = [];
-    for (const member of members) {
-      const user = await this.userRepository.findById(member.userId);
-      items.push({
+    const users = await this.userRepository.findByIds(members.map((m) => m.userId));
+    const userMap = new Map(users.map((u) => [u.id, u]));
+    const items: KbMemberDto[] = members.map((member) => {
+      const user = userMap.get(member.userId);
+      return {
         id: member.id,
         kbId: member.kbId,
         userId: member.userId,
@@ -325,8 +330,8 @@ export class KnowledgeBaseService {
         email: user?.email ?? undefined,
         role: member.role as KbMemberRole,
         createdAt: member.createdAt.toISOString(),
-      });
-    }
+      };
+    });
     return { items, total: items.length };
   }
 
@@ -335,14 +340,17 @@ export class KnowledgeBaseService {
     kbId: string,
     input: { userId: string; role: KbMemberRole },
   ): Promise<KbMemberDto> {
-    const kb = await this.requireWritableKb(auth, kbId);
-    if (kb.visibility !== 'members') {
-      throw new BusinessException(100002, '仅 members 可见性知识库支持成员管理');
-    }
+    const kb = await this.requireManageKb(auth, kbId);
     if (!input.userId?.trim()) throw new BusinessException(100002, '缺少成员 userId');
+    if (input.role === 'owner') {
+      throw new BusinessException(100002, '不可直接添加所有者');
+    }
     if (kb.scope === 2 && kb.tenantId) {
       const isMember = await this.tenantMemberRepository.isActiveMember(input.userId, kb.tenantId);
       if (!isMember) throw new BusinessException(100002, '用户不属于当前企业');
+    } else if (kb.scope === 1) {
+      const user = await this.userRepository.findById(input.userId);
+      if (!user) throw new BusinessException(100004, '用户不存在', HttpStatus.NOT_FOUND);
     }
 
     const memberId = uuidv4();
@@ -365,27 +373,179 @@ export class KnowledgeBaseService {
     };
   }
 
+  async addMembers(
+    auth: AuthUser,
+    kbId: string,
+    input: { userIds: string[]; role: KbMemberRole },
+  ): Promise<{ items: KbMemberDto[]; added: number }> {
+    const uniqueIds = [...new Set(input.userIds.map(id => id.trim()).filter(Boolean))];
+    const items: KbMemberDto[] = [];
+    for (const userId of uniqueIds) {
+      const item = await this.addMember(auth, kbId, { userId, role: input.role });
+      items.push(item);
+    }
+    return { items, added: items.length };
+  }
+
+  /** 生成或刷新邀请链接（按所选角色） */
+  async ensureInviteLink(
+    auth: AuthUser,
+    kbId: string,
+    role: Exclude<KbMemberRole, 'owner'>,
+  ): Promise<{ token: string; role: string; invitePath: string }> {
+    const kb = await this.requireManageKb(auth, kbId);
+    let token = kb.inviteToken;
+    if (!token) {
+      token = randomBytes(24).toString('base64url');
+    }
+    await this.kbRepository.updateInviteLink(kb.id, {
+      inviteToken: token,
+      inviteRole: role,
+      inviteEnabled: 1,
+      updatedBy: auth.userId,
+    });
+    return {
+      token,
+      role,
+      invitePath: `/invite/kb/${token}`,
+    };
+  }
+
+  async getInviteInfo(
+    auth: AuthUser,
+    token: string,
+  ): Promise<{
+    token: string;
+    kbId: string;
+    kbName: string;
+    emoji: string;
+    role: Exclude<KbMemberRole, 'owner'>;
+    closed: boolean;
+    alreadyMember: boolean;
+  }> {
+    const kb = await this.kbRepository.findByInviteToken(token);
+    if (!kb) throw new BusinessException(100004, '邀请链接无效', HttpStatus.NOT_FOUND);
+
+    const closed = kb.inviteEnabled !== 1;
+    const existingRole = await this.kbRepository.getMemberRole(kb.id, auth.userId);
+    const isOwner = (kb.scope === 1 && kb.ownerId === auth.userId)
+      || kb.createdBy === auth.userId;
+    const role = (['admin', 'editor', 'viewer'].includes(kb.inviteRole)
+      ? kb.inviteRole
+      : 'editor') as Exclude<KbMemberRole, 'owner'>;
+
+    return {
+      token,
+      kbId: kb.id,
+      kbName: kb.name,
+      emoji: kb.emoji || '📘',
+      role,
+      closed,
+      alreadyMember: Boolean(existingRole) || isOwner,
+    };
+  }
+
+  async acceptInvite(
+    auth: AuthUser,
+    token: string,
+  ): Promise<{ kbId: string; role: Exclude<KbMemberRole, 'owner'> }> {
+    const kb = await this.kbRepository.findByInviteToken(token);
+    if (!kb) throw new BusinessException(100004, '邀请链接无效', HttpStatus.NOT_FOUND);
+    if (kb.inviteEnabled !== 1) {
+      throw new BusinessException(100002, '邀请已关闭');
+    }
+
+    const role = (['admin', 'editor', 'viewer'].includes(kb.inviteRole)
+      ? kb.inviteRole
+      : 'editor') as Exclude<KbMemberRole, 'owner'>;
+
+    const isOwner = (kb.scope === 1 && kb.ownerId === auth.userId)
+      || kb.createdBy === auth.userId;
+    if (isOwner) {
+      return { kbId: kb.id, role };
+    }
+
+    const existing = await this.kbRepository.getMemberRole(kb.id, auth.userId);
+    if (existing) {
+      return { kbId: kb.id, role: existing === 'owner' ? 'admin' : existing };
+    }
+
+    if (kb.scope === 2 && kb.tenantId) {
+      const isMember = await this.tenantMemberRepository.isActiveMember(auth.userId, kb.tenantId);
+      if (!isMember) {
+        throw new BusinessException(100002, '你不属于该知识库所在企业，无法加入');
+      }
+    }
+
+    await this.kbRepository.addMember({
+      id: uuidv4(),
+      kbId: kb.id,
+      userId: auth.userId,
+      role,
+    });
+    return { kbId: kb.id, role };
+  }
+
+  /** 个人版「搜索添加」：按名称/手机号/邮箱查找平台用户 */
+  async searchUsersForAdd(
+    auth: AuthUser,
+    kbId: string,
+    keyword: string,
+  ): Promise<{ items: Array<{ userId: string; displayName: string; email: string; phone: string | null }> }> {
+    const kb = await this.requireManageKb(auth, kbId);
+    if (kb.scope !== 1) {
+      throw new BusinessException(100002, '搜索添加仅支持个人知识库');
+    }
+    const q = keyword.trim();
+    if (q.length < 2) return { items: [] };
+
+    const existing = new Set((await this.kbRepository.listMembers(kbId)).map(m => m.userId));
+    existing.add(auth.userId);
+
+    const users = await this.userRepository.searchPublic(q, 20);
+    return {
+      items: users
+        .filter(u => !existing.has(u.id))
+        .map(u => ({
+          userId: u.id,
+          displayName: u.display_name,
+          email: u.email,
+          phone: u.phone ?? null,
+        })),
+    };
+  }
+
   async removeMember(auth: AuthUser, kbId: string, userId: string): Promise<{ userId: string }> {
-    await this.requireWritableKb(auth, kbId);
+    await this.requireManageKb(auth, kbId);
+    const role = await this.kbRepository.getMemberRole(kbId, userId);
+    if (role === 'owner') {
+      throw new BusinessException(100002, '不可移除所有者');
+    }
     const ok = await this.kbRepository.removeMember(kbId, userId);
     if (!ok) throw new BusinessException(100004, '成员不存在', HttpStatus.NOT_FOUND);
     return { userId };
   }
 
   private async requireReadableKb(auth: AuthUser, kbId: string): Promise<KnowledgeBaseEntity> {
-    const kb = await this.kbRepository.findAccessibleById(kbId, this.ctx(auth));
+    // 先按 id 取未删除库，再判定所有者 / 成员，避免纯 scope 过滤挡住邀请成员
+    const kb = await this.kbRepository.findById(kbId);
     if (!kb) throw new BusinessException(100004, '知识库不存在', HttpStatus.NOT_FOUND);
 
     if (kb.scope === 1) {
-      if (kb.ownerId !== auth.userId) {
-        throw new BusinessException(100004, '知识库不存在', HttpStatus.NOT_FOUND);
-      }
-      return kb;
+      if (kb.ownerId === auth.userId) return kb;
+      const role = await this.kbRepository.getMemberRole(kbId, auth.userId);
+      if (role) return kb;
+      throw new BusinessException(100004, '知识库不存在', HttpStatus.NOT_FOUND);
     }
 
     if (!kb.tenantId) throw new BusinessException(100004, '知识库不存在', HttpStatus.NOT_FOUND);
     const tenantMember = await this.tenantMemberRepository.isActiveMember(auth.userId, kb.tenantId);
-    if (!tenantMember) throw new BusinessException(100004, '知识库不存在', HttpStatus.NOT_FOUND);
+    if (!tenantMember) {
+      // 非企业成员但被显式邀请进库（异常路径）：仍允许以 kb_members 访问
+      const invited = await this.kbRepository.getMemberRole(kbId, auth.userId);
+      if (invited) return kb;
+      throw new BusinessException(100004, '知识库不存在', HttpStatus.NOT_FOUND);
+    }
 
     if (kb.visibility === 'organization') return kb;
     if (kb.createdBy === auth.userId) return kb;
@@ -394,27 +554,42 @@ export class KnowledgeBaseService {
     return kb;
   }
 
+  /** 设置/成员管理：仅所有者或管理员 */
+  private async requireManageKb(auth: AuthUser, kbId: string): Promise<KnowledgeBaseEntity> {
+    const kb = await this.requireReadableKb(auth, kbId);
+    const role = await this.resolveMyRole(kb, auth.userId);
+    if (role === 'owner' || role === 'admin') return kb;
+    throw new BusinessException(100003, '无权管理该知识库', HttpStatus.FORBIDDEN);
+  }
+
   private async requireWritableKb(
     auth: AuthUser,
     kbId: string,
     ownerOnly = false,
   ): Promise<KnowledgeBaseEntity> {
     const kb = await this.requireReadableKb(auth, kbId);
-    if (kb.scope === 1) return kb;
+
+    if (kb.scope === 1) {
+      if (kb.ownerId === auth.userId) return kb;
+      if (ownerOnly) throw new BusinessException(100003, '无权删除该知识库', HttpStatus.FORBIDDEN);
+      const role = await this.kbRepository.getMemberRole(kbId, auth.userId);
+      if (role === 'owner' || role === 'admin' || role === 'editor') return kb;
+      throw new BusinessException(100003, '无权编辑该知识库', HttpStatus.FORBIDDEN);
+    }
 
     if (kb.createdBy === auth.userId) return kb;
-    if (ownerOnly) throw new BusinessException(100004, '知识库不存在', HttpStatus.NOT_FOUND);
+    if (ownerOnly) throw new BusinessException(100003, '无权删除该知识库', HttpStatus.FORBIDDEN);
 
     const role = await this.kbRepository.getMemberRole(kbId, auth.userId);
     if (role === 'owner' || role === 'admin' || role === 'editor') return kb;
-    if (kb.visibility === 'organization' && !role) {
-      throw new BusinessException(100004, '知识库不存在', HttpStatus.NOT_FOUND);
-    }
-    throw new BusinessException(100004, '知识库不存在', HttpStatus.NOT_FOUND);
+    throw new BusinessException(100003, '无权编辑该知识库', HttpStatus.FORBIDDEN);
   }
 
   private async resolveMyRole(kb: KnowledgeBaseEntity, userId: string): Promise<KbMemberRole | null> {
-    if (kb.scope === 1) return kb.ownerId === userId ? 'owner' : null;
+    if (kb.scope === 1) {
+      if (kb.ownerId === userId) return 'owner';
+      return this.kbRepository.getMemberRole(kb.id, userId);
+    }
     if (kb.createdBy === userId) return 'owner';
     return this.kbRepository.getMemberRole(kb.id, userId);
   }

@@ -1,16 +1,15 @@
 import React, { forwardRef, useCallback, useImperativeHandle, useRef, useState } from 'react';
 import { cloneWhiteboardElements } from '@lingyi-doc/core';
-import { WhiteboardEditor } from '@lingyi-doc/editor';
+import { WhiteboardEditor } from '@lingyi-doc/editor-whiteboard';
 import { whiteboardFromContent } from '../templateContentUtils';
+import type { TemplateContentEditorHandle } from './TemplateContentEditorHandle';
+
+export type { TemplateContentEditorHandle };
 
 type WhiteboardDoc = ReturnType<typeof whiteboardFromContent>;
 type WhiteboardElement = ReturnType<typeof cloneWhiteboardElements>[number];
 type WhiteboardViewport = WhiteboardDoc['viewport'];
 type WhiteboardElementPatch = Partial<WhiteboardElement>;
-
-export interface TemplateContentEditorHandle {
-  getContentJson: () => unknown;
-}
 
 interface Props {
   documentTitle: string;

@@ -34,6 +34,24 @@ cp "$ROOT_DIR/packages/lingyi-doc-server/package.json" "$RELEASE_DIR/server/"
 cp "$ROOT_DIR/packages/lingyi-doc-server/scripts/init-db-mysql.sql" "$RELEASE_DIR/server/scripts/"
 rsync -a "$ROOT_DIR/packages/lingyi-doc-server/scripts/migrations/" "$RELEASE_DIR/server/scripts/migrations/"
 
+# 打包 workspace 依赖 @lingyi-doc/license，供远端 npm install / Docker from-release 使用
+if [[ ! -d "$ROOT_DIR/packages/lingyi-doc-license/dist" ]]; then
+  echo "错误: 缺少 @lingyi-doc/license dist，请先 npm -w @lingyi-doc/license run build"
+  exit 1
+fi
+mkdir -p "$RELEASE_DIR/server/vendor/lingyi-doc-license/dist"
+cp "$ROOT_DIR/packages/lingyi-doc-license/package.json" "$RELEASE_DIR/server/vendor/lingyi-doc-license/"
+rsync -a --delete "$ROOT_DIR/packages/lingyi-doc-license/dist/" "$RELEASE_DIR/server/vendor/lingyi-doc-license/dist/"
+node -e "
+const fs = require('fs');
+const p = process.argv[1];
+const j = JSON.parse(fs.readFileSync(p, 'utf8'));
+j.dependencies = j.dependencies || {};
+j.dependencies['@lingyi-doc/license'] = 'file:./vendor/lingyi-doc-license';
+delete j.devDependencies;
+fs.writeFileSync(p, JSON.stringify(j, null, 2) + '\n');
+" "$RELEASE_DIR/server/package.json"
+
 # 校验数据库相关产物已打入部署包
 REQUIRED_DB_JS=(checkConnection createDatabase init migrate seed adminSeed)
 for name in "${REQUIRED_DB_JS[@]}"; do
@@ -69,4 +87,5 @@ echo "   server/   — API 服务 (NestJS dist + package.json + scripts)"
 echo "   server/dist/main.js — API 入口"
 echo "   server/dist/db-cli/ — createDatabase, migrate, seed, adminSeed"
 echo "   server/scripts/     — init-db-mysql.sql + migrations/"
+echo "   server/vendor/lingyi-doc-license — 授权库（file: 依赖）"
 echo "   scripts/  — 远程安装脚本"

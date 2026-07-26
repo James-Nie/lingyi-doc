@@ -166,6 +166,18 @@ export class DocumentShareRepository {
     return row.permissionLevel as DocSharePermissionLevel;
   }
 
+  /** 清理历史误写入的「链接过期时间」，避免协作者无法保存 */
+  async clearInheritedLinkExpireForUser(userId: string): Promise<void> {
+    await this.shareUserRepo
+      .createQueryBuilder()
+      .update(DocShareUserEntity)
+      .set({ expireTime: null })
+      .where('subjectType = :subjectType', { subjectType: 'user' })
+      .andWhere('subjectId = :userId', { userId })
+      .andWhere('expireTime IS NOT NULL')
+      .execute();
+  }
+
   async addCollaborator(input: {
     docId: string;
     userId: string;
@@ -237,6 +249,9 @@ export class DocumentShareRepository {
     updatedAt: Date;
     lastVisitedAt: Date | null;
     tenantName: string | null;
+    docSlug: string | null;
+    spaceSlug: string | null;
+    bookSlug: string | null;
     sharePermission: string;
     sharedByName: string | null;
   }>> {
@@ -246,33 +261,122 @@ export class DocumentShareRepository {
         ? 'd.updated_at'
         : 'COALESCE(d.last_visited_at, d.updated_at)';
 
-    return this.shareUserRepo.query(
+    const rows = await this.shareUserRepo.query(
       `SELECT
         d.id AS id,
         d.title AS title,
-        d.doc_type AS docType,
-        d.owner_id AS ownerId,
-        u.display_name AS ownerName,
-        d.tenant_id AS tenantId,
+        d.doc_type AS doc_type,
+        d.doc_slug AS doc_slug,
+        d.owner_id AS owner_id,
+        u.display_name AS owner_name,
+        u.personal_space_slug AS personal_space_slug,
+        u.default_book_slug AS user_book_slug,
+        d.tenant_id AS tenant_id,
         d.scope AS scope,
-        d.created_at AS createdAt,
-        d.updated_at AS updatedAt,
-        d.last_visited_at AS lastVisitedAt,
-        t.name AS tenantName,
-        su.permission_level AS sharePermission,
-        g.display_name AS sharedByName
+        d.created_at AS created_at,
+        d.updated_at AS updated_at,
+        d.last_visited_at AS last_visited_at,
+        t.name AS tenant_name,
+        t.space_slug AS tenant_space_slug,
+        t.default_book_slug AS tenant_book_slug,
+        kb.kb_slug AS kb_slug,
+        su.permission_level AS share_permission,
+        g.display_name AS shared_by_name
       FROM doc_share_user su
       INNER JOIN documents d ON d.id = su.doc_id AND d.is_deleted = 0
       LEFT JOIN users u ON d.owner_id = u.id
       LEFT JOIN users g ON su.granted_by = g.id
       LEFT JOIN tenants t ON d.tenant_id = t.id
+      LEFT JOIN kb_nodes kn ON kn.doc_id = d.id AND kn.is_deleted = 0
+      LEFT JOIN knowledge_bases kb ON kb.id = kn.kb_id AND kb.is_deleted = 0
       WHERE su.subject_type = 'user'
         AND su.subject_id = ?
         AND su.permission_level != 'none'
-        AND (su.expire_time IS NULL OR su.expire_time > NOW())
-      ORDER BY ${orderClause} DESC`,
-      [userId],
-    );
+        AND (su.expire_time IS NULL OR su.expire_time > UTC_TIMESTAMP())
+        AND (d.owner_id IS NULL OR d.owner_id != ?)
+      ORDER BY ${orderClause} DESC
+      LIMIT 500`,
+      [userId, userId],
+    ) as Array<Record<string, unknown>>;
+
+    return rows.map(row => {
+      const scope = Number(row.scope ?? 1);
+      const docSlug = (row.doc_slug ?? row.docSlug ?? null) as string | null;
+      const spaceSlug = scope === 2
+        ? ((row.tenant_space_slug ?? row.tenantSpaceSlug ?? null) as string | null)
+        : ((row.personal_space_slug ?? row.personalSpaceSlug ?? null) as string | null);
+      const bookSlug = ((row.kb_slug ?? row.kbSlug ?? null) as string | null)
+        ?? (scope === 2
+          ? ((row.tenant_book_slug ?? row.tenantBookSlug ?? null) as string | null)
+          : ((row.user_book_slug ?? row.userBookSlug ?? null) as string | null));
+      return {
+        id: String(row.id ?? ''),
+        title: String(row.title ?? ''),
+        docType: String(row.doc_type ?? row.docType ?? 'richtext'),
+        ownerId: (row.owner_id ?? row.ownerId ?? null) as string | null,
+        ownerName: (row.owner_name ?? row.ownerName ?? null) as string | null,
+        tenantId: (row.tenant_id ?? row.tenantId ?? null) as string | null,
+        scope,
+        createdAt: (row.created_at ?? row.createdAt) as Date,
+        updatedAt: (row.updated_at ?? row.updatedAt) as Date,
+        lastVisitedAt: (row.last_visited_at ?? row.lastVisitedAt ?? null) as Date | null,
+        tenantName: (row.tenant_name ?? row.tenantName ?? null) as string | null,
+        docSlug,
+        spaceSlug,
+        bookSlug,
+        sharePermission: String(row.share_permission ?? row.sharePermission ?? 'read'),
+        sharedByName: (row.shared_by_name ?? row.sharedByName ?? null) as string | null,
+      };
+    });
+  }
+
+  /**
+   * 将「通过邀请链接成功访问」但未写入协作者的历史记录补齐到 doc_share_user，
+   * 使「与我共享」可见。
+   */
+  async backfillCollaboratorsFromShareVisits(userId: string): Promise<void> {
+    const candidates = await this.visitLogRepo.query(
+      `SELECT
+        v.doc_id AS doc_id,
+        MAX(v.share_token) AS share_token
+      FROM doc_share_visit_log v
+      INNER JOIN documents d ON d.id = v.doc_id AND d.is_deleted = 0
+      WHERE v.visitor_id = ?
+        AND v.visit_status = 'success'
+        AND v.share_token IS NOT NULL
+        AND v.share_token != ''
+        AND (d.owner_id IS NULL OR d.owner_id != ?)
+        AND NOT EXISTS (
+          SELECT 1 FROM doc_share_user su
+          WHERE su.doc_id = v.doc_id
+            AND su.subject_type = 'user'
+            AND su.subject_id = ?
+            AND su.permission_level != 'none'
+        )
+      GROUP BY v.doc_id`,
+      [userId, userId, userId],
+    ) as Array<{ doc_id?: string; docId?: string; share_token?: string; shareToken?: string }>;
+
+    for (const row of candidates) {
+      const docId = row.doc_id ?? row.docId;
+      if (!docId) continue;
+      const shareToken = row.share_token ?? row.shareToken ?? null;
+      const share = shareToken
+        ? await this.findByToken(shareToken)
+        : await this.findByDocId(docId);
+      const level = (share?.permissionLevel === 'manage' || share?.permissionLevel === 'edit')
+        ? 'edit'
+        : share?.permissionLevel === 'comment'
+          ? 'comment'
+          : 'read';
+      await this.addCollaborator({
+        docId,
+        userId,
+        permissionLevel: level,
+        grantedBy: share?.createdBy || userId,
+        expireTime: null,
+      });
+    }
   }
 
   async findJoinRequest(docId: string, applicantId: string, status = 'pending'): Promise<DocShareJoinRequestEntity | null> {
@@ -377,7 +481,7 @@ export class DocumentShareRepository {
       `SELECT
         COUNT(DISTINCT visitor_id) AS visitorCount,
         COUNT(*) AS visitCount,
-        SUM(CASE WHEN DATE(created_at) = CURDATE() THEN 1 ELSE 0 END) AS todayNewVisits
+        SUM(CASE WHEN created_at >= CURDATE() AND created_at < CURDATE() + INTERVAL 1 DAY THEN 1 ELSE 0 END) AS todayNewVisits
       FROM doc_share_visit_log
       WHERE doc_id = ? AND visit_status = 'success'`,
       [docId],

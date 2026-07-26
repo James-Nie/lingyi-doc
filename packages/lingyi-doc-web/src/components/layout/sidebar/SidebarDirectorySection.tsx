@@ -64,7 +64,7 @@ export const SidebarDirectorySection: React.FC<SidebarDirectorySectionProps> = (
       display: 'flex',
       alignItems: 'center',
       gap: 2,
-      padding: '4px 6px',
+      padding: '4px 8px 4px 6px',
       fontSize: 13,
       color: '#646a73',
     }}>
@@ -112,7 +112,7 @@ export const SidebarDirectorySection: React.FC<SidebarDirectorySectionProps> = (
     {expanded && (
       <div style={{ paddingLeft: 2 }}>
         {items.length === 0 ? (
-          <div style={{ padding: '8px 10px', fontSize: 12, color: SIDEBAR_MUTED }}>{emptyText}</div>
+          <div style={{ padding: '8px 10px 8px 10px', fontSize: 12, color: SIDEBAR_MUTED }}>{emptyText}</div>
         ) : items.map(item => {
           const isActive = activeItemId === item.id;
           const isHovered = hoveredItemId === item.id || menuItemId === item.id;

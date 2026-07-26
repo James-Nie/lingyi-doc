@@ -5,7 +5,7 @@ import {
   SheetTabs,
   useSheetStore,
   BASE_THEME,
-} from '@lingyi-doc/editor';
+} from '@lingyi-doc/editor-pro';
 
 interface SheetEditorPreviewProps {
   /** 模板 workbook 工厂产物，每次切换模板会 remount */

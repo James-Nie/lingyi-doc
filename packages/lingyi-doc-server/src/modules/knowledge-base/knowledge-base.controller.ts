@@ -211,7 +211,7 @@ export class KnowledgeBaseController {
     try {
       return this.knowledgeBaseService.createDocument(user, kbId, parentNodeId, {
         title: typeof body.title === 'string' ? body.title : '未命名文档',
-        docType: typeof body.docType === 'string' ? body.docType : 'freeform',
+        docType: typeof body.docType === 'string' ? body.docType : 'richtext',
       });
     } catch (err) {
       if (err instanceof BusinessException) throw err;
@@ -231,6 +231,21 @@ export class KnowledgeBaseController {
     }
   }
 
+  @Get(':kbId/members/search-users')
+  async searchUsersForAdd(
+    @CurrentUser() user: AuthUser,
+    @Param('kbId') kbId: string,
+    @Query('q') q?: string,
+  ) {
+    try {
+      return this.knowledgeBaseService.searchUsersForAdd(user, kbId, typeof q === 'string' ? q : '');
+    } catch (err) {
+      if (err instanceof BusinessException) throw err;
+      this.logger.error('searchUsersForAdd failed', err);
+      throw new BusinessException(100005, '搜索用户失败', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
   @Post(':kbId/members')
   async addMember(
     @CurrentUser() user: AuthUser,
@@ -239,17 +254,47 @@ export class KnowledgeBaseController {
   ) {
     try {
       const role = typeof body.role === 'string' ? body.role : 'viewer';
-      if (!['owner', 'admin', 'editor', 'viewer'].includes(role)) {
+      if (!['admin', 'editor', 'viewer'].includes(role)) {
         throw new BusinessException(100002, '无效的成员角色');
       }
+      const typedRole = role as Exclude<KbMemberRole, 'owner'>;
+
+      if (Array.isArray(body.userIds)) {
+        const userIds = body.userIds.filter((id): id is string => typeof id === 'string');
+        return this.knowledgeBaseService.addMembers(user, kbId, { userIds, role: typedRole });
+      }
+
       return this.knowledgeBaseService.addMember(user, kbId, {
         userId: typeof body.userId === 'string' ? body.userId : '',
-        role: role as KbMemberRole,
+        role: typedRole,
       });
     } catch (err) {
       if (err instanceof BusinessException) throw err;
       this.logger.error('addMember failed', err);
       throw new BusinessException(100005, '添加成员失败', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  @Post(':kbId/invite-link')
+  async ensureInviteLink(
+    @CurrentUser() user: AuthUser,
+    @Param('kbId') kbId: string,
+    @Body() body: Record<string, unknown>,
+  ) {
+    try {
+      const role = typeof body.role === 'string' ? body.role : 'editor';
+      if (!['admin', 'editor', 'viewer'].includes(role)) {
+        throw new BusinessException(100002, '无效的成员角色');
+      }
+      return this.knowledgeBaseService.ensureInviteLink(
+        user,
+        kbId,
+        role as Exclude<KbMemberRole, 'owner'>,
+      );
+    } catch (err) {
+      if (err instanceof BusinessException) throw err;
+      this.logger.error('ensureInviteLink failed', err);
+      throw new BusinessException(100005, '生成邀请链接失败', HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 

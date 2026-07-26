@@ -4,7 +4,7 @@ import { ADMIN_ROLE_CODES } from '../constants/rbac';
 import { closePool, query, execute } from './pool';
 import { assignAdminRole, seedRbacDefaults, seedSystemConfigDefaults } from './rbac-seed';
 
-const ADMIN_EMAIL = process.env.SEED_ADMIN_EMAIL || 'admin@example.com';
+const ADMIN_EMAIL = process.env.SEED_ADMIN_EMAIL || 'admin@lingyidoc.com';
 const ADMIN_PASSWORD = process.env.SEED_ADMIN_PASSWORD || 'admin123456';
 const ADMIN_NAME = process.env.SEED_ADMIN_NAME || '超级管理员';
 

@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common';
+import { DocumentDataModule } from '../../repositories/document-data.module';
+import { TenantDataModule } from '../../repositories/tenant-data.module';
 import { DocumentCommentModule } from '../document-comment/document-comment.module';
 import { DocumentShareController } from './document-share.controller';
 import { DocumentShareJoinController } from './document-share-join.controller';
@@ -6,7 +8,7 @@ import { DocumentSharePublicController } from './document-share-public.controlle
 import { DocumentShareService } from './document-share.service';
 
 @Module({
-  imports: [DocumentCommentModule],
+  imports: [DocumentDataModule, TenantDataModule, DocumentCommentModule],
   controllers: [DocumentShareController, DocumentShareJoinController, DocumentSharePublicController],
   providers: [DocumentShareService],
   exports: [DocumentShareService],

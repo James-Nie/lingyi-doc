@@ -33,7 +33,7 @@ export const LoginPage: React.FC = () => {
         <p style={{ color: '#8c8c8c', marginBottom: 24, textAlign: 'center' }}>运营人员专用登录入口</p>
         <Form layout="vertical" onFinish={onFinish}>
           <Form.Item name="email" label="邮箱" rules={[{ required: true }, { type: 'email' }]}>
-            <Input size="large" placeholder="admin@example.com" />
+            <Input size="large" placeholder="admin@lingyidoc.com" />
           </Form.Item>
           <Form.Item name="password" label="密码" rules={[{ required: true }]}>
             <Input.Password size="large" />

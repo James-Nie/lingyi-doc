@@ -1,10 +1,13 @@
 import { Injectable, LoggerService, LogLevel } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { ContextLogger } from './context-logger';
+import { appendLogLine, resolveDailyLogPath } from './log-file-writer';
 import { parseLogLevel, shouldLogLevel } from './log-level';
+import { getRequestId } from './request-context';
 
 type LogMeta = Record<string, unknown>;
 
-interface HttpLogPayload {
+export interface HttpLogPayload {
   method: string;
   url: string;
   statusCode: number;
@@ -20,12 +23,32 @@ export class AppLoggerService implements LoggerService {
   private readonly json: boolean;
   private readonly httpEnabled: boolean;
   private readonly slowRequestMs: number;
+  private readonly logFile?: string;
 
   constructor(private readonly config: ConfigService) {
     this.minLevel = parseLogLevel(this.config.get<string>('log.level'));
     this.json = this.config.get<boolean>('log.json') ?? false;
     this.httpEnabled = this.config.get<boolean>('log.http') ?? true;
     this.slowRequestMs = this.config.get<number>('log.slowRequestMs') ?? 1000;
+    const file = this.config.get<string>('log.file');
+    this.logFile = file?.trim() || undefined;
+  }
+
+  /** 绑定固定 context，供 Service 注入后使用 */
+  child(context: string): ContextLogger {
+    return new ContextLogger(this, context);
+  }
+
+  logStartupConfig(): void {
+    const fileHint = this.logFile
+      ? ` file=${resolveDailyLogPath(this.logFile)} (daily rotate from ${this.logFile})`
+      : '';
+    this.log(
+      `日志已启用 level=${this.minLevel} format=${this.json ? 'json' : 'pretty'} `
+      + `http=${this.httpEnabled ? 'on' : 'off'} slowRequestMs=${this.slowRequestMs}`
+      + fileHint,
+      'Bootstrap',
+    );
   }
 
   log(message: unknown, context?: string): void {
@@ -82,12 +105,18 @@ export class AppLoggerService implements LoggerService {
     if (!shouldLogLevel(level, this.minLevel)) return;
 
     const normalizedMessage = this.normalizeMessage(message);
+    const requestId = getRequestId();
+    const mergedMeta = {
+      ...(requestId ? { requestId } : {}),
+      ...(meta && Object.keys(meta).length ? meta : {}),
+    };
+
     const record = {
       timestamp: new Date().toISOString(),
       level,
       context: context || 'App',
       message: normalizedMessage,
-      ...(meta && Object.keys(meta).length ? { meta } : {}),
+      ...(Object.keys(mergedMeta).length ? { meta: mergedMeta } : {}),
     };
 
     const line = this.json
@@ -95,6 +124,9 @@ export class AppLoggerService implements LoggerService {
       : this.formatPretty(record);
 
     this.print(level, line);
+    if (this.logFile) {
+      appendLogLine(this.logFile, line);
+    }
   }
 
   private normalizeMessage(message: unknown): string {

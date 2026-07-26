@@ -87,7 +87,8 @@ export const WikiSpacePage: React.FC = () => {
   }, [authState.session, authState.tenants]);
 
   const tenantId = authState.session?.currentTenantId ?? null;
-  const canManageMembers = kb?.visibility === 'members' && authState.session?.currentIdentityType === 'tenant';
+  const canManageKb = kb?.myRole === 'owner' || kb?.myRole === 'admin';
+  const canManageMembers = Boolean(canManageKb && kb?.visibility === 'members');
 
   const showStub = useCallback((name: string) => setToast(`${name}功能开发中`), []);
 
@@ -293,9 +294,18 @@ export const WikiSpacePage: React.FC = () => {
                           成员管理
                         </button>
                       )}
-                      <button type="button" onClick={() => { setMoreMenuOpen(false); showStub('知识库设置'); }} style={moreMenuItemStyle}>
-                        知识库设置
-                      </button>
+                      {canManageKb && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setMoreMenuOpen(false);
+                            navigate(appPath.wikiSettings(kb.id));
+                          }}
+                          style={moreMenuItemStyle}
+                        >
+                          知识库设置
+                        </button>
+                      )}
                     </div>
                   </>
                 )}

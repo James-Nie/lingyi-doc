@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { message } from 'antd';
 import {
   Workbook,
@@ -7,7 +7,10 @@ import {
   ChartParser,
   getRatingConfig,
   getRatingColumnWidth,
+  applySystemColumnDefaults,
+  isSystemColumnType,
   DocumentManager,
+  DashboardApi,
   SaveManager,
   WorkbookCollabBridge,
   XlsxIO,
@@ -16,6 +19,7 @@ import {
   cellRefLabel,
   isBaseSheet,
   prepareGroupedRecordIndices,
+  setCurrentRecordOperator,
   type ActiveCellEditor,
   type CollabConnectionState,
   type CommentUpdatePayload,
@@ -29,22 +33,32 @@ import {
   isFreeformSheet,
   filterCommentThreadsForSheet,
 } from '@lingyi-doc/core';
-import type { ChartType, ChartVariant, ChartInstance, SheetType } from '@lingyi-doc/core';
+import type { ChartType, ChartVariant, ChartInstance, SheetType, DashboardModel } from '@lingyi-doc/core';
 import {
   Toolbar, BaseToolbar, FieldConfigPanel, StatusBar, SheetTabs, useSheetStore, BASE_THEME,
   ensureFormView, activateBaseView, getActiveBaseView, ensureActiveBaseView, applySheetStoreFromBaseView,
-  updateFormViewConfig, updateBaseViewGroupRules, updateBaseViewFilter, updateBaseViewSort,
+  syncAllFormViews, syncFormFieldRename,
+  updateFormViewConfig, updateBaseViewGroupRules, updateBaseViewFilter, updateBaseViewFilterConjunction, updateBaseViewSort,
+  updateKanbanViewConfig, ensureKanbanGroupField, createAndActivateBaseView,
+  renameBaseView, duplicateBaseView, deleteBaseView,
   FreeformSheetEditor, BaseSheetEditor, DocCommentPanel, useDocCommentController,
-} from '@lingyi-doc/editor';
-import type { FormSharePanelContext, SheetCommentRequest } from '@lingyi-doc/editor';
+} from '@lingyi-doc/editor-pro';
+import type { FormSharePanelContext, SheetCommentRequest } from '@lingyi-doc/editor-pro';
 import { FormSharePanel } from '../components/share/FormSharePanel';
-import type { GroupRule, FilterCondition, SortRule } from '@lingyi-doc/core';
-import { ChartInsertDialog, ChartEditor } from '@lingyi-doc/editor';
+import type { GroupRule, FilterCondition, SortRule, BaseViewType } from '@lingyi-doc/core';
+import { createDefaultDashboard, createEmptyDashboard } from '@lingyi-doc/core';
+import { ChartInsertDialog, ChartEditor } from '@lingyi-doc/editor-pro';
 import { DocumentBar } from '../components/DocumentBar';
 import { CollabStatusBar } from '../components/CollabStatusBar';
+import {
+  DocumentHistoryPanelSlot,
+  DocumentHistoryToolbarSlot,
+} from '../components/history/DocumentHistoryChrome';
+import { useDocumentHistory } from '../hooks/useDocumentHistory';
 import { commitPendingSheetEdits } from '../utils/commitPendingEdits';
 import { appPath } from '../utils/appPaths';
 import { authStore } from '../stores/authStore';
+import { activeDocumentStore } from '../stores/activeDocumentStore';
 import type { EditorAccessProps } from '../types/editorAccess';
 import type { DownloadFormat } from '../utils/downloadAs';
 import { BASE_SHEET_PRINT_MESSAGE } from '../utils/printMessages';
@@ -72,6 +86,10 @@ export const EditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiResp
   const { docId: routeDocId } = useParams<{ docId: string }>();
   const docId = docIdProp ?? routeDocId;
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const deepLinkSheetId = searchParams.get('sheetId');
+  const deepLinkViewId = searchParams.get('viewId');
+  const deepLinkPreferGrid = searchParams.get('view') === 'grid';
   const workbookRef = useRef<Workbook>();
 
   const [workbook, setWorkbook] = useState<Workbook | null>(null);
@@ -90,13 +108,7 @@ export const EditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiResp
 
   const [collabUsers, setCollabUsers] = useState<OnlineUser[]>([]);
   const [collabState, setCollabState] = useState<CollabConnectionState>('idle');
-  const [activeCellEditor, setActiveCellEditor] = useState<ActiveCellEditor | null>(null);
-  const myUserIdRef = useRef(authStore.getState().user?.id ?? '');
-
-  const collabViewOnly = !readOnly
-    && collabState === 'connected'
-    && activeCellEditor != null
-    && activeCellEditor.userId !== myUserIdRef.current;
+  const [activeCellEditors, setActiveCellEditors] = useState<ActiveCellEditor[]>([]);
 
   useEffect(() => {
     docTitleRef.current = docTitle;
@@ -108,6 +120,51 @@ export const EditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiResp
   const [showChartDialog, setShowChartDialog] = useState(false);
   const [selectedChartId, setSelectedChartId] = useState<string | null>(null);
   const [lastModified, setLastModified] = useState<number>(Date.now());
+  const [activeDashboardId, setActiveDashboardId] = useState<string | null>(null);
+  const [dashboardRevision, setDashboardRevision] = useState(0);
+  const [viewListTick, setViewListTick] = useState(0);
+  const dashboardSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** 仪表盘列表是否已从独立接口拉取（打开文档不请求，切换/创建时再拉） */
+  const dashboardsHydratedRef = useRef(false);
+  const dashboardsHydratingRef = useRef<Promise<void> | null>(null);
+
+  const ensureDashboardsLoaded = useCallback(async (wb: Workbook, id: string) => {
+    if (dashboardsHydratedRef.current) return;
+    if (dashboardsHydratingRef.current) {
+      await dashboardsHydratingRef.current;
+      return;
+    }
+    const task = (async () => {
+      try {
+        const result = await DashboardApi.loadForDocument(
+          id,
+          wb.dashboards,
+          null,
+        );
+        wb.setDashboards(result.dashboards);
+        setDashboardRevision(v => v + 1);
+      } catch {
+        // 独立表不可用时保留 Workbook 内嵌 stub，仍标记已尝试，避免重复打接口
+      } finally {
+        dashboardsHydratedRef.current = true;
+      }
+    })();
+    dashboardsHydratingRef.current = task;
+    try {
+      await task;
+    } finally {
+      if (dashboardsHydratingRef.current === task) {
+        dashboardsHydratingRef.current = null;
+      }
+    }
+  }, []);
+
+  const resetDashboardSession = useCallback((wb?: Workbook | null) => {
+    dashboardsHydratedRef.current = false;
+    dashboardsHydratingRef.current = null;
+    wb?.switchDashboard(undefined);
+    setActiveDashboardId(null);
+  }, []);
   const [commentsEnabled, setCommentsEnabled] = useState(false);
   const [docPermission, setDocPermission] = useState<DocumentPermission>('owner');
   const [initialCommentThreads, setInitialCommentThreads] = useState<DocCommentThread[]>([]);
@@ -130,8 +187,14 @@ export const EditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiResp
     };
   }, []);
 
+  useEffect(() => {
+    setCurrentRecordOperator(commentAuthor.authorName);
+  }, [commentAuthor.authorName]);
+
+  const historyModeRef = useRef(false);
+
   const markDirty = useCallback(() => {
-    if (readOnly) return;
+    if (readOnly || historyModeRef.current) return;
     setDirty(true);
     saveManagerRef.current?.markDirty();
     if (!collabBridgeRef.current?.isApplyingRemote()) {
@@ -143,7 +206,7 @@ export const EditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiResp
     workbookRef.current = wb;
   }, []);
 
-  const handleWorkbookReplace = useCallback((next: Workbook) => {
+  const handleWorkbookReplace = useCallback((next: Workbook, opts?: { markDirty?: boolean }) => {
     const prevActive = workbookRef.current?.activeSheetId;
     if (prevActive && next.getSheet(prevActive)) {
       next.switchSheet(prevActive);
@@ -151,11 +214,69 @@ export const EditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiResp
     attachWorkbookListeners(next);
     setWorkbook(next);
     setActiveSheetId(next.activeSheetId);
-    saveManagerRef.current?.markDirty();
+    if (opts?.markDirty !== false) {
+      saveManagerRef.current?.markDirty();
+    }
   }, [attachWorkbookListeners]);
 
-  const handleWorkbookReplaceRef = useRef(handleWorkbookReplace);
-  handleWorkbookReplaceRef.current = handleWorkbookReplace;
+  const reloadDocumentFromServer = useCallback(async () => {
+    if (!docId) return;
+    const result = await DocumentManager.load(docId);
+    if (!result) return;
+    docTypeRef.current = result.docType;
+    if (!result.workbook.activeSheet) {
+      result.workbook.addSheet('Sheet1');
+    }
+    attachWorkbookListeners(result.workbook);
+    setWorkbook(result.workbook);
+    setDocTitle(result.title);
+    setLastModified(Date.now());
+    setActiveSheetId(result.workbook.activeSheetId);
+    setActiveDashboardId(null);
+    resetDashboardSession(result.workbook);
+    setDashboardRevision(v => v + 1);
+    const activeTable = result.workbook.activeSheet;
+    if (activeTable && isBaseSheet(activeTable.sheet)) {
+      applySheetStoreFromBaseView(activeTable.sheet);
+    } else {
+      useSheetStore.getState().setCurrentView('grid');
+    }
+    setDirty(false);
+    setSaveStatus('saved');
+    titleDirtyByUserRef.current = false;
+    saveManagerRef.current?.initialize(
+      result.version,
+      result.workbook.toJSON() as Record<string, unknown>,
+      result.title,
+    );
+    useSheetStore.getState().setEditingCell(null);
+    useSheetStore.getState().setFormulaBarText('');
+    useSheetStore.getState().setSelection(null, null);
+  }, [attachWorkbookListeners, docId, resetDashboardSession]);
+
+  const history = useDocumentHistory({
+    docId,
+    canRestore: canEdit && !readOnly,
+    saveManagerRef,
+    applyPreviewSnapshot: (snapshot) => {
+      const next = Workbook.fromJSON(snapshot);
+      handleWorkbookReplace(next, { markDirty: false });
+    },
+    reloadCurrentDocument: reloadDocumentFromServer,
+  });
+
+  useEffect(() => {
+    historyModeRef.current = history.historyOpen;
+  }, [history.historyOpen]);
+
+  const handleCollabWorkbookReplace = useCallback((next: Workbook) => {
+    if (history.historyOpenRef.current) return;
+    handleWorkbookReplace(next, { markDirty: false });
+    saveManagerRef.current?.adoptRemoteSnapshot(next.toJSON() as Record<string, unknown>);
+  }, [handleWorkbookReplace, history.historyOpenRef]);
+
+  const handleCollabWorkbookReplaceRef = useRef(handleCollabWorkbookReplace);
+  handleCollabWorkbookReplaceRef.current = handleCollabWorkbookReplace;
 
   useEffect(() => {
     if (!workbook) return;
@@ -178,30 +299,46 @@ export const EditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiResp
         return;
       }
 
-      if (nextEditing && !prevEditing) {
-        if (!bridge.canStartCellEdit()) {
+      const switched = !!nextEditing && (
+        !prevEditing
+        || prevEditing.row !== nextEditing.row
+        || prevEditing.col !== nextEditing.col
+      );
+
+      if (switched && nextEditing) {
+        if (!bridge.canStartCellEdit(sheetId, nextEditing.row, nextEditing.col)) {
           state.setEditingCell(null);
-          const holder = bridge.getRemoteCellEditor();
+          const holder = bridge.getRemoteCellEditors().find(e =>
+            e.sheetId === sheetId && e.row === nextEditing.row && e.col === nextEditing.col,
+          );
           if (holder) {
             state.setStatusText(`${holder.displayName} 正在编辑 ${cellRefLabel(holder.row, holder.col)}`);
           }
           prevEditing = null;
           return;
         }
-        bridge.startCellEdit(sheetId, nextEditing.row, nextEditing.col);
+        if (!bridge.startCellEdit(sheetId, nextEditing.row, nextEditing.col)) {
+          state.setEditingCell(null);
+          prevEditing = null;
+          return;
+        }
+        // 进入编辑即标脏，避免未提交内容在刷新时被当成「已保存」而丢失
+        markDirty();
       } else if (!nextEditing && prevEditing) {
         bridge.endCellEdit();
       }
       prevEditing = nextEditing;
     });
     return unsub;
-  }, [readOnly, workbook]);
+  }, [readOnly, workbook, markDirty]);
 
   useEffect(() => {
     if (!docId) {
       navigate(appPath.home, { replace: true });
       return;
     }
+    // 普通表格走 EditorPage：确保侧栏选中与当前 docId 对齐
+    activeDocumentStore.setDocId(docId);
 
     let cancelled = false;
 
@@ -238,16 +375,39 @@ export const EditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiResp
         if (!result.workbook.activeSheet) {
           result.workbook.addSheet('Sheet1');
         }
+
+        // 表单分享页「编辑表单 / 查看收集结果」深链：?sheetId=&viewId= 或 ?view=grid
+        if (deepLinkSheetId && result.workbook.getSheet(deepLinkSheetId)) {
+          result.workbook.switchSheet(deepLinkSheetId);
+        }
+        const deepTable = result.workbook.activeSheet;
+        if (deepTable && isBaseSheet(deepTable.sheet)) {
+          if (deepLinkPreferGrid) {
+            const grid = deepTable.sheet.views?.find(v => v.viewType === 'grid');
+            if (grid) {
+              activateBaseView(deepTable.sheet, grid.viewId);
+            }
+            useSheetStore.getState().setCurrentView('grid');
+          } else if (deepLinkViewId) {
+            const view = activateBaseView(deepTable.sheet, deepLinkViewId);
+            if (view?.viewType === 'form') {
+              useSheetStore.getState().setCurrentView('form');
+              useSheetStore.getState().setFormEditorTab('edit');
+            } else {
+              applySheetStoreFromBaseView(deepTable.sheet);
+            }
+          } else {
+            applySheetStoreFromBaseView(deepTable.sheet);
+          }
+        } else {
+          useSheetStore.getState().setCurrentView('grid');
+        }
+
         setWorkbook(result.workbook);
         setDocTitle(result.title);
         setLastModified(Date.now());
         setActiveSheetId(result.workbook.activeSheetId);
-        const activeTable = result.workbook.activeSheet;
-        if (activeTable && isBaseSheet(activeTable.sheet)) {
-          applySheetStoreFromBaseView(activeTable.sheet);
-        } else {
-          useSheetStore.getState().setCurrentView('grid');
-        }
+        resetDashboardSession(result.workbook);
         setDirty(false);
         setSaveStatus('saved');
         titleDirtyByUserRef.current = false;
@@ -261,6 +421,10 @@ export const EditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiResp
             getTitle: () => docTitleRef.current,
             getSnapshot: () => workbookRef.current!.toJSON() as Record<string, unknown>,
             onBeforeFlush: () => commitPendingSheetEdits(workbookRef.current, useSheetStore.getState()),
+            shouldDeferFlush: () => {
+              const s = useSheetStore.getState();
+              return s.editingCell != null || s.editingRecordCoord != null;
+            },
             saveFull: (title) => DocumentManager.save(docId!, title, workbookRef.current!),
             savePatch: (input) => DocumentManager.patch(docId!, input),
             onStatusChange: (status) => {
@@ -284,32 +448,39 @@ export const EditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiResp
           saveManagerRef.current = manager;
 
           collabBridgeRef.current?.disconnect();
-          const bridge = new WorkbookCollabBridge({
-            docId: docId!,
-            docType: result.docType,
-            userId: authStore.getState().user?.id ?? '',
-            getToken: () => authStore.getAccessToken(),
-            getWorkbook: () => workbookRef.current ?? null,
-            isLocalEditing: () => useSheetStore.getState().editingCell != null,
-            onWorkbookReplace: (wb: Workbook) => handleWorkbookReplaceRef.current(wb),
-            onBeforeLocalFlush: () => commitPendingSheetEdits(workbookRef.current, useSheetStore.getState()),
-            onPresenceChange: setCollabUsers,
-            onCellEditingChange: setActiveCellEditor,
-            onStateChange: setCollabState,
-            onCommentUpdate: (senderId, payload) => {
-              if (senderId === authStore.getState().user?.id) return;
-              setRemoteCommentUpdate(payload);
-            },
-            onError: (err: Error) => {
-              if (err.message.includes('210009') || err.message.includes('正在编辑')) {
-                useSheetStore.getState().setEditingCell(null);
-              }
-              useSheetStore.getState().setStatusText(`协同: ${err.message}`);
-            },
-          });
-          bridge.initialize(result.workbook.toJSON() as Record<string, unknown>);
-          collabBridgeRef.current = bridge;
-          bridge.connect();
+          if (features.collab) {
+            const bridge = new WorkbookCollabBridge({
+              docId: docId!,
+              docType: result.docType,
+              userId: authStore.getState().user?.id ?? '',
+              getToken: () => authStore.getAccessToken(),
+              getWorkbook: () => workbookRef.current ?? null,
+              isLocalEditing: () => useSheetStore.getState().editingCell != null,
+              onWorkbookReplace: (wb: Workbook) => handleCollabWorkbookReplaceRef.current(wb),
+              onBeforeLocalFlush: () => commitPendingSheetEdits(workbookRef.current, useSheetStore.getState()),
+              onPresenceChange: setCollabUsers,
+              onCellEditingChange: setActiveCellEditors,
+              onStateChange: setCollabState,
+              onCommentUpdate: (senderId, payload) => {
+                if (senderId === authStore.getState().user?.id) return;
+                setRemoteCommentUpdate(payload);
+              },
+              onError: (err: Error) => {
+                if (err.message.includes('210009') || err.message.includes('正在编辑')) {
+                  useSheetStore.getState().setEditingCell(null);
+                }
+                useSheetStore.getState().setStatusText(`协同: ${err.message}`);
+              },
+            });
+            bridge.initialize(result.workbook.toJSON() as Record<string, unknown>);
+            collabBridgeRef.current = bridge;
+            bridge.connect();
+          } else {
+            collabBridgeRef.current = null;
+            setCollabState('idle');
+            setCollabUsers([]);
+            setActiveCellEditors([]);
+          }
         } else {
           saveManagerRef.current?.dispose();
           saveManagerRef.current = null;
@@ -337,15 +508,48 @@ export const EditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiResp
       collabBridgeRef.current = null;
       setCollabState('idle');
       setCollabUsers([]);
-      setActiveCellEditor(null);
+      setActiveCellEditors([]);
     };
-  }, [docId, navigate, attachWorkbookListeners, prefetched, readOnly]);
+  }, [
+    docId,
+    navigate,
+    attachWorkbookListeners,
+    prefetched,
+    readOnly,
+    resetDashboardSession,
+    deepLinkSheetId,
+    deepLinkViewId,
+    deepLinkPreferGrid,
+  ]);
 
   useEffect(() => {
-    const onLeave = () => { void saveManagerRef.current?.flush(true); };
+    const persistOnLeave = () => {
+      const wb = workbookRef.current;
+      const manager = saveManagerRef.current;
+      if (!wb || !docId || readOnly) return false;
+      const hadPendingEdit = !!useSheetStore.getState().editingCell;
+      commitPendingSheetEdits(wb, useSheetStore.getState());
+      const hadDirty = (manager?.isDirty() ?? false) || hadPendingEdit;
+      if (!hadDirty) return false;
+      // 页面卸载时用 keepalive 全量 PUT，尽量保证落盘
+      void DocumentManager.save(docId, docTitleRef.current, wb, { keepalive: true });
+      return true;
+    };
+
+    const onLeave = (e: BeforeUnloadEvent) => {
+      if (persistOnLeave()) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    const onPageHide = () => { persistOnLeave(); };
     window.addEventListener('beforeunload', onLeave);
-    return () => window.removeEventListener('beforeunload', onLeave);
-  }, []);
+    window.addEventListener('pagehide', onPageHide);
+    return () => {
+      window.removeEventListener('beforeunload', onLeave);
+      window.removeEventListener('pagehide', onPageHide);
+    };
+  }, [docId, readOnly]);
 
   const activeTable = workbook?.activeSheet ?? null;
   const isBase = activeTable ? isBaseSheet(activeTable.sheet) : false;
@@ -363,9 +567,11 @@ export const EditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiResp
     ),
     onPersistCreate: commentsEnabled && canComment && docId
       ? async ({ thread }) => {
+          const firstReply = thread.replies[0];
           const saved = await createDocumentComment(docId, {
             id: thread.id,
             anchor: thread.anchor,
+            text: firstReply?.text,
           });
           return saved;
         }
@@ -424,6 +630,9 @@ export const EditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiResp
 
   const handleSelectSheetComment = useCallback((id: string) => {
     commentCtrl.handleSelectComment(id);
+    if (!commentCtrl.showCommentPanel) {
+      commentCtrl.setShowCommentPanel(true);
+    }
     scrollToSheetComment(id);
   }, [commentCtrl, scrollToSheetComment]);
 
@@ -509,7 +718,9 @@ export const EditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiResp
 
   const handleSwitchSheet = useCallback((sheetId: string) => {
     workbook?.switchSheet(sheetId);
+    workbook?.switchDashboard(undefined);
     setActiveSheetId(sheetId);
+    setActiveDashboardId(null);
     const table = workbook?.getSheet(sheetId);
     if (table && isBaseSheet(table.sheet)) {
       applySheetStoreFromBaseView(table.sheet);
@@ -602,13 +813,195 @@ export const EditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiResp
     if (!activeTable || !isBaseSheet(activeTable.sheet)) return;
     const view = activateBaseView(activeTable.sheet, viewId);
     if (view) {
+      workbook?.switchDashboard(undefined);
+      setActiveDashboardId(null);
       useSheetStore.getState().setCurrentView(view.viewType);
-      activeTable.notifyChange(null);
-      markDirty();
+      // 切离表格 Canvas 时不要 notifyChange，避免卸载过程中残留 rAF 访问已 destroy 的 LayerManager
+      if (view.viewType === 'grid') {
+        activeTable.notifyChange(null);
+      }
+      // 视图选中状态仅会话内有效，不落库
     }
+  }, [activeTable, workbook]);
+
+  const handleCreateView = useCallback((viewType: BaseViewType) => {
+    if (!activeTable || !isBaseSheet(activeTable.sheet)) return;
+    const view = createAndActivateBaseView(activeTable.sheet, viewType);
+    workbook?.switchDashboard(undefined);
+    setActiveDashboardId(null);
+    useSheetStore.getState().setCurrentView(view.viewType);
+    if (view.viewType === 'form') {
+      useSheetStore.getState().setFormEditorTab('edit');
+    }
+    if (view.viewType === 'grid') {
+      activeTable.notifyChange(null);
+    }
+    setViewListTick(v => v + 1);
+    markDirty();
+    useSheetStore.getState().setStatusText(`已创建${view.viewName}`);
+  }, [activeTable, workbook, markDirty]);
+
+  const handleRenameView = useCallback((viewId: string, name: string) => {
+    if (!activeTable || !isBaseSheet(activeTable.sheet)) return;
+    if (!renameBaseView(activeTable.sheet, viewId, name)) return;
+    activeTable.notifyChange(null);
+    setViewListTick(v => v + 1);
+    markDirty();
+    useSheetStore.getState().setStatusText('已重命名视图');
   }, [activeTable, markDirty]);
 
+  const handleDuplicateView = useCallback((viewId: string) => {
+    if (!activeTable || !isBaseSheet(activeTable.sheet)) return;
+    const view = duplicateBaseView(activeTable.sheet, viewId);
+    if (!view) return;
+    workbook?.switchDashboard(undefined);
+    setActiveDashboardId(null);
+    useSheetStore.getState().setCurrentView(view.viewType);
+    if (view.viewType === 'grid') {
+      activeTable.notifyChange(null);
+    }
+    setViewListTick(v => v + 1);
+    markDirty();
+    useSheetStore.getState().setStatusText(`已创建副本「${view.viewName}」`);
+  }, [activeTable, workbook, markDirty]);
+
+  const handleDeleteView = useCallback((viewId: string) => {
+    if (!activeTable || !isBaseSheet(activeTable.sheet)) return;
+    const next = deleteBaseView(activeTable.sheet, viewId);
+    if (!next) {
+      message.warning('至少保留一个视图');
+      return;
+    }
+    workbook?.switchDashboard(undefined);
+    setActiveDashboardId(null);
+    useSheetStore.getState().setCurrentView(next.viewType);
+    if (next.viewType === 'grid') {
+      activeTable.notifyChange(null);
+    }
+    setViewListTick(v => v + 1);
+    markDirty();
+    useSheetStore.getState().setStatusText('已删除视图');
+  }, [activeTable, workbook, markDirty]);
+
+  const handleRenameDashboard = useCallback(async (dashboardId: string, name: string) => {
+    if (!workbook || !docId) return;
+    try {
+      await ensureDashboardsLoaded(workbook, docId);
+      const dash = workbook.getDashboard(dashboardId);
+      if (!dash) return;
+      workbook.updateDashboard(dashboardId, { ...dash, name });
+      setDashboardRevision(v => v + 1);
+      await DashboardApi.update(docId, dashboardId, {
+        name,
+        sourceSheetId: dash.sourceSheetId,
+        layout: dash.layout,
+        widgets: dash.widgets,
+        globalFilters: dash.globalFilters,
+        version: dash.version ?? 1,
+      });
+    } catch {
+      message.warning('重命名仪表盘失败');
+    }
+  }, [workbook, docId, ensureDashboardsLoaded]);
+
+  const handleDeleteDashboard = useCallback(async (dashboardId: string) => {
+    if (!workbook || !docId) return;
+    try {
+      await ensureDashboardsLoaded(workbook, docId);
+      await DashboardApi.remove(docId, dashboardId);
+      workbook.removeDashboard(dashboardId);
+      if (activeDashboardId === dashboardId) {
+        setActiveDashboardId(null);
+        workbook.switchDashboard(undefined);
+      }
+      setDashboardRevision(v => v + 1);
+      useSheetStore.getState().setStatusText('已删除仪表盘');
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : '删除仪表盘失败');
+    }
+  }, [workbook, docId, activeDashboardId, ensureDashboardsLoaded]);
+
+  const handlePrefetchDashboards = useCallback(() => {
+    if (!workbook || !docId) return;
+    void ensureDashboardsLoaded(workbook, docId);
+  }, [workbook, docId, ensureDashboardsLoaded]);
+
+  const handleSelectDashboard = useCallback(async (dashboardId: string) => {
+    if (!workbook || !docId) return;
+    try {
+      // 打开文档不拉仪表盘；切换时再请求独立接口
+      await ensureDashboardsLoaded(workbook, docId);
+      const detail = await DashboardApi.get(docId, dashboardId);
+      workbook.replaceDashboard(detail);
+      workbook.switchDashboard(dashboardId);
+      setActiveDashboardId(dashboardId);
+      setDashboardRevision(v => v + 1);
+    } catch (err) {
+      message.warning(err instanceof Error ? err.message : '加载仪表盘失败');
+    }
+  }, [workbook, docId, ensureDashboardsLoaded]);
+
+  const handleCreateDashboard = useCallback(async () => {
+    if (!workbook || !docId || !activeTable || !isBaseSheet(activeTable.sheet)) return;
+    try {
+      await ensureDashboardsLoaded(workbook, docId);
+      const draft = workbook.dashboards.length === 0
+        ? createDefaultDashboard(activeTable.sheetId, activeTable.sheet.columnDefs, '数据仪表盘')
+        : createEmptyDashboard(activeTable.sheetId, `仪表盘 ${workbook.dashboards.length + 1}`);
+      const saved = await DashboardApi.create(docId, {
+        id: draft.id,
+        name: draft.name,
+        sourceSheetId: draft.sourceSheetId,
+        layout: draft.layout,
+        widgets: draft.widgets,
+        globalFilters: draft.globalFilters,
+        setActive: false,
+      });
+      workbook.addDashboard(saved);
+      workbook.switchDashboard(saved.id);
+      setActiveDashboardId(saved.id);
+      setDashboardRevision(v => v + 1);
+      useSheetStore.getState().setStatusText('已创建仪表盘');
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : '创建仪表盘失败');
+    }
+  }, [workbook, activeTable, docId, ensureDashboardsLoaded]);
+
+  const handleDashboardChange = useCallback((dashboard: DashboardModel) => {
+    if (!workbook || !docId) return;
+    const baseVersion = workbook.getDashboard(dashboard.id)?.version ?? dashboard.version ?? 1;
+    workbook.updateDashboard(dashboard.id, dashboard);
+    setDashboardRevision(v => v + 1);
+    if (dashboardSaveTimerRef.current) clearTimeout(dashboardSaveTimerRef.current);
+    dashboardSaveTimerRef.current = setTimeout(() => {
+      const latest = workbookRef.current?.getDashboard(dashboard.id) ?? dashboard;
+      void DashboardApi.update(docId, latest.id, {
+        name: latest.name,
+        sourceSheetId: latest.sourceSheetId,
+        layout: latest.layout,
+        widgets: latest.widgets,
+        globalFilters: latest.globalFilters,
+        version: baseVersion,
+      }).then((saved) => {
+        workbookRef.current?.replaceDashboard(saved);
+        setDashboardRevision(v => v + 1);
+      }).catch((err) => {
+        message.warning(err instanceof Error ? err.message : '仪表盘保存失败');
+      });
+    }, 600);
+  }, [workbook, docId]);
+
   const handleFormViewChange = useCallback(() => {
+    markDirty();
+  }, [markDirty]);
+
+  const handleKanbanViewChange = useCallback(() => {
+    markDirty();
+  }, [markDirty]);
+
+  const [kanbanConfigTick, setKanbanConfigTick] = useState(0);
+  const bumpKanbanConfig = useCallback(() => {
+    setKanbanConfigTick(v => v + 1);
     markDirty();
   }, [markDirty]);
 
@@ -619,6 +1012,45 @@ export const EditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiResp
       ?? sheet.views?.find(v => v.viewType === 'form')
       ?? null;
   })();
+
+  const activeKanbanView = (() => {
+    void kanbanConfigTick;
+    if (!isBase || !activeTable || !isBaseSheet(activeTable.sheet)) return null;
+    const sheet = activeTable.sheet;
+    const view = sheet.views?.find(v => v.viewId === sheet.activeViewId && v.viewType === 'kanban')
+      ?? null;
+    if (view) ensureKanbanGroupField(view, sheet.columnDefs);
+    return view;
+  })();
+
+  const handleKanbanGroupFieldChange = useCallback((fieldId: string) => {
+    if (!activeKanbanView || !activeTable) return;
+    updateKanbanViewConfig(activeKanbanView, { kanbanGroupFieldId: fieldId });
+    activeTable.notifyChange(null);
+    bumpKanbanConfig();
+    useSheetStore.getState().setStatusText('已更新分组依据');
+  }, [activeKanbanView, activeTable, bumpKanbanConfig]);
+
+  const handleKanbanCardFieldsChange = useCallback((fieldIds: string[]) => {
+    if (!activeKanbanView || !activeTable) return;
+    updateKanbanViewConfig(activeKanbanView, { kanbanCardFields: fieldIds });
+    activeTable.notifyChange(null);
+    bumpKanbanConfig();
+  }, [activeKanbanView, activeTable, bumpKanbanConfig]);
+
+  const handleKanbanShowFieldNamesChange = useCallback((show: boolean) => {
+    if (!activeKanbanView || !activeTable) return;
+    updateKanbanViewConfig(activeKanbanView, { kanbanShowFieldNames: show });
+    activeTable.notifyChange(null);
+    bumpKanbanConfig();
+  }, [activeKanbanView, activeTable, bumpKanbanConfig]);
+
+  const handleKanbanCoverFieldIdChange = useCallback((fieldId: string | null) => {
+    if (!activeKanbanView || !activeTable) return;
+    updateKanbanViewConfig(activeKanbanView, { kanbanCoverFieldId: fieldId });
+    activeTable.notifyChange(null);
+    bumpKanbanConfig();
+  }, [activeKanbanView, activeTable, bumpKanbanConfig]);
 
   const renderFormSharePanel = useCallback((ctx: FormSharePanelContext) => {
     if (!docId || !activeFormView || readOnly) return null;
@@ -646,30 +1078,51 @@ export const EditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiResp
       const idx = sheet.columnDefs.findIndex(c => c.id === fieldId);
       if (idx >= 0) {
         const existing = sheet.columnDefs[idx];
-        const updated = { ...existing, ...fieldData } as import('@lingyi-doc/core').ColumnDef;
+        const oldName = existing.name;
+        let updated = { ...existing, ...fieldData } as import('@lingyi-doc/core').ColumnDef;
+        updated = applySystemColumnDefaults(updated);
         sheet.columnDefs[idx] = updated;
         if (updated.type === 'rating') {
           const width = getRatingColumnWidth(getRatingConfig(updated));
           updated.width = width;
           activeTable.setColumnWidth(idx, width);
         }
+        if (fieldData.name !== undefined && fieldData.name !== oldName) {
+          syncFormFieldRename(sheet, fieldId, oldName, updated.name);
+        }
+        if (isSystemColumnType(updated.type)) {
+          activeTable.backfillSystemFieldColumn(idx);
+        }
+        syncAllFormViews(sheet);
         useSheetStore.getState().setStatusText('字段已更新');
       }
     } else {
       const colIndex = sheet.columnDefs.length;
       activeTable.insertColumns(colIndex, 1);
-      const newField: import('@lingyi-doc/core').ColumnDef = {
+      let newField: import('@lingyi-doc/core').ColumnDef = {
         id: `col_${Date.now()}_${colIndex}`,
         name: fieldData.name || '新字段',
         type: fieldData.type || 'text',
-        width: fieldData.type === 'boolean' ? 70 : fieldData.type === 'autoNumber' ? 80 : fieldData.type === 'date' ? 110 : fieldData.type === 'rating' ? 90 : fieldData.type === 'progress' ? 110 : 160,
+        width: fieldData.type === 'boolean' ? 70
+          : fieldData.type === 'autoNumber' ? 80
+          : fieldData.type === 'date' ? 110
+          : fieldData.type === 'createdTime' || fieldData.type === 'updatedTime' ? 150
+          : fieldData.type === 'createdBy' || fieldData.type === 'updatedBy' ? 120
+          : fieldData.type === 'rating' ? 90
+          : fieldData.type === 'progress' ? 110
+          : 160,
         ...fieldData,
       };
       if (newField.type === 'rating') {
         newField.width = getRatingColumnWidth(getRatingConfig(newField));
       }
+      newField = applySystemColumnDefaults(newField);
       sheet.columnDefs.push(newField);
       activeTable.setColumnWidth(colIndex, newField.width || 160);
+      if (isSystemColumnType(newField.type)) {
+        activeTable.backfillSystemFieldColumn(colIndex);
+      }
+      syncAllFormViews(sheet);
       useSheetStore.getState().setStatusText(`已添加字段「${newField.name}」`);
     }
     activeTable.syncColumnLayout();
@@ -682,6 +1135,7 @@ export const EditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiResp
     if (field) {
       field.hidden = !visible;
       activeTable.applyColumnVisibility();
+      syncAllFormViews(activeTable.sheet);
       activeTable.notifyChange(null);
       useSheetStore.getState().setStatusText(`${visible ? '显示' : '隐藏'}字段「${field.name}」`);
     }
@@ -700,6 +1154,7 @@ export const EditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiResp
     if (idx > 0) {
       activeTable.deleteColumns(idx, 1);
       activeTable.syncColumnLayout();
+      syncAllFormViews(activeTable.sheet);
       activeTable.notifyChange(null);
     }
   }, [activeTable]);
@@ -725,6 +1180,7 @@ export const EditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiResp
     : null;
   const groupRules = activeBaseView?.group ?? [];
   const filterConditions = activeBaseView?.filter ?? [];
+  const filterConjunction = activeBaseView?.filterConjunction ?? 'and';
   const sortRules = activeBaseView?.sort ?? [];
 
   const filteredRecordCount = useMemo(() => {
@@ -734,19 +1190,21 @@ export const EditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiResp
     return prepareGroupedRecordIndices({
       rowCount: sheet.rowCount,
       filter: filterConditions,
+      filterConjunction,
       columnDefs: sheet.columnDefs,
       getFieldValue: (row, fieldId) => {
         const colIndex = sheet.columnDefs.findIndex(c => c.id === fieldId);
         return colIndex >= 0 ? activeTable.getCell(row, colIndex)?.value : undefined;
       },
     }).length;
-  }, [activeTable, filterConditions]);
+  }, [activeTable, filterConditions, filterConjunction]);
 
   const handleGroupRulesChange = useCallback((rules: GroupRule[]) => {
     if (!activeTable || !isBaseSheet(activeTable.sheet)) return;
     const view = ensureActiveBaseView(activeTable.sheet);
     updateBaseViewGroupRules(view, rules);
     activeTable.notifyChange(null);
+    setViewListTick(v => v + 1);
     markDirty();
     useSheetStore.getState().setStatusText(
       rules.length > 0 ? `已设置 ${rules.length} 级分组` : '已取消分组',
@@ -758,10 +1216,17 @@ export const EditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiResp
     const view = ensureActiveBaseView(activeTable.sheet);
     updateBaseViewFilter(view, conditions);
     activeTable.notifyChange(null);
+    setViewListTick(v => v + 1);
     markDirty();
-    useSheetStore.getState().setStatusText(
-      conditions.length > 0 ? `已设置 ${conditions.length} 条筛选` : '已清除筛选',
-    );
+  }, [activeTable, markDirty]);
+
+  const handleFilterConjunctionChange = useCallback((conjunction: 'and' | 'or') => {
+    if (!activeTable || !isBaseSheet(activeTable.sheet)) return;
+    const view = ensureActiveBaseView(activeTable.sheet);
+    updateBaseViewFilterConjunction(view, conjunction);
+    activeTable.notifyChange(null);
+    setViewListTick(v => v + 1);
+    markDirty();
   }, [activeTable, markDirty]);
 
   const handleSortChange = useCallback((rules: SortRule[]) => {
@@ -769,6 +1234,7 @@ export const EditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiResp
     const view = ensureActiveBaseView(activeTable.sheet);
     updateBaseViewSort(view, rules);
     activeTable.notifyChange(null);
+    setViewListTick(v => v + 1);
     markDirty();
     useSheetStore.getState().setStatusText(
       rules.length > 0 ? `已设置 ${rules.length} 条排序` : '已清除排序',
@@ -815,36 +1281,29 @@ export const EditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiResp
           effectiveViewMode={effectiveViewMode}
           onTogglePreview={onTogglePreview}
           breadcrumbItems={breadcrumbItems}
+          onOpenHistory={() => { void history.openHistory(); }}
         />
       )}
+      <DocumentHistoryToolbarSlot
+        historyOpen={history.historyOpen}
+        selectedIndex={history.selectedHistoryIndex}
+        items={history.historyItems}
+        canRestore={canEdit && !readOnly}
+        restoring={history.historyRestoring}
+        previewLoading={history.historyPreviewLoading}
+        onRestore={() => { void history.restoreHistoryVersion(); }}
+        onPrev={history.goPrevHistory}
+        onNext={history.goNextHistory}
+        onClose={() => { void history.closeHistory(); }}
+      />
 
-      {!readOnly && !collabViewOnly && !isBase && (
+      {!readOnly && !history.historyOpen && !isBase && (
         <Toolbar
           table={activeTable}
           onInsertChart={() => setShowChartDialog(true)}
           commentsEnabled={commentsEnabled}
           commentPanelOpen={commentCtrl.showCommentPanel}
           onToggleCommentPanel={() => commentCtrl.setShowCommentPanel(v => !v)}
-        />
-      )}
-      {!readOnly && !collabViewOnly && isBase && currentView !== 'form' && (
-        <BaseToolbar
-          table={activeTable}
-          onToggleFieldVisibility={handleToggleFieldVisibility}
-          onReorderFields={handleReorderFields}
-          onConfirmField={handleConfirmField}
-          onDeleteField={handleDeleteField}
-          onAddRecord={handleAddRecord}
-          onGenerateForm={handleGenerateForm}
-          recordCount={activeTable.rowCount}
-          filteredRecordCount={filterConditions.length > 0 ? filteredRecordCount : undefined}
-          selectedCount={selectedCount}
-          groupRules={groupRules}
-          onGroupRulesChange={handleGroupRulesChange}
-          filterConditions={filterConditions}
-          onFilterChange={handleFilterChange}
-          sortRules={sortRules}
-          onSortChange={handleSortChange}
         />
       )}
       <div style={{
@@ -854,13 +1313,13 @@ export const EditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiResp
         position: 'relative',
         display: 'flex',
         background: isBase ? BASE_THEME.pageBg : '#fff',
-        padding: isBase ? '12px 16px' : 0,
+        padding: isBase ? '8px 12px 12px' : 0,
       }}>
-        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+        <div style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
           {isBase ? (
             <BaseSheetEditor
               table={activeTable}
-              previewMode={readOnly || collabViewOnly}
+              previewMode={readOnly || history.historyOpen}
               selectedChartId={selectedChartId}
               onSelectChart={setSelectedChartId}
               onOpenFieldConfig={fieldId => { setEditingFieldId(fieldId || null); setFieldConfigVisible(true); }}
@@ -869,35 +1328,87 @@ export const EditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiResp
               containerKey={`${docId}-${activeSheetId}`}
               currentView={currentView}
               activeFormView={activeFormView}
+              activeKanbanView={activeKanbanView}
               onSelectView={handleSelectView}
+              onCreateView={handleCreateView}
+              onRenameView={handleRenameView}
+              onDuplicateView={handleDuplicateView}
+              onDeleteView={handleDeleteView}
               onFormViewChange={handleFormViewChange}
-              readOnly={readOnly}
-              renderFormSharePanel={renderFormSharePanel}
-              commentsEnabled={commentsEnabled && canComment}
+              onKanbanViewChange={handleKanbanViewChange}
+              readOnly={readOnly || history.historyOpen}
+              renderFormSharePanel={history.historyOpen ? undefined : renderFormSharePanel}
+              commentsEnabled={commentsEnabled && canComment && !history.historyOpen}
               onAddSheetComment={handleAddSheetComment}
               sheetCommentThreads={activeSheetCommentThreads}
               selectedCommentId={commentCtrl.selectedCommentId}
+              onSelectComment={handleSelectSheetComment}
+              dashboards={workbook.dashboards}
+              activeDashboardId={activeDashboardId}
+              onSelectDashboard={handleSelectDashboard}
+              onCreateDashboard={handleCreateDashboard}
+              onPrefetchDashboards={handlePrefetchDashboards}
+              onRenameDashboard={handleRenameDashboard}
+              onDeleteDashboard={handleDeleteDashboard}
+              onDashboardChange={handleDashboardChange}
+              toolbar={
+                !readOnly && !history.historyOpen && currentView !== 'form' && !activeDashboardId ? (
+                  <BaseToolbar
+                    table={activeTable}
+                    variant={currentView === 'kanban' ? 'kanban' : 'grid'}
+                    onToggleFieldVisibility={handleToggleFieldVisibility}
+                    onReorderFields={handleReorderFields}
+                    onConfirmField={handleConfirmField}
+                    onDeleteField={handleDeleteField}
+                    onAddRecord={handleAddRecord}
+                    onGenerateForm={handleGenerateForm}
+                    recordCount={activeTable.rowCount}
+                    filteredRecordCount={filterConditions.length > 0 ? filteredRecordCount : undefined}
+                    selectedCount={selectedCount}
+                    groupRules={groupRules}
+                    onGroupRulesChange={handleGroupRulesChange}
+                    filterConditions={filterConditions}
+                    onFilterChange={handleFilterChange}
+                    filterConjunction={filterConjunction}
+                    onFilterConjunctionChange={handleFilterConjunctionChange}
+                    sortRules={sortRules}
+                    onSortChange={handleSortChange}
+                    kanbanGroupFieldId={activeKanbanView?.config.kanbanGroupFieldId}
+                    onKanbanGroupFieldChange={handleKanbanGroupFieldChange}
+                    kanbanCardFields={activeKanbanView?.config.kanbanCardFields}
+                    onKanbanCardFieldsChange={handleKanbanCardFieldsChange}
+                    kanbanShowFieldNames={activeKanbanView?.config.kanbanShowFieldNames === true}
+                    onKanbanShowFieldNamesChange={handleKanbanShowFieldNamesChange}
+                    kanbanCoverFieldId={activeKanbanView?.config.kanbanCoverFieldId ?? null}
+                    onKanbanCoverFieldIdChange={handleKanbanCoverFieldIdChange}
+                    commentsEnabled={commentsEnabled && canComment && !history.historyOpen}
+                    commentPanelOpen={commentCtrl.showCommentPanel}
+                    onToggleCommentPanel={() => commentCtrl.setShowCommentPanel(v => !v)}
+                  />
+                ) : null
+              }
             />
           ) : (
             <FreeformSheetEditor
               table={activeTable}
-              previewMode={readOnly || collabViewOnly}
+              previewMode={readOnly || history.historyOpen}
               selectedChartId={selectedChartId}
               onSelectChart={setSelectedChartId}
               onOpenFieldConfig={fieldId => { setEditingFieldId(fieldId || null); setFieldConfigVisible(true); }}
               onToggleFieldVisibility={handleToggleFieldVisibility}
               onDeleteField={handleDeleteField}
               containerKey={`${docId}-${activeSheetId}`}
-              showFormulaBar={!readOnly && !collabViewOnly}
-              commentsEnabled={commentsEnabled && canComment}
+              showFormulaBar={!readOnly && !history.historyOpen}
+              commentsEnabled={commentsEnabled && canComment && !history.historyOpen}
               onAddSheetComment={handleAddSheetComment}
               sheetCommentThreads={activeSheetCommentThreads}
               selectedCommentId={commentCtrl.selectedCommentId}
+              onSelectComment={handleSelectSheetComment}
             />
           )}
         </div>
 
-        {commentsEnabled && commentCtrl.showCommentPanel && (
+        {commentsEnabled && commentCtrl.showCommentPanel && !history.historyOpen && (
           <DocCommentPanel
             threads={commentCtrl.commentThreads}
             selectedId={commentCtrl.selectedCommentId}
@@ -914,27 +1425,36 @@ export const EditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiResp
             currentAuthorAvatar={commentCtrl.commentAuthor.authorAvatar}
           />
         )}
+        {docId && (
+          <DocumentHistoryPanelSlot
+            docId={docId}
+            historyOpen={history.historyOpen}
+            selectedVersion={history.selectedHistoryVersion}
+            onSelectVersion={(version) => { void history.previewHistoryVersion(version); }}
+            onVersionsChange={history.handleHistoryVersionsChange}
+            onClose={() => { void history.closeHistory(); }}
+          />
+        )}
       </div>
 
       <SheetTabs
         sheets={sheetInfos}
         activeId={activeSheetId}
         onSwitch={handleSwitchSheet}
-        onAdd={readOnly ? () => {} : handleAddSheet}
-        onRename={readOnly ? () => {} : handleRenameSheet}
-        onDelete={readOnly ? () => {} : handleDeleteSheet}
+        onAdd={readOnly || history.historyOpen ? () => {} : handleAddSheet}
+        onRename={readOnly || history.historyOpen ? () => {} : handleRenameSheet}
+        onDelete={readOnly || history.historyOpen ? () => {} : handleDeleteSheet}
       />
-      {!readOnly && <StatusBar table={activeTable} />}
-      {!readOnly && (
+      {!readOnly && !history.historyOpen && <StatusBar table={activeTable} />}
+      {!readOnly && !history.historyOpen && (
         <CollabStatusBar
           collabState={collabState}
           collabUsers={collabUsers}
-          collabViewOnly={collabViewOnly}
-          activeCellEditor={activeCellEditor}
+          activeEditors={activeCellEditors}
         />
       )}
 
-      {!readOnly && isBase && isBaseSheet(activeTable.sheet) && (
+      {!readOnly && !history.historyOpen && isBase && isBaseSheet(activeTable.sheet) && (
         <FieldConfigPanel
           visible={fieldConfigVisible}
           field={editingFieldId ? activeTable.sheet.columnDefs.find(c => c.id === editingFieldId) || null : null}
@@ -944,7 +1464,7 @@ export const EditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiResp
         />
       )}
 
-      {!readOnly && (
+      {!readOnly && !history.historyOpen && (
         <>
           <ChartInsertDialog visible={showChartDialog} onClose={() => setShowChartDialog(false)} onInsert={handleInsertChart} />
           <ChartEditor

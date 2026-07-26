@@ -85,6 +85,17 @@ export class KbNodeRepository {
     return (result.affected ?? 0) > 0;
   }
 
+  async listDocIdsByKbId(kbId: string): Promise<string[]> {
+    const rows = await this.nodeRepo
+      .createQueryBuilder('n')
+      .select('DISTINCT n.docId', 'docId')
+      .where('n.kbId = :kbId', { kbId })
+      .andWhere('n.isDeleted = 0')
+      .andWhere('n.docId IS NOT NULL')
+      .getRawMany<{ docId: string }>();
+    return rows.map(row => row.docId).filter(Boolean);
+  }
+
   async softDeleteByKbId(kbId: string): Promise<void> {
     await this.nodeRepo.update(
       { kbId, isDeleted: 0 },

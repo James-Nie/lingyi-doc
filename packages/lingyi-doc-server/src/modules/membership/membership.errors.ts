@@ -7,6 +7,12 @@ export const MEMBERSHIP_ERRORS = {
   VIP_EXPIRED: 120003,
   TEAM_MEMBER_LIMIT: 120004,
   TEAM_CREATE_DENY: 120005,
+  /** 产品模块未授权（私有化裁剪 / 加购未开通） */
+  MODULE_DENY: 120006,
+  /** 软件授权已过期（配置了 LICENSE_FILE/PAYLOAD） */
+  LICENSE_EXPIRED: 120010,
+  /** 软件授权无效（验签失败 / 文件缺失 / 无法解析） */
+  LICENSE_INVALID: 120011,
 } as const;
 
 export function membershipError(

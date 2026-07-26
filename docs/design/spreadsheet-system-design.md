@@ -1856,7 +1856,7 @@ echo "Rust计算: cd ../calc-engine && cargo run"
 2. 文件命名: [name].[contenthash:8].js → 利用 HTTP 缓存
 3. 上传到 OSS/CDN: aws s3 sync dist/ s3://sheet-cdn/v{version}/
 4. HTML 入口文件中替换资源路径:
-   /assets/index.js → https://cdn.example.com/v1.0.0/assets/index.abc123de.js
+   /assets/index.js → https://cdn.lingyidoc.com/v1.0.0/assets/index.abc123de.js
 
 缓存策略:
 - .html:         no-cache (ETag 校验)

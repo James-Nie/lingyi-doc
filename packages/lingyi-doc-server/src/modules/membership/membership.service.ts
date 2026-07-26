@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
+import { DomainMetricsService } from '../../common/metrics/domain-metrics.service';
 import { DeployService } from '../../config/deploy.service';
 import { DocumentRepository } from '../../repositories/document.repository';
+import { KnowledgeBaseRepository } from '../../repositories/knowledge-base.repository';
 import { QuotaDailyLogRepository } from '../../repositories/quota-daily-log.repository';
 import { TenantMemberRepository } from '../../repositories/tenant-member.repository';
 import { TenantRepository } from '../../repositories/tenant.repository';
@@ -12,6 +14,7 @@ import type {
   EffectivePlan,
   MembershipContext,
   MembershipFeatureKey,
+  MembershipModuleKey,
   MembershipSpaceKind,
   MembershipSummary,
   MembershipPlanCode,
@@ -24,9 +27,16 @@ import {
   planLabel,
   quotaLimitsFor,
   resolveEffectivePlan,
+  resolveMaxFileBytes,
   TRIAL_DAYS_TEAM,
 } from './membership-policy';
+import {
+  hasModule,
+  moduleForDocType,
+  MODULE_LABELS,
+} from './membership-modules';
 import { membershipError } from './membership.errors';
+import { LICENSE_UNAVAILABLE_MESSAGE } from '../../config/deploy-license';
 
 function toQuotaUsage(used: number, limit: number | null): QuotaUsage {
   return {
@@ -43,8 +53,10 @@ export class MembershipService {
     private readonly tenantRepository: TenantRepository,
     private readonly tenantMemberRepository: TenantMemberRepository,
     private readonly documentRepository: DocumentRepository,
+    private readonly knowledgeBaseRepository: KnowledgeBaseRepository,
     private readonly quotaDailyLogRepository: QuotaDailyLogRepository,
     private readonly deployService: DeployService,
+    private readonly domainMetrics: DomainMetricsService,
   ) {}
 
   async resolveContext(auth: AuthUser): Promise<MembershipContext> {
@@ -169,19 +181,25 @@ export class MembershipService {
     docCount: number;
     storageBytes: number;
     memberCount: number | null;
+    knowledgeBaseCount: number;
     dailyExports: number;
   }> {
     let docCount = 0;
     let storageBytes = 0;
     let memberCount: number | null = null;
+    let knowledgeBaseCount = 0;
 
     if (ctx.spaceKind === 'personal') {
       docCount = await this.documentRepository.countByOwner(ctx.spaceId);
       storageBytes = await this.documentRepository.sumStorageByOwner(ctx.spaceId);
+      knowledgeBaseCount = await this.knowledgeBaseRepository.countByOwner(ctx.spaceId);
+      // 个人空间协作人数：暂以 0 占位（文档协作者明细统计后续接入）；限额仍按策略返回
+      memberCount = 0;
     } else if (ctx.tenantId) {
       docCount = await this.documentRepository.countByTenant(ctx.tenantId);
       storageBytes = await this.documentRepository.sumStorageByTenant(ctx.tenantId);
       memberCount = await this.tenantMemberRepository.countByTenant(ctx.tenantId);
+      knowledgeBaseCount = await this.knowledgeBaseRepository.countByTenant(ctx.tenantId);
     }
 
     const dailyExports = await this.quotaDailyLogRepository.getCount(
@@ -190,7 +208,7 @@ export class MembershipService {
       'export',
     );
 
-    return { docCount, storageBytes, memberCount, dailyExports };
+    return { docCount, storageBytes, memberCount, knowledgeBaseCount, dailyExports };
   }
 
   isSpaceReadOnly(
@@ -215,7 +233,19 @@ export class MembershipService {
       members: usage.memberCount == null
         ? null
         : toQuotaUsage(usage.memberCount, limits.maxMembers),
+      knowledgeBases: toQuotaUsage(usage.knowledgeBaseCount, limits.maxKnowledgeBases),
+      maxFileBytes: limits.maxFileBytes,
     };
+
+    const licenseResult = this.deployService.getLicenseResult();
+    const licenseExpireAt =
+      licenseResult.status === 'ok' || licenseResult.status === 'expired'
+        ? licenseResult.license.expireAt?.toISOString() ?? null
+        : null;
+    const licenseMessage =
+      licenseResult.status === 'expired' || licenseResult.status === 'invalid'
+        ? LICENSE_UNAVAILABLE_MESSAGE
+        : null;
 
     return {
       spaceKind: ctx.spaceKind,
@@ -228,6 +258,15 @@ export class MembershipService {
       warnings: buildQuotaWarnings(quotas),
       quotas,
       features: buildFeatureMap(ctx.spaceKind, ctx.effectivePlan),
+      modules: this.getModuleMap(),
+      license: {
+        status: licenseResult.status,
+        reason: licenseResult.status === 'invalid' || licenseResult.status === 'expired'
+          ? licenseResult.reason
+          : undefined,
+        expireAt: licenseExpireAt,
+        message: licenseMessage,
+      },
     };
   }
 
@@ -267,7 +306,11 @@ export class MembershipService {
     }
   }
 
-  async assertCanCreateDocument(auth: AuthUser, ctx?: DocumentAccessContext): Promise<void> {
+  async assertCanCreateDocument(
+    auth: AuthUser,
+    ctx?: DocumentAccessContext,
+    docType?: string,
+  ): Promise<void> {
     const accessCtx = ctx ?? {
       userId: auth.userId,
       identityType: auth.currentIdentityType ?? 'personal',
@@ -285,6 +328,10 @@ export class MembershipService {
         currentIdentityType: 'personal',
         currentTenantId: null,
       });
+
+    if (docType) {
+      this.assertModuleForDocType(membershipCtx, docType);
+    }
 
     await this.assertWritableForDocument(auth, {
       scope: membershipCtx.spaceKind === 'team' ? 2 : 1,
@@ -356,6 +403,39 @@ export class MembershipService {
     }
   }
 
+  async assertCanCreateKnowledgeBase(auth: AuthUser): Promise<void> {
+    const ctx = await this.resolveContext(auth);
+    this.assertModule(ctx, 'mod.knowledge');
+    const limits = quotaLimitsFor(ctx.spaceKind, ctx.effectivePlan);
+    if (limits.maxKnowledgeBases == null) return;
+
+    const usage = await this.getUsage(ctx);
+    if (usage.knowledgeBaseCount >= limits.maxKnowledgeBases) {
+      throw membershipError(
+        'QUOTA_LIMIT',
+        ctx.spaceKind === 'personal'
+          ? `个人知识库数量已达上限（${limits.maxKnowledgeBases} 个），请升级会员或清理知识库`
+          : `团队知识库数量已达上限（${limits.maxKnowledgeBases} 个），请升级团队会员`,
+      );
+    }
+  }
+
+  async assertFileSize(auth: AuthUser, fileBytes: number): Promise<number> {
+    const ctx = await this.resolveContext(auth);
+    const limits = quotaLimitsFor(ctx.spaceKind, ctx.effectivePlan);
+    const maxBytes = resolveMaxFileBytes(limits);
+    if (fileBytes > maxBytes) {
+      const maxMb = Math.round(maxBytes / (1024 * 1024));
+      throw membershipError(
+        'QUOTA_LIMIT',
+        `单个文件不能超过 ${maxMb} MB${
+          ctx.effectivePlan === 'free' ? '，升级会员可提高上限' : ''
+        }`,
+      );
+    }
+    return maxBytes;
+  }
+
   async assertCanAddTeamMember(tenantId: string, auth: AuthUser): Promise<void> {
     const ctx = await this.resolveContext({
       ...auth,
@@ -387,6 +467,35 @@ export class MembershipService {
         message ?? '当前版本不支持该功能，请升级会员',
       );
     }
+  }
+
+  /** 当前部署下的模块开通表（License / Community / ENABLED_MODULES / SaaS 全开） */
+  getModuleMap(): Record<MembershipModuleKey, boolean> {
+    return this.deployService.getModuleMap();
+  }
+
+  assertModule(
+    ctx: MembershipContext,
+    module: MembershipModuleKey,
+    message?: string,
+  ): void {
+    this.deployService.assertLicenseAvailable();
+    const modules = this.getModuleMap();
+    if (!hasModule(modules, module)) {
+      this.domainMetrics.inc('membership.deny', { module });
+      const label = MODULE_LABELS[module] ?? module;
+      throw membershipError(
+        'MODULE_DENY',
+        message ?? `未开通「${label}」模块，请联系管理员授权或升级套餐`,
+      );
+    }
+    // ctx 预留给后续按空间/租户加购矩阵；当前部署级开关已足够
+    void ctx;
+  }
+
+  assertModuleForDocType(ctx: MembershipContext, docType: string): void {
+    const module = moduleForDocType(docType);
+    this.assertModule(ctx, module);
   }
 
   async applyTeamTrial(tenantId: string): Promise<void> {

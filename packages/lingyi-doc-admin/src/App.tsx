@@ -13,6 +13,8 @@ import { OrgRolesPage } from './pages/org/OrgRolesPage';
 import { TemplatesPage } from './pages/templates/TemplatesPage';
 import { TemplateDetailPage } from './pages/templates/TemplateDetailPage';
 import { TemplateEditPage } from './pages/templates/TemplateEditPage';
+import { AiModelConfigPage } from './pages/ai/AiModelConfigPage';
+import { AiUsageMonitorPage } from './pages/ai/AiUsageMonitorPage';
 
 const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const state = useSyncExternalStore(authStore.subscribe, authStore.getState);
@@ -52,6 +54,8 @@ const App: React.FC = () => (
           <Route path="/templates/new" element={<TemplateEditPage />} />
           <Route path="/templates/:id" element={<TemplateDetailPage />} />
           <Route path="/templates/:id/edit" element={<TemplateEditPage />} />
+          <Route path="/ai/config" element={<AiModelConfigPage />} />
+          <Route path="/ai/usage" element={<AiUsageMonitorPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

@@ -159,10 +159,11 @@ export async function ensureSchemaPatches(pool?: Pool): Promise<void> {
       CREATE TABLE doc_comment_threads (
         id              VARCHAR(64)   NOT NULL PRIMARY KEY,
         doc_id          VARCHAR(64)   NOT NULL,
-        block_id        VARCHAR(64)   NOT NULL,
+        block_id        VARCHAR(128)  NOT NULL,
         anchor_start    INT           NOT NULL,
         anchor_end      INT           NOT NULL,
         quote           VARCHAR(500)  NOT NULL DEFAULT '',
+        anchor_meta     TEXT          NULL,
         resolved        TINYINT(1)    NOT NULL DEFAULT 0,
         created_by      CHAR(36)      NOT NULL,
         created_at      TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -184,6 +185,7 @@ export async function ensureSchemaPatches(pool?: Pool): Promise<void> {
         author_avatar   VARCHAR(500)  DEFAULT NULL,
         text            TEXT          NOT NULL,
         created_at      TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at      TIMESTAMP     NULL DEFAULT NULL,
         KEY idx_dcr_thread (thread_id),
         CONSTRAINT fk_dcr_thread FOREIGN KEY (thread_id) REFERENCES doc_comment_threads(id) ON DELETE CASCADE
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
@@ -197,6 +199,21 @@ export async function ensureSchemaPatches(pool?: Pool): Promise<void> {
       ADD COLUMN anchor_meta TEXT NULL AFTER quote
     `);
     console.log('[Schema] Added column anchor_meta on doc_comment_threads');
+  }
+
+  if (await tableExists(db, 'doc_comment_threads')) {
+    const [cols] = await db.query<any[]>(
+      `SELECT CHARACTER_MAXIMUM_LENGTH AS len
+       FROM information_schema.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE()
+         AND TABLE_NAME = 'doc_comment_threads'
+         AND COLUMN_NAME = 'block_id'`,
+    );
+    const len = Number(cols?.[0]?.len ?? 0);
+    if (len > 0 && len < 128) {
+      await db.query(`ALTER TABLE doc_comment_threads MODIFY COLUMN block_id VARCHAR(128) NOT NULL`);
+      console.log('[Schema] Widened doc_comment_threads.block_id to VARCHAR(128)');
+    }
   }
 
   if (await tableExists(db, 'doc_comment_replies') && !(await columnExists(db, 'doc_comment_replies', 'updated_at'))) {
@@ -219,5 +236,44 @@ export async function ensureSchemaPatches(pool?: Pool): Promise<void> {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
     console.log('[Schema] Created table doc_comment_reply_likes');
+  }
+
+  if (!(await tableExists(db, 'base_dashboards'))) {
+    await db.query(`
+      CREATE TABLE base_dashboards (
+        id                   VARCHAR(64)  NOT NULL PRIMARY KEY,
+        doc_id               VARCHAR(64)  NOT NULL,
+        name                 VARCHAR(255) NOT NULL,
+        source_sheet_id      VARCHAR(64)  NOT NULL,
+        layout               JSON         NOT NULL,
+        widgets              JSON         NOT NULL,
+        global_filters       JSON         DEFAULT NULL,
+        version              INT          NOT NULL DEFAULT 1,
+        sort_order           INT          NOT NULL DEFAULT 0,
+        created_by           CHAR(36)     NOT NULL,
+        updated_by           CHAR(36)     NOT NULL,
+        is_deleted           TINYINT(1)   NOT NULL DEFAULT 0,
+        deleted_at           TIMESTAMP    NULL DEFAULT NULL,
+        created_at           TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at           TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        KEY idx_base_dashboards_doc (doc_id, is_deleted, sort_order),
+        KEY idx_base_dashboards_sheet (doc_id, source_sheet_id, is_deleted),
+        CONSTRAINT fk_base_dashboards_doc FOREIGN KEY (doc_id) REFERENCES documents(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+    console.log('[Schema] Created table base_dashboards');
+  }
+
+  if (!(await tableExists(db, 'base_dashboard_prefs'))) {
+    await db.query(`
+      CREATE TABLE base_dashboard_prefs (
+        doc_id               VARCHAR(64)  NOT NULL PRIMARY KEY,
+        active_dashboard_id  VARCHAR(64)  DEFAULT NULL,
+        updated_by           CHAR(36)     DEFAULT NULL,
+        updated_at           TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        CONSTRAINT fk_base_dashboard_prefs_doc FOREIGN KEY (doc_id) REFERENCES documents(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+    console.log('[Schema] Created table base_dashboard_prefs');
   }
 }

@@ -12,7 +12,7 @@ interface TemplatePreviewModalProps {
 }
 
 const isSheetType = (docType: DocTemplate['docType']) =>
-  docType === 'freeform' || docType === 'base';
+  docType === 'freeform' || docType === 'base' || docType === 'questionnaire';
 
 export const TemplatePreviewModal: React.FC<TemplatePreviewModalProps> = ({
   template,

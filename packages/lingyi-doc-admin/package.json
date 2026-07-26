@@ -12,7 +12,10 @@
   "dependencies": {
     "@ant-design/icons": "^6.2.5",
     "@lingyi-doc/core": "*",
-    "@lingyi-doc/editor": "*",
+    "@lingyi-doc/editor-doc": "*",
+    "@lingyi-doc/editor-mindmap": "*",
+    "@lingyi-doc/editor-sheet": "*",
+    "@lingyi-doc/editor-whiteboard": "*",
     "antd": "^6.4.5",
     "dayjs": "^1.11.21",
     "react": "^18.2.0",

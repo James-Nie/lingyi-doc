@@ -3,20 +3,20 @@ import {
   findMindNode,
   getMindNodePadHorizontal,
   getMindNodePadVertical,
-  getMindNodePadX,
   type MindMapLayout,
   type MindMapLayoutNode,
   type MindNode,
   type MindNoteBranchStyle,
   type MindNoteStructure,
-} from '@lingyi-doc/core';
+} from '@lingyi-doc/core-mindmap';
 import { resolveTheme } from '../theme/presets';
 import { computeThemedMindMapLayout } from '../themeMeasure';
 import type { MindmapPaintOptions, MindmapRenderOptions, MindmapTheme, MindmapThemeId } from '../types';
 import { drawCollapseButton } from './collapseButton';
 import { getCachedMindmapImage } from './imageCache';
+import { getMindmapNodeImageRect } from './nodeImage';
 import { resolveNodeAppearance } from './nodeAppearance';
-import { drawNodeShape, drawAlignedNodeText } from './drawShapes';
+import { drawNodeShape, drawAlignedNodeText, drawLineThrough } from './drawShapes';
 
 export interface PaintMindmapContext {
   root: MindNode;
@@ -71,22 +71,25 @@ function drawNodeImage(
   const img = getCachedMindmapImage(node.image);
   if (!img) return;
 
-  const imgGap = 8;
-  const maxContentW = ln.width - getMindNodePadX(ln.depth, true);
-  let imgW = node.imageWidth ?? Math.min(maxContentW, 240);
-  let imgH = node.imageHeight ?? 120;
-  if (imgW > maxContentW) {
-    imgH = Math.round(imgH * (maxContentW / imgW));
-    imgW = maxContentW;
-  }
-  const imgX = ln.x + (ln.width - imgW) / 2;
-  const imgY = textBottomY + imgGap;
+  const rect = getMindmapNodeImageRect(node, ln, textBottomY);
+  if (!rect) return;
+  const { x: imgX, y: imgY, width: imgW, height: imgH } = rect;
+  const flipH = !!node.imageFlipH;
+  const flipV = !!node.imageFlipV;
 
   ctx.save();
   ctx.beginPath();
   drawNodeShape(ctx, 'rect', imgX, imgY, imgW, imgH, 4);
   ctx.clip();
-  ctx.drawImage(img, imgX, imgY, imgW, imgH);
+  if (flipH || flipV) {
+    const cx = imgX + imgW / 2;
+    const cy = imgY + imgH / 2;
+    ctx.translate(cx, cy);
+    ctx.scale(flipH ? -1 : 1, flipV ? -1 : 1);
+    ctx.drawImage(img, -imgW / 2, -imgH / 2, imgW, imgH);
+  } else {
+    ctx.drawImage(img, imgX, imgY, imgW, imgH);
+  }
   ctx.restore();
 }
 
@@ -120,12 +123,19 @@ export function paintMindmap(
     const hideText = paintOpts.hideNodeTextId === ln.id;
 
     if (appearance.showBox && appearance.fillColor && !hideText) {
+      const fillAlpha = Math.max(0, Math.min(1, (found.fillOpacity ?? 100) / 100));
+      const borderAlpha = Math.max(0, Math.min(1, (found.borderOpacity ?? 100) / 100));
       ctx.fillStyle = appearance.fillColor;
-      ctx.strokeStyle = appearance.borderColor ?? theme.accent;
+      ctx.strokeStyle = appearance.borderColor || theme.accent;
       ctx.lineWidth = 1.5;
       drawNodeShape(ctx, appearance.shapeKind, ln.x, ln.y, ln.width, ln.height, 8);
+      ctx.globalAlpha = fillAlpha;
       ctx.fill();
-      if (appearance.borderColor) ctx.stroke();
+      if (appearance.borderColor) {
+        ctx.globalAlpha = borderAlpha;
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
     }
 
     if (!hideText) {
@@ -151,6 +161,9 @@ export function paintMindmap(
           if (textAlign === 'center') tx = ln.x + ln.width / 2;
           else if (textAlign === 'right') tx = ln.x + ln.width - padRight;
           ctx.fillText(line, tx, textY, contentW);
+          if (appearance.lineThrough) {
+            drawLineThrough(ctx, line, tx, textY, textAlign, contentW);
+          }
           textY += lineHeight;
         }
         drawNodeImage(ctx, found, ln, ln.y + padTop + textBlockH);
@@ -163,6 +176,7 @@ export function paintMindmap(
           padRight,
           textAlign,
           textVerticalAlign,
+          lineThrough: appearance.lineThrough,
         });
       }
     }

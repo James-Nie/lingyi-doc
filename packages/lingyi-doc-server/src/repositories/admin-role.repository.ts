@@ -127,14 +127,33 @@ export class AdminRoleRepository {
   }
 
   async getUserRoles(userId: string): Promise<Array<{ code: string; name: string }>> {
+    const map = await this.getUsersRoles([userId]);
+    return map.get(userId) ?? [];
+  }
+
+  async getUsersRoles(
+    userIds: string[],
+  ): Promise<Map<string, Array<{ code: string; name: string }>>> {
+    const unique = [...new Set(userIds.filter(Boolean))];
+    const map = new Map<string, Array<{ code: string; name: string }>>();
+    for (const id of unique) map.set(id, []);
+    if (!unique.length) return map;
+
     const rows = await this.userRoleRepo
       .createQueryBuilder('uar')
       .innerJoin(AdminRoleEntity, 'r', 'r.id = uar.roleId')
-      .where('uar.userId = :userId', { userId })
-      .select(['r.code', 'r.name'])
-      .getRawMany<{ r_code: string; r_name: string }>();
+      .where('uar.userId IN (:...userIds)', { userIds: unique })
+      .select(['uar.userId', 'r.code', 'r.name'])
+      .getRawMany<{ uar_user_id?: string; uar_userId?: string; r_code: string; r_name: string }>();
 
-    return rows.map((r) => ({ code: r.r_code, name: r.r_name }));
+    for (const row of rows) {
+      const userId = row.uar_user_id ?? row.uar_userId;
+      if (!userId) continue;
+      const list = map.get(userId) ?? [];
+      list.push({ code: row.r_code, name: row.r_name });
+      map.set(userId, list);
+    }
+    return map;
   }
 
   async getUserPermissions(userId: string): Promise<string[]> {

@@ -7,6 +7,7 @@ import {
   HttpStatus,
   Logger,
   Param,
+  Patch,
   Post,
   Put,
   Query,
@@ -28,6 +29,7 @@ import { DocumentShareService } from '../document-share/document-share.service';
 import { MembershipService } from '../membership/membership.service';
 import { estimateJsonBytes, estimatePatchDelta, estimateSaveDelta } from '../membership/membership.utils';
 import { shouldEnforceUniqueTitle } from '../../utils/documentTitle';
+import { sendDocumentLoadHttpResult } from '../../utils/documentRecordJson';
 
 @Controller(['api/v1/c/docs', 'api/v1/docs'])
 @UseGuards(JwtAuthGuard, TenantContextGuard)
@@ -52,7 +54,7 @@ export class DocumentController {
       }
 
       const ctx = this.storageService.accessFromAuth(user);
-      await this.membershipService.assertCanCreateDocument(user, ctx);
+      await this.membershipService.assertCanCreateDocument(user, ctx, String(docType));
 
       if (shouldEnforceUniqueTitle(trimmedTitle)
         && await this.storageService.existsDocumentTitle(trimmedTitle, undefined, ctx)) {
@@ -102,6 +104,48 @@ export class DocumentController {
     }
   }
 
+  /** 归我所有：当前空间内我创建的全部文档（文档库 + 知识库） */
+  @Get('owned')
+  async listOwned(
+    @CurrentUser() user: AuthUser,
+    @Query('sortBy') sortBy?: string,
+  ) {
+    try {
+      const sort = (sortBy as 'lastVisited' | 'created' | 'updated') || 'lastVisited';
+      const list = await this.storageService.listOwnedDocuments(
+        sort,
+        this.storageService.accessFromAuth(user),
+      );
+      return { items: list, total: list.length };
+    } catch (err) {
+      this.logger.error('listOwned failed', err);
+      throw new BusinessException(100005, '获取归我所有文档失败', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  /** 最近访问：当前用户近 N 天内打开过的文档（默认 30 天，严格 per-user） */
+  @Get('recent')
+  async listRecent(
+    @CurrentUser() user: AuthUser,
+    @Query('sortBy') sortBy?: string,
+    @Query('days') daysRaw?: string,
+  ) {
+    try {
+      const sort = (sortBy as 'lastVisited' | 'created' | 'updated') || 'lastVisited';
+      const days = daysRaw != null && daysRaw !== '' ? Number(daysRaw) : 30;
+      const list = await this.storageService.listRecentDocuments(
+        sort,
+        this.storageService.accessFromAuth(user),
+        days,
+      );
+      return { items: list, total: list.length };
+    } catch (err) {
+      this.logger.error('listRecent failed', err);
+      throw new BusinessException(100005, '获取最近访问失败', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  /** 我的文档库：未挂载知识库的文档 */
   @Get()
   async list(
     @CurrentUser() user: AuthUser,
@@ -109,7 +153,10 @@ export class DocumentController {
   ) {
     try {
       const sort = (sortBy as 'lastVisited' | 'created' | 'updated') || 'lastVisited';
-      const list = await this.storageService.listDocuments(sort, this.storageService.accessFromAuth(user));
+      const list = await this.storageService.listLibraryDocuments(
+        sort,
+        this.storageService.accessFromAuth(user),
+      );
       return { items: list, total: list.length };
     } catch (err) {
       this.logger.error('list failed', err);
@@ -183,7 +230,7 @@ export class DocumentController {
       }
 
       const ctx = this.storageService.accessFromAuth(user);
-      await this.membershipService.assertCanCreateDocument(user, ctx);
+      await this.membershipService.assertCanCreateDocument(user, ctx, 'freeform');
 
       const importBytes = estimateJsonBytes(data);
       await this.membershipService.assertStorageDeltaForDocument(user, {
@@ -228,16 +275,21 @@ export class DocumentController {
   }
 
   @Get(':docId')
-  async getOne(@CurrentUser() user: AuthUser, @Param('docId') docId: string) {
+  @SkipResponseWrap()
+  async getOne(
+    @CurrentUser() user: AuthUser,
+    @Param('docId') docId: string,
+    @Res() res: Response,
+  ) {
     try {
       const ctx = this.storageService.accessFromAuth(user);
-      const doc = await this.storageService.loadDocumentForUser(docId, ctx);
-      if (!doc) {
+      const body = await this.storageService.loadDocumentWrappedJson(docId, ctx);
+      if (!body) {
         throw new BusinessException(200001, '文档不存在', HttpStatus.NOT_FOUND);
       }
       await this.storageService.touchLastVisited(docId, ctx);
       void this.documentShareService.logDocumentEditorVisit(docId, user.userId);
-      return doc;
+      sendDocumentLoadHttpResult(res, { type: 'raw', body });
     } catch (err) {
       if (err instanceof BusinessException) throw err;
       this.logger.error('get failed', err);
@@ -255,6 +307,10 @@ export class DocumentController {
       const ctx = this.storageService.accessFromAuth(user);
       const writeMeta = await this.documentRepository.getWriteMeta(docId, ctx);
       if (!writeMeta) {
+        const readable = await this.storageService.loadDocumentForUser(docId, ctx);
+        if (readable) {
+          throw new BusinessException(100403, '没有编辑权限', HttpStatus.FORBIDDEN);
+        }
         throw new BusinessException(200001, '文档不存在', HttpStatus.NOT_FOUND);
       }
 
@@ -295,6 +351,67 @@ export class DocumentController {
     }
   }
 
+  /**
+   * 更新文档基本信息（标题、描述等），不读写正文。
+   * 侧边栏重命名等场景应走此接口，避免全量 PUT 覆盖内容。
+   */
+  @Patch(':docId/meta')
+  async updateMeta(
+    @CurrentUser() user: AuthUser,
+    @Param('docId') docId: string,
+    @Body() body: Record<string, unknown>,
+  ) {
+    try {
+      const ctx = this.storageService.accessFromAuth(user);
+      const writeMeta = await this.documentRepository.getWriteMeta(docId, ctx);
+      if (!writeMeta) {
+        const readable = await this.storageService.loadDocumentForUser(docId, ctx);
+        if (readable) {
+          throw new BusinessException(100403, '没有编辑权限', HttpStatus.FORBIDDEN);
+        }
+        throw new BusinessException(200001, '文档不存在', HttpStatus.NOT_FOUND);
+      }
+
+      await this.membershipService.assertWritableForDocument(user, writeMeta);
+
+      const patch: { title?: string; description?: string | null } = {};
+      if (body?.title !== undefined) {
+        if (typeof body.title !== 'string') {
+          throw new BusinessException(100002, '标题格式无效');
+        }
+        const trimmedTitle = body.title.trim();
+        if (!trimmedTitle) {
+          throw new BusinessException(100002, '文档标题不能为空');
+        }
+        patch.title = trimmedTitle;
+      }
+      if (body?.description !== undefined) {
+        if (body.description !== null && typeof body.description !== 'string') {
+          throw new BusinessException(100002, '描述格式无效');
+        }
+        patch.description = body.description === null ? null : body.description;
+      }
+
+      if (patch.title === undefined && patch.description === undefined) {
+        throw new BusinessException(100002, '缺少可更新的基本信息字段');
+      }
+
+      if (
+        patch.title
+        && shouldEnforceUniqueTitle(patch.title)
+        && await this.storageService.existsDocumentTitle(patch.title, docId, ctx)
+      ) {
+        throw new BusinessException(100003, `文档名称「${patch.title}」已存在，请输入其他名称`);
+      }
+
+      return await this.storageService.updateDocumentMeta(docId, patch, ctx);
+    } catch (err) {
+      if (err instanceof BusinessException) throw err;
+      this.logger.error('updateMeta failed', err);
+      throw new BusinessException(100005, '更新文档信息失败', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
   @Put(':docId')
   async save(
     @CurrentUser() user: AuthUser,
@@ -305,6 +422,10 @@ export class DocumentController {
       const ctx = this.storageService.accessFromAuth(user);
       const writeMeta = await this.documentRepository.getWriteMeta(docId, ctx);
       if (!writeMeta) {
+        const readable = await this.storageService.loadDocumentForUser(docId, ctx);
+        if (readable) {
+          throw new BusinessException(100403, '没有编辑权限', HttpStatus.FORBIDDEN);
+        }
         throw new BusinessException(200001, '文档不存在', HttpStatus.NOT_FOUND);
       }
 

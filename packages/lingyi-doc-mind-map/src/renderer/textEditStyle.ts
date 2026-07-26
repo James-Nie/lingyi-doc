@@ -1,5 +1,5 @@
-import type { MindMapLayoutNode, MindNode } from '@lingyi-doc/core';
-import { getMindNodePadHorizontal, getMindNodePadVertical } from '@lingyi-doc/core';
+import type { MindMapLayoutNode, MindNode } from '@lingyi-doc/core-mindmap';
+import { getMindNodePadHorizontal, getMindNodePadVertical } from '@lingyi-doc/core-mindmap';
 import type { MindmapTheme } from '../types';
 import { resolveNodeAppearance } from './nodeAppearance';
 
@@ -45,7 +45,7 @@ export function resolveMindmapTextEditStyle(
 
   const decorations: string[] = [];
   if (node.underline) decorations.push('underline');
-  if (node.lineThrough) decorations.push('line-through');
+  if (appearance.lineThrough) decorations.push('line-through');
 
   return {
     fontFamily: theme.fontFamily,

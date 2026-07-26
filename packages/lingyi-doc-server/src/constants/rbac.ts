@@ -27,6 +27,9 @@ export const PERMISSIONS = {
   TENANT_DOCUMENT_READ: 'tenant:document:read',
   TEMPLATE_READ: 'template:read',
   TEMPLATE_WRITE: 'template:write',
+  AI_CONFIG_READ: 'ai:config:read',
+  AI_CONFIG_WRITE: 'ai:config:write',
+  AI_USAGE_READ: 'ai:usage:read',
 } as const;
 
 export const ALL_PERMISSIONS: Array<{ code: string; name: string; module: string }> = [
@@ -51,6 +54,9 @@ export const ALL_PERMISSIONS: Array<{ code: string; name: string; module: string
   { code: PERMISSIONS.TENANT_DOCUMENT_READ, name: '查看租户文档', module: 'tenant' },
   { code: PERMISSIONS.TEMPLATE_READ, name: '查看文档模板', module: 'templates' },
   { code: PERMISSIONS.TEMPLATE_WRITE, name: '管理文档模板', module: 'templates' },
+  { code: PERMISSIONS.AI_CONFIG_READ, name: '查看 AI 模型配置', module: 'ai' },
+  { code: PERMISSIONS.AI_CONFIG_WRITE, name: '管理 AI 模型配置', module: 'ai' },
+  { code: PERMISSIONS.AI_USAGE_READ, name: '查看 AI 用量监控', module: 'ai' },
 ];
 
 export const ROLE_PERMISSION_MAP: Record<string, string[]> = {
@@ -74,6 +80,9 @@ export const ROLE_PERMISSION_MAP: Record<string, string[]> = {
     PERMISSIONS.TENANT_DOCUMENT_READ,
     PERMISSIONS.TEMPLATE_READ,
     PERMISSIONS.TEMPLATE_WRITE,
+    PERMISSIONS.AI_CONFIG_READ,
+    PERMISSIONS.AI_CONFIG_WRITE,
+    PERMISSIONS.AI_USAGE_READ,
   ],
   [ADMIN_ROLE_CODES.SUPPORT]: [
     PERMISSIONS.DASHBOARD_READ,
@@ -86,6 +95,7 @@ export const ROLE_PERMISSION_MAP: Record<string, string[]> = {
     PERMISSIONS.DASHBOARD_READ,
     PERMISSIONS.AUDIT_READ,
     PERMISSIONS.ANALYTICS_READ,
+    PERMISSIONS.AI_USAGE_READ,
   ],
 };
 

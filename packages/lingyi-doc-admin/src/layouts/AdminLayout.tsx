@@ -13,6 +13,7 @@ import {
   BankOutlined,
   DownOutlined,
   LogoutOutlined,
+  RobotOutlined,
 } from '@ant-design/icons';
 import { authStore } from '../stores/authStore';
 import { tenantStore } from '../stores/tenantStore';
@@ -57,6 +58,15 @@ const MENU_CONFIG: Array<MenuLeaf | MenuGroup> = [
     ],
   },
   { key: '/audit', icon: <AuditOutlined />, label: '审计日志', perm: 'audit:read' },
+  {
+    key: 'ai',
+    icon: <RobotOutlined />,
+    label: 'AI 管理',
+    children: [
+      { key: '/ai/config', label: '模型配置', perm: 'ai:config:read' },
+      { key: '/ai/usage', label: 'Token 监控', perm: 'ai:usage:read' },
+    ],
+  },
   { key: '/configs', icon: <SettingOutlined />, label: '系统配置', perm: 'config:read' },
 ];
 
@@ -116,7 +126,11 @@ export const AdminLayout: React.FC = () => {
     .find((k) => location.pathname === k || location.pathname.startsWith(`${k}/`))
     ?? (location.pathname === '/' ? '/' : location.pathname);
 
-  const defaultOpenKeys = location.pathname.startsWith('/org') ? ['org'] : undefined;
+  const defaultOpenKeys = location.pathname.startsWith('/org')
+    ? ['org']
+    : location.pathname.startsWith('/ai')
+      ? ['ai']
+      : undefined;
 
   const roleText = authState.user?.roles?.map(r => r.name).join('、') || '—';
   const tenantName = currentTenant?.name ?? '—';
@@ -221,7 +235,7 @@ export const AdminLayout: React.FC = () => {
           <Dropdown
             trigger={['click']}
             placement="bottomRight"
-            dropdownRender={() => userMenu}
+            popupRender={() => userMenu}
           >
             <button
               type="button"

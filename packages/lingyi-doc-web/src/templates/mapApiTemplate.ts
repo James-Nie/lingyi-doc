@@ -12,7 +12,6 @@ function mapBaseFields(item: ApiTemplateSummary): Omit<DocTemplate, 'richDocumen
     categories: item.categories as DocTemplate['categories'],
     usageLabel: item.usageLabel ?? undefined,
     isNew: item.isNew,
-    thumbGradient: item.thumbGradient,
     documentTitle: item.documentTitle,
     isBlank: item.isBlank,
   };
@@ -38,7 +37,8 @@ export function mapApiDetailToDocTemplate(item: ApiTemplateDetail): DocTemplate 
     case 'flowchart':
       return { ...base, whiteboardJson: item.contentJson as WhiteboardJSON };
     case 'freeform':
-    case 'base': {
+    case 'base':
+    case 'questionnaire': {
       const json = item.contentJson;
       return {
         ...base,
@@ -66,6 +66,8 @@ export function needsTemplateHydration(template: DocTemplate): boolean {
   if (template.docType === 'whiteboard' || template.docType === 'mindmap' || template.docType === 'flowchart') {
     return !template.whiteboardJson;
   }
-  if (template.docType === 'freeform' || template.docType === 'base') return !template.buildWorkbook;
+  if (template.docType === 'freeform' || template.docType === 'base' || template.docType === 'questionnaire') {
+    return !template.buildWorkbook;
+  }
   return false;
 }

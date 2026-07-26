@@ -1,4 +1,4 @@
-export type TemplateDocType = 'richtext' | 'freeform' | 'base' | 'mindnote' | 'slides' | 'whiteboard';
+export type TemplateDocType = 'richtext' | 'freeform' | 'base' | 'questionnaire' | 'mindnote' | 'slides' | 'whiteboard';
 export type TemplateStatus = 'draft' | 'published' | 'archived';
 
 export interface DocTemplateSummary {
@@ -11,7 +11,6 @@ export interface DocTemplateSummary {
   usageLabel: string | null;
   isNew: boolean;
   isBlank: boolean;
-  thumbGradient: string;
   status: TemplateStatus;
   sortOrder: number;
   useCount: number;
@@ -37,7 +36,6 @@ export interface DocTemplateCreateInput {
   usageLabel?: string | null;
   isNew?: boolean;
   isBlank?: boolean;
-  thumbGradient?: string;
   contentJson?: unknown | null;
   status?: TemplateStatus;
   sortOrder?: number;
@@ -52,7 +50,6 @@ export interface DocTemplateUpdateInput {
   usageLabel?: string | null;
   isNew?: boolean;
   isBlank?: boolean;
-  thumbGradient?: string;
   contentJson?: unknown | null;
   status?: TemplateStatus;
   sortOrder?: number;

@@ -1,12 +1,14 @@
 import { Module } from '@nestjs/common';
 import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import configuration from './config/configuration';
+import { DeployModule } from './config/deploy.module';
 import { DatabaseModule } from './database/database.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
-import { AppLoggerModule } from './common/logger/app-logger.module';
+import { AppLoggerModule } from './common/logger';
 import { AuthModule } from './auth/auth.module';
 import { HealthModule } from './modules/health/health.module';
 import { ConsumerAuthModule } from './modules/consumer-auth/consumer-auth.module';
@@ -28,6 +30,9 @@ import { BootstrapModule } from './bootstrap/bootstrap.module';
 import { RedisModule } from './redis/redis.module';
 import { DocumentCommentModule } from './modules/document-comment/document-comment.module';
 import { CollabModule } from './modules/collab/collab.module';
+import { AIModule } from './modules/ai/ai.module';
+import { McpModule } from './modules/mcp/mcp.module';
+import { BaseDashboardModule } from './modules/base-dashboard/base-dashboard.module';
 
 @Module({
   imports: [
@@ -36,6 +41,8 @@ import { CollabModule } from './modules/collab/collab.module';
       load: [configuration],
       envFilePath: ['.env'],
     }),
+    ScheduleModule.forRoot(),
+    DeployModule,
     AppLoggerModule,
     DatabaseModule,
     RedisModule,
@@ -59,6 +66,9 @@ import { CollabModule } from './modules/collab/collab.module';
     MembershipModule,
     CollabModule,
     DocumentCommentModule,
+    AIModule,
+    McpModule,
+    BaseDashboardModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: AllExceptionsFilter },

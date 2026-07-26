@@ -102,7 +102,17 @@ export class DocumentCommentController {
     @CurrentUser() user: AuthUser,
     @Param('docId') docId: string,
     @Param('threadId') threadId: string,
-    @Body() body: { pinX?: number; pinY?: number },
+    @Body() body: {
+      pinX?: number;
+      pinY?: number;
+      quote?: string;
+      anchorType?: string;
+      elementId?: string;
+      mindNodeId?: string;
+      pinOffsetX?: number;
+      pinOffsetY?: number;
+      clearBind?: boolean;
+    },
   ) {
     try {
       const pinX = Number(body?.pinX);
@@ -110,7 +120,15 @@ export class DocumentCommentController {
       if (!Number.isFinite(pinX) || !Number.isFinite(pinY)) {
         throw new BusinessException(100002, '缺少评论位置');
       }
-      return await this.commentService.updateAnchor(docId, threadId, user, pinX, pinY);
+      return await this.commentService.updateAnchor(docId, threadId, user, pinX, pinY, {
+        quote: body.quote,
+        anchorType: body.anchorType as DocCommentAnchorDto['anchorType'] | undefined,
+        elementId: body.elementId,
+        mindNodeId: body.mindNodeId,
+        pinOffsetX: body.pinOffsetX != null ? Number(body.pinOffsetX) : undefined,
+        pinOffsetY: body.pinOffsetY != null ? Number(body.pinOffsetY) : undefined,
+        clearBind: !!body.clearBind,
+      });
     } catch (err) {
       if (err instanceof BusinessException) throw err;
       this.logger.error('update comment anchor failed', err);

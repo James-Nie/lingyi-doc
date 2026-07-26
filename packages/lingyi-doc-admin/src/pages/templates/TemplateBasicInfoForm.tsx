@@ -2,7 +2,6 @@ import React from 'react';
 import { Card, Form, Input, InputNumber, Select, Space, Switch } from 'antd';
 import type { FormInstance } from 'antd';
 import {
-  DEFAULT_THUMB_GRADIENT,
   TEMPLATE_CATEGORY_OPTIONS,
   TEMPLATE_DOC_TYPE_LABELS,
   TEMPLATE_STATUS_LABELS,
@@ -19,7 +18,6 @@ export interface TemplateBasicFormValues {
   usageLabel?: string;
   isNew?: boolean;
   isBlank?: boolean;
-  thumbGradient?: string;
   sortOrder?: number;
   status?: string;
 }
@@ -49,7 +47,6 @@ export const TemplateBasicInfoForm: React.FC<TemplateBasicInfoFormProps> = ({
         categories: ['recommended'],
         status: 'draft',
         sortOrder: 0,
-        thumbGradient: DEFAULT_THUMB_GRADIENT,
         isNew: false,
         isBlank: false,
       }}
@@ -107,9 +104,6 @@ export const TemplateBasicInfoForm: React.FC<TemplateBasicInfoFormProps> = ({
             disabled={readOnly}
             options={Object.entries(TEMPLATE_STATUS_LABELS).map(([value, label]) => ({ value, label }))}
           />
-        </Form.Item>
-        <Form.Item name="thumbGradient" label="缩略图渐变 CSS" style={{ gridColumn: '1 / -1' }}>
-          <Input placeholder={DEFAULT_THUMB_GRADIENT} disabled={readOnly} />
         </Form.Item>
         <Space size="large" wrap style={{ gridColumn: '1 / -1' }}>
           <Form.Item name="isNew" label="NEW 标记" valuePropName="checked" style={{ marginBottom: 0 }}>

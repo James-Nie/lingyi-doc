@@ -1,23 +1,41 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import type { CellValue } from '@lingyi-doc/core';
-import { DocumentManager } from '@lingyi-doc/core';
-import { PublicFormFillView } from '@lingyi-doc/editor';
-import { DocumentShareApi } from '../api/documentShare';
+import { message } from 'antd';
+import type { CellValue, ColumnDef, ColumnType } from '@lingyi-doc/core';
+import { PublicFormFillView, type PublicFormSchemaField } from '@lingyi-doc/editor-pro';
+import {
+  DocumentShareApi,
+  type PublicFormAccessPending,
+  type PublicFormSchema,
+  type PublicFormStats,
+} from '../api/documentShare';
+import { PublicFormAdminBar, type PublicFormAdminPanel } from '../components/formShare/PublicFormAdminBar';
+import { PublicFormStatsCard } from '../components/formShare/PublicFormStatsCard';
+import { PublicFormSubmissionsPanel } from '../components/formShare/PublicFormSubmissionsPanel';
+import { PublicFormSupportFooter } from '../components/formShare/PublicFormSupportFooter';
+import { mapApiSubmissions, type FormSubmissionItem } from '../components/formShare/formSubmissionUtils';
 import { parseFormShareParams } from '../utils/formShareLink';
-import { resolvePublicFormFromWorkbook, type ResolvedPublicForm } from '../utils/resolvePublicForm';
 
-interface PathAccessPending {
-  requirePassword: true;
-  title: string;
-  docType: string;
+function isAccessPending(v: unknown): v is PublicFormAccessPending {
+  return !!v && typeof v === 'object' && (v as PublicFormAccessPending).requirePassword === true;
 }
 
-function isAccessPending(v: unknown): v is PathAccessPending {
-  return !!v && typeof v === 'object' && (v as PathAccessPending).requirePassword === true;
+function toSchemaFields(schema: PublicFormSchema): PublicFormSchemaField[] {
+  return schema.fields.map(f => ({
+    fieldId: f.fieldId,
+    question: f.question,
+    description: f.description,
+    required: f.required,
+    column: {
+      ...f.column,
+      id: f.column.id,
+      name: f.column.name,
+      type: (f.column.type || 'text') as ColumnType,
+    } as ColumnDef,
+  }));
 }
 
-/** 公开表单填写页：无菜单、无编辑器，仅展示填写界面 */
+/** 公开表单填写页：独立 form API，强校验 token；管理员可见右上角管理操作 */
 export const PublicFormFillPage: React.FC = () => {
   const { spaceSlug = '', bookSlug = '', docSlug = '' } = useParams<{
     spaceSlug: string;
@@ -29,8 +47,8 @@ export const PublicFormFillPage: React.FC = () => {
   const token = searchParams.get('token') ?? '';
   const navigate = useNavigate();
 
-  const [docData, setDocData] = useState<unknown>(null);
-  const [pending, setPending] = useState<PathAccessPending | null>(null);
+  const [schema, setSchema] = useState<PublicFormSchema | null>(null);
+  const [pending, setPending] = useState<PublicFormAccessPending | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [password, setPassword] = useState('');
@@ -38,9 +56,21 @@ export const PublicFormFillPage: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [adminPanel, setAdminPanel] = useState<PublicFormAdminPanel>('none');
+  const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
+  const [stats, setStats] = useState<PublicFormStats | null>(null);
+  const [submissions, setSubmissions] = useState<FormSubmissionItem[]>([]);
+  const [reviewValues, setReviewValues] = useState<Record<string, CellValue> | null>(null);
 
-  const load = useCallback(async (pwd?: string) => {
-    setLoading(true);
+  const formQuery = useMemo(() => ({
+    token,
+    sheetId,
+    viewId,
+    password: password || undefined,
+  }), [token, sheetId, viewId, password]);
+
+  const load = useCallback(async (pwd?: string, opts?: { soft?: boolean }) => {
+    if (!opts?.soft) setLoading(true);
     setError(null);
     try {
       if (!token) {
@@ -50,20 +80,21 @@ export const PublicFormFillPage: React.FC = () => {
         throw new Error('分享链接无效，缺少表单参数');
       }
 
-      const raw = pwd
-        ? await DocumentManager.verifyDocumentByPath(spaceSlug, bookSlug, docSlug, { token, password: pwd })
-        : await DocumentManager.fetchDocumentByPath(spaceSlug, bookSlug, docSlug, { token });
+      const raw = await DocumentShareApi.getPublicForm(spaceSlug, bookSlug, docSlug, {
+        token,
+        sheetId,
+        viewId,
+        password: pwd || undefined,
+      });
 
       if (isAccessPending(raw)) {
         setPending(raw);
-        setDocData(null);
+        setSchema(null);
         return;
       }
 
-      if (!raw.data) throw new Error('无法加载表单');
-      resolvePublicFormFromWorkbook(raw.data, sheetId, viewId);
       setPending(null);
-      setDocData(raw.data);
+      setSchema(raw);
     } catch (err) {
       const msg = err instanceof Error ? err.message : '无法打开表单';
       if (msg.includes('登录') || msg.includes('110001')) {
@@ -72,33 +103,79 @@ export const PublicFormFillPage: React.FC = () => {
         return;
       }
       setError(msg);
-      setDocData(null);
+      setSchema(null);
     } finally {
-      setLoading(false);
+      if (!opts?.soft) setLoading(false);
     }
   }, [spaceSlug, bookSlug, docSlug, token, sheetId, viewId, navigate]);
 
   useEffect(() => {
-    setDocData(null);
+    setSchema(null);
     setPending(null);
     setError(null);
     setPassword('');
     setSubmitted(false);
     setSubmitError(null);
+    setAdminPanel('none');
+    setSelectedRecordId(null);
+    setStats(null);
+    setSubmissions([]);
+    setReviewValues(null);
   }, [spaceSlug, bookSlug, docSlug, token, sheetId, viewId]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  const formContext = useMemo((): ResolvedPublicForm | { error: string } | null => {
-    if (!docData) return null;
+  const reloadAdminData = useCallback(async () => {
+    if (!schema?.canManage) return;
     try {
-      return resolvePublicFormFromWorkbook(docData, sheetId, viewId);
-    } catch (err) {
-      return { error: err instanceof Error ? err.message : '无法解析表单' };
+      const [statsRes, listRes] = await Promise.all([
+        DocumentShareApi.getPublicFormStats(spaceSlug, bookSlug, docSlug, formQuery),
+        DocumentShareApi.listPublicFormSubmissions(spaceSlug, bookSlug, docSlug, formQuery),
+      ]);
+      setStats(statsRes);
+      setSubmissions(mapApiSubmissions(listRes.items));
+    } catch {
+      setStats(null);
+      setSubmissions([]);
     }
-  }, [docData, sheetId, viewId]);
+  }, [schema?.canManage, spaceSlug, bookSlug, docSlug, formQuery]);
+
+  useEffect(() => {
+    if (!schema?.canManage) return;
+    void reloadAdminData();
+  }, [schema?.canManage, reloadAdminData]);
+
+  useEffect(() => {
+    if (adminPanel !== 'submissions') {
+      setReviewValues(null);
+      return;
+    }
+    const activeId = selectedRecordId ?? submissions[0]?.recordId;
+    if (!activeId) {
+      setReviewValues(null);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const detail = await DocumentShareApi.getPublicFormSubmissionDetail(
+          spaceSlug,
+          bookSlug,
+          docSlug,
+          activeId,
+          formQuery,
+        );
+        if (!cancelled) {
+          setReviewValues(detail.fieldValues as Record<string, CellValue>);
+        }
+      } catch {
+        if (!cancelled) setReviewValues(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [adminPanel, selectedRecordId, submissions, spaceSlug, bookSlug, docSlug, formQuery]);
 
   const handleVerifyPassword = async () => {
     setVerifying(true);
@@ -121,12 +198,24 @@ export const PublicFormFillPage: React.FC = () => {
         fieldValues: values,
       });
       setSubmitted(true);
+      if (schema?.canManage) {
+        void reloadAdminData();
+      }
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : '提交失败，请稍后重试');
     } finally {
       setSubmitting(false);
     }
   };
+
+  const buildEditorUrl = useCallback((opts?: { grid?: boolean }) => {
+    const params = new URLSearchParams();
+    if (sheetId) params.set('sheetId', sheetId);
+    if (!opts?.grid && viewId) params.set('viewId', viewId);
+    if (opts?.grid) params.set('view', 'grid');
+    const qs = params.toString();
+    return `/${spaceSlug}/${bookSlug}/${docSlug}${qs ? `?${qs}` : ''}`;
+  }, [spaceSlug, bookSlug, docSlug, sheetId, viewId]);
 
   if (loading && !pending) {
     return <PageShell><CenterText>正在加载表单…</CenterText></PageShell>;
@@ -165,24 +254,82 @@ export const PublicFormFillPage: React.FC = () => {
     );
   }
 
-  if (error || !formContext || 'error' in formContext) {
-    const message = error ?? (formContext && 'error' in formContext ? formContext.error : '无法打开表单');
+  if (error || !schema) {
     return (
       <PageShell>
-        <CenterText style={{ color: '#d83931' }}>{message}</CenterText>
+        <CenterText style={{ color: '#d83931' }}>{error ?? '无法打开表单'}</CenterText>
       </PageShell>
     );
   }
 
+  const isAdmin = schema.canManage;
+  const reviewingSubmissions = isAdmin && adminPanel === 'submissions';
+  const activeSubmission = reviewingSubmissions
+    ? (submissions.find(s => s.recordId === selectedRecordId) ?? submissions[0] ?? null)
+    : null;
+  const shareLink = typeof window !== 'undefined'
+    ? window.location.href
+    : `/${spaceSlug}/${bookSlug}/${docSlug}?form=1&sheetId=${sheetId}&viewId=${viewId}&token=${token}`;
+  const fields = toSchemaFields(schema);
+
+  const openSubmissions = () => {
+    setAdminPanel('submissions');
+    setSelectedRecordId(submissions[0]?.recordId ?? null);
+  };
+
   return (
     <PublicFormFillView
-      table={formContext.table}
-      formView={formContext.formView}
+      title={schema.title}
+      description={schema.description}
+      fields={fields}
       submitting={submitting}
       submitted={submitted}
       submitError={submitError}
       onSubmit={values => void handleSubmit(values)}
       onSubmitAgain={() => setSubmitted(false)}
+      supportFooter={<PublicFormSupportFooter />}
+      readOnly={reviewingSubmissions && !!activeSubmission}
+      reviewValues={reviewValues}
+      reviewKey={activeSubmission?.recordId ?? (reviewingSubmissions ? 'empty' : 'fill')}
+      headerExtra={isAdmin ? (
+        <PublicFormAdminBar
+          activePanel={adminPanel}
+          shareLink={shareLink}
+          onEditForm={() => navigate(buildEditorUrl())}
+          onToggleStats={() => setAdminPanel(p => (p === 'stats' ? 'none' : 'stats'))}
+          onToggleSubmissions={() => {
+            if (adminPanel === 'submissions') {
+              setAdminPanel('none');
+              setSelectedRecordId(null);
+            } else {
+              openSubmissions();
+            }
+          }}
+        />
+      ) : undefined}
+      leftSidebar={reviewingSubmissions ? (
+        <PublicFormSubmissionsPanel
+          items={submissions}
+          selectedRecordId={activeSubmission?.recordId ?? null}
+          onSelect={setSelectedRecordId}
+          onClose={() => {
+            setAdminPanel('none');
+            setSelectedRecordId(null);
+          }}
+        />
+      ) : undefined}
+      contentOverlay={isAdmin && adminPanel === 'stats' ? (
+        <PublicFormStatsCard
+          title={schema.title}
+          submittedCount={stats?.submittedCount ?? 0}
+          requiredCount={stats?.requiredCount ?? 0}
+          submittedPeopleCount={stats?.submittedPeopleCount ?? 0}
+          pendingRequiredCount={stats?.pendingRequiredCount ?? 0}
+          onViewResults={() => navigate(buildEditorUrl({ grid: true }))}
+          onUrgeFill={() => message.info('催填功能开发中')}
+          onViewPendingRequired={() => message.info('必填人未提交列表开发中')}
+        />
+      ) : undefined}
     />
   );
 };

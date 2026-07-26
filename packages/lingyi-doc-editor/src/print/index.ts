@@ -1,2 +1,2 @@
-export { printMindNoteMap } from './printMindNoteMap';
+export { printMindNoteMap } from '@lingyi-doc/editor-mindmap';
 export { printWhiteboard } from './printWhiteboard';

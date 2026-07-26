@@ -72,6 +72,11 @@ export const SidebarDocRow: React.FC<SidebarDocRowProps> = ({
   const color = active ? SIDEBAR_ACTIVE_COLOR : SIDEBAR_TEXT;
   const depth = item.depth ?? 0;
   const indent = 10 + depth * 14;
+  const dropShadow = dropIndicator === 'before'
+    ? 'inset 0 2px 0 #3370ff'
+    : dropIndicator === 'after'
+      ? 'inset 0 -2px 0 #3370ff'
+      : undefined;
 
   return (
     <div
@@ -92,7 +97,7 @@ export const SidebarDocRow: React.FC<SidebarDocRowProps> = ({
         display: 'flex',
         alignItems: 'center',
         gap: 4,
-        padding: `5px 8px 5px ${indent}px`,
+        padding: `5px 10px 5px ${indent}px`,
         marginBottom: 1,
         borderRadius: active ? '6px 0 0 6px' : 6,
         background: bg,
@@ -103,13 +108,24 @@ export const SidebarDocRow: React.FC<SidebarDocRowProps> = ({
         minHeight: 32,
         opacity: dragging ? 0.45 : 1,
         outline: dropIndicator === 'inside' ? '1px solid rgba(51, 112, 255, 0.45)' : undefined,
-        boxShadow: dropIndicator === 'before'
-          ? 'inset 0 2px 0 #3370ff'
-          : dropIndicator === 'after'
-            ? 'inset 0 -2px 0 #3370ff'
-            : undefined,
+        boxShadow: dropShadow,
+        transition: 'background 0.12s ease, color 0.12s ease',
       }}
     >
+      {active && (
+        <span
+          aria-hidden
+          style={{
+            position: 'absolute',
+            top: 4,
+            right: 0,
+            bottom: 4,
+            width: 3,
+            borderRadius: '2px 0 0 2px',
+            background: SIDEBAR_ACTIVE_COLOR,
+          }}
+        />
+      )}
       {item.isFolder ? (
         <button
           type="button"

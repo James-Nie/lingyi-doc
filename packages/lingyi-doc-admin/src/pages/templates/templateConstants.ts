@@ -1,4 +1,4 @@
-export type TemplateDocType = 'richtext' | 'freeform' | 'base' | 'mindnote' | 'slides' | 'whiteboard';
+export type TemplateDocType = 'richtext' | 'freeform' | 'base' | 'questionnaire' | 'mindnote' | 'slides' | 'whiteboard';
 export type TemplateStatus = 'draft' | 'published' | 'archived';
 
 export interface TemplateListItem {
@@ -11,7 +11,6 @@ export interface TemplateListItem {
   usageLabel: string | null;
   isNew: boolean;
   isBlank: boolean;
-  thumbGradient: string;
   status: TemplateStatus;
   sortOrder: number;
   useCount: number;
@@ -31,6 +30,7 @@ export const TEMPLATE_DOC_TYPE_LABELS: Record<TemplateDocType, string> = {
   richtext: '文档',
   freeform: '表格',
   base: '多维表格',
+  questionnaire: '问卷',
   mindnote: '思维笔记',
   slides: '幻灯片',
   whiteboard: '画板',
@@ -65,5 +65,3 @@ export const TEMPLATE_CATEGORY_OPTIONS = [
   { id: 'hr', label: '人事' },
   { id: 'admin', label: '行政' },
 ];
-
-export const DEFAULT_THUMB_GRADIENT = 'linear-gradient(135deg, #e3f2fd 0%, #90caf9 100%)';

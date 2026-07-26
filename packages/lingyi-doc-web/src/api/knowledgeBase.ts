@@ -156,10 +156,16 @@ export function mapKnowledgeBaseToLegacy(kb: KnowledgeBase) {
     emoji: kb.emoji,
     visibility: kb.visibility,
     cover: kb.cover,
+    myRole: kb.myRole,
     tag: kb.visibility === 'organization' ? '企业公开' : undefined,
     createdAt: Date.parse(kb.createdAt),
     updatedAt: Date.parse(kb.updatedAt),
   };
+}
+
+/** 是否可进入知识库设置（所有者 / 管理员） */
+export function canManageKnowledgeBase(role?: KbMemberRole | null): boolean {
+  return role === 'owner' || role === 'admin';
 }
 
 export function mapKbNodeToLegacy(node: KbNode) {
@@ -280,11 +286,63 @@ export const KnowledgeBaseApi = {
     return authFetch(`${BASE}/${kbId}/members`);
   },
 
+  /** GET /knowledge-bases/:kbId/members/search-users?q= */
+  searchUsersForAdd(
+    kbId: string,
+    q: string,
+  ): Promise<{ items: Array<{ userId: string; displayName: string; email: string; phone: string | null }> }> {
+    const qs = new URLSearchParams({ q }).toString();
+    return authFetch(`${BASE}/${kbId}/members/search-users?${qs}`);
+  },
+
   /** POST /knowledge-bases/:kbId/members */
   addMember(kbId: string, input: AddKbMemberInput): Promise<KbMember> {
     return authFetch(`${BASE}/${kbId}/members`, {
       method: 'POST',
       body: JSON.stringify(input),
+    });
+  },
+
+  /** POST /knowledge-bases/:kbId/members 批量 */
+  addMembers(
+    kbId: string,
+    input: { userIds: string[]; role: Exclude<KbMemberRole, 'owner'> },
+  ): Promise<{ items: KbMember[]; added: number }> {
+    return authFetch(`${BASE}/${kbId}/members`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  },
+
+  /** POST /knowledge-bases/:kbId/invite-link */
+  ensureInviteLink(
+    kbId: string,
+    role: Exclude<KbMemberRole, 'owner'>,
+  ): Promise<{ token: string; role: string; invitePath: string }> {
+    return authFetch(`${BASE}/${kbId}/invite-link`, {
+      method: 'POST',
+      body: JSON.stringify({ role }),
+    });
+  },
+
+  /** GET /kb-invites/:token */
+  getInviteInfo(token: string): Promise<{
+    token: string;
+    kbId: string;
+    kbName: string;
+    emoji: string;
+    role: Exclude<KbMemberRole, 'owner'>;
+    closed: boolean;
+    alreadyMember: boolean;
+  }> {
+    return authFetch(`/api/v1/c/kb-invites/${encodeURIComponent(token)}`);
+  },
+
+  /** POST /kb-invites/:token/join */
+  acceptInvite(token: string): Promise<{ kbId: string; role: Exclude<KbMemberRole, 'owner'> }> {
+    return authFetch(`/api/v1/c/kb-invites/${encodeURIComponent(token)}/join`, {
+      method: 'POST',
+      body: JSON.stringify({}),
     });
   },
 

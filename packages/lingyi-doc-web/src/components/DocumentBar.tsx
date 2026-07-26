@@ -6,6 +6,7 @@ import { authStore } from '../stores/authStore';
 import { appPath } from '../utils/appPaths';
 import { DocShareModal } from './share/DocShareModal';
 import { DocInfoModal } from './docInfo/DocInfoModal';
+import { SaveVersionModal } from './history/SaveVersionModal';
 import { MoveDocumentModal } from './MoveDocumentModal';
 import {
   AppTopBar,
@@ -41,6 +42,11 @@ interface DocumentBarProps {
   effectiveViewMode?: DocumentViewMode;
   onTogglePreview?: () => void;
   titleEditable?: boolean;
+  showAiToggle?: boolean;
+  aiPanelOpen?: boolean;
+  onToggleAi?: () => void;
+  /** 打开文档历史记录（由编辑页挂载预览面板） */
+  onOpenHistory?: () => void;
 }
 
 export const DocumentBar: React.FC<DocumentBarProps> = ({
@@ -65,6 +71,10 @@ export const DocumentBar: React.FC<DocumentBarProps> = ({
   effectiveViewMode = 'edit',
   onTogglePreview,
   titleEditable,
+  showAiToggle,
+  aiPanelOpen,
+  onToggleAi,
+  onOpenHistory,
 }) => {
   const navigate = useNavigate();
   const authState = useSyncExternalStore(authStore.subscribe, authStore.getState);
@@ -75,6 +85,7 @@ export const DocumentBar: React.FC<DocumentBarProps> = ({
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [docInfoOpen, setDocInfoOpen] = useState(false);
+  const [saveVersionOpen, setSaveVersionOpen] = useState(false);
   const [moveSource, setMoveSource] = useState<MoveDocumentSource | null>(null);
   const exportMenuRef = useRef<HTMLDivElement>(null);
 
@@ -152,6 +163,22 @@ export const DocumentBar: React.FC<DocumentBarProps> = ({
       setDocInfoOpen(true);
       return;
     }
+    if (key === 'history' && docId) {
+      if (onOpenHistory) {
+        onOpenHistory();
+      } else {
+        message.info('当前文档类型暂不支持历史预览');
+      }
+      return;
+    }
+    if (key === 'saveVersion' && docId) {
+      if (!canEdit || isPreview) {
+        message.warning('当前无编辑权限，无法另存为版本');
+        return;
+      }
+      setSaveVersionOpen(true);
+      return;
+    }
     if (key === 'moveTo' && docId) {
       void resolveMoveDocumentSource({
         docId,
@@ -160,7 +187,7 @@ export const DocumentBar: React.FC<DocumentBarProps> = ({
       return;
     }
     stub(key);
-  }, [docId, exporting, onDownloadAs, onPrint, stub, title]);
+  }, [canEdit, docId, exporting, isPreview, onDownloadAs, onOpenHistory, onPrint, stub, title]);
 
   const exportExtra = showExport ? (
     <div ref={exportMenuRef} style={{ position: 'relative', marginRight: 4 }}>
@@ -251,6 +278,27 @@ export const DocumentBar: React.FC<DocumentBarProps> = ({
     </span>
   ) : null;
 
+  const aiToggle = showAiToggle && onToggleAi ? (
+    <button
+      type="button"
+      className="doc-ai-toggle-btn"
+      onClick={onToggleAi}
+      style={{
+        height: 32,
+        padding: '0 12px',
+        border: '1px solid #dee0e3',
+        borderRadius: 6,
+        background: aiPanelOpen ? '#f0f4ff' : '#fff',
+        color: aiPanelOpen ? '#3370ff' : '#1f2329',
+        cursor: 'pointer',
+        fontSize: 13,
+        marginRight: 4,
+      }}
+    >
+      AI 助手
+    </button>
+  ) : null;
+
   return (
     <>
       <AppTopBar
@@ -294,6 +342,7 @@ export const DocumentBar: React.FC<DocumentBarProps> = ({
           moreMenuItems={resolvedMoreMenuItems}
           extra={(
             <>
+              {aiToggle}
               {previewToggle}
               {exportExtra}
             </>
@@ -327,6 +376,13 @@ export const DocumentBar: React.FC<DocumentBarProps> = ({
             documentLibraryStore.bump();
           }}
           onError={msg => message.error(`移动失败: ${msg}`)}
+        />
+      )}
+      {docId && (
+        <SaveVersionModal
+          open={saveVersionOpen}
+          docId={docId}
+          onClose={() => setSaveVersionOpen(false)}
         />
       )}
     </>

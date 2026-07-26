@@ -25,13 +25,15 @@ interface ReplyLikeMeta {
 }
 
 interface AnchorMeta {
-  anchorType?: 'text' | 'sheet_cell' | 'sheet_record' | 'freeform_cell' | 'whiteboard_element' | 'whiteboard_mind_node';
+  anchorType?: 'text' | 'sheet_cell' | 'sheet_record' | 'freeform_cell' | 'whiteboard_element' | 'whiteboard_mind_node' | 'whiteboard_point';
   sheetId?: string;
   recordId?: string;
   fieldId?: string;
   viewId?: string;
   elementId?: string;
   mindNodeId?: string;
+  pinOffsetX?: number;
+  pinOffsetY?: number;
 }
 
 function serializeAnchorMeta(anchor: {
@@ -42,6 +44,8 @@ function serializeAnchorMeta(anchor: {
   viewId?: string;
   elementId?: string;
   mindNodeId?: string;
+  pinOffsetX?: number;
+  pinOffsetY?: number;
 }): string | null {
   if (!anchor.anchorType || anchor.anchorType === 'text') return null;
   return JSON.stringify({
@@ -52,6 +56,8 @@ function serializeAnchorMeta(anchor: {
     viewId: anchor.viewId,
     elementId: anchor.elementId,
     mindNodeId: anchor.mindNodeId,
+    pinOffsetX: anchor.pinOffsetX,
+    pinOffsetY: anchor.pinOffsetY,
   });
 }
 
@@ -112,25 +118,19 @@ export class DocumentCommentRepository {
     const meta = new Map<string, ReplyLikeMeta>();
     if (!replyIds.length) return meta;
 
-    const counts = await this.likeRepo.createQueryBuilder('l')
-      .select('l.reply_id', 'replyId')
-      .addSelect('COUNT(*)', 'cnt')
-      .where('l.reply_id IN (:...replyIds)', { replyIds })
-      .groupBy('l.reply_id')
-      .getRawMany<{ replyId: string; cnt: string }>();
+    // 内存聚合，避免 MySQL ONLY_FULL_GROUP_BY 下 QueryBuilder + GROUP BY 报错
+    const likes = await this.likeRepo.find({
+      where: { replyId: In(replyIds) },
+      select: ['replyId', 'userId'],
+    });
 
-    for (const row of counts) {
-      meta.set(row.replyId, { likeCount: Number(row.cnt ?? 0), likedByMe: false });
-    }
-
-    if (currentUserId) {
-      const mine = await this.likeRepo.find({
-        where: { replyId: In(replyIds), userId: currentUserId },
-      });
-      for (const like of mine) {
-        const existing = meta.get(like.replyId) ?? { likeCount: 0, likedByMe: false };
-        meta.set(like.replyId, { ...existing, likedByMe: true });
+    for (const like of likes) {
+      const existing = meta.get(like.replyId) ?? { likeCount: 0, likedByMe: false };
+      existing.likeCount += 1;
+      if (currentUserId && like.userId === currentUserId) {
+        existing.likedByMe = true;
       }
+      meta.set(like.replyId, existing);
     }
 
     for (const id of replyIds) {
@@ -358,11 +358,47 @@ export class DocumentCommentRepository {
     pinX: number,
     pinY: number,
     currentUserId?: string,
+    meta?: {
+      quote?: string;
+      anchorType?: DocCommentAnchorDto['anchorType'];
+      elementId?: string;
+      mindNodeId?: string;
+      pinOffsetX?: number;
+      pinOffsetY?: number;
+      clearBind?: boolean;
+    },
   ): Promise<DocCommentThreadDto | null> {
     const thread = await this.threadRepo.findOne({ where: { id: threadId, docId, resolved: 0 } });
     if (!thread) return null;
     thread.anchorStart = Math.round(pinX);
     thread.anchorEnd = Math.round(pinY);
+    if (meta) {
+      const current = buildAnchorDto(thread);
+      const nextAnchor: DocCommentAnchorDto = {
+        ...current,
+        start: thread.anchorStart,
+        end: thread.anchorEnd,
+        quote: meta.quote ?? current.quote,
+      };
+      if (meta.clearBind) {
+        delete nextAnchor.elementId;
+        delete nextAnchor.mindNodeId;
+        delete nextAnchor.pinOffsetX;
+        delete nextAnchor.pinOffsetY;
+        nextAnchor.anchorType = 'whiteboard_point';
+      } else if (meta.elementId) {
+        nextAnchor.elementId = meta.elementId;
+        nextAnchor.mindNodeId = meta.mindNodeId;
+        nextAnchor.pinOffsetX = meta.pinOffsetX;
+        nextAnchor.pinOffsetY = meta.pinOffsetY;
+        nextAnchor.anchorType = meta.anchorType
+          ?? (meta.mindNodeId ? 'whiteboard_mind_node' : 'whiteboard_element');
+      } else if (meta.anchorType) {
+        nextAnchor.anchorType = meta.anchorType;
+      }
+      thread.anchorMeta = serializeAnchorMeta(nextAnchor);
+      if (meta.quote != null) thread.quote = meta.quote;
+    }
     thread.updatedAt = new Date();
     await this.threadRepo.save(thread);
     const replies = await this.replyRepo.find({

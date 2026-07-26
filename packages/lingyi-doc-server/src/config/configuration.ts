@@ -26,6 +26,23 @@ export default () => ({
     defaultTenantName: process.env.DEFAULT_TENANT_NAME || '默认企业',
     allowMultiTenantSwitch: process.env.ALLOW_MULTI_TENANT_SWITCH !== '0',
     enforceTenantFilter: process.env.ENFORCE_TENANT_FILTER !== '0',
+    /**
+     * 产品模块白名单（逗号分隔 MembershipModuleKey）。
+     * 空或 * = 不收窄（默认全开，兼容现网）；私有化裁剪示例：
+     * ENABLED_MODULES=mod.doc,mod.sheet,mod.collab,mod.knowledge
+     */
+    enabledModules: process.env.ENABLED_MODULES || '',
+    /**
+     * 发行版策略源：saas（默认，Entitlement 全开）| community（静态 COMMUNITY_MODULES）。
+     * 与 SaaS 会员矩阵并存，互不覆盖对方默认行为。
+     */
+    edition: (process.env.EDITION || 'saas').toLowerCase() === 'community' ? 'community' : 'saas',
+    /** 私有化 License 文件路径（JSON）；优先于 LICENSE_PAYLOAD */
+    licenseFile: process.env.LICENSE_FILE || '',
+    /** 私有化 License 内联 JSON：{ modules[], expireAt?, tenantId?, seats?, aiQuota?, signature? } */
+    licensePayload: process.env.LICENSE_PAYLOAD || '',
+    // 验签公钥为编译期内置常量（EMBEDDED_PUBLIC_KEY），不从环境变量读取，
+    // 以防对外镜像被替换公钥后自签绕过。
   },
   api: {
     port: Number(process.env.API_PORT || 3000),
@@ -68,6 +85,7 @@ export default () => ({
     json: process.env.LOG_JSON === '1' || process.env.NODE_ENV === 'production',
     http: process.env.LOG_HTTP !== '0',
     slowRequestMs: Number(process.env.LOG_SLOW_REQUEST_MS || 1000),
+    file: process.env.LOG_FILE || '',
   },
   redis: {
     url: process.env.REDIS_URL || 'redis://127.0.0.1:6379',
@@ -84,5 +102,43 @@ export default () => ({
   },
   comments: {
     enabled: process.env.FEATURE_COMMENTS_ENABLED === 'true',
+  },
+  ai: {
+    enabled: process.env.AI_MODULE_ENABLED !== '0',
+    defaultProvider: process.env.DEFAULT_LLM_PROVIDER || 'openai',
+    defaultModel: process.env.DEFAULT_LLM_MODEL || 'deepseek-v4-flash',
+    models: (process.env.AI_LLM_MODELS || '')
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean),
+    openai: {
+      apiKey: process.env.OPENAI_API_KEY || '',
+      baseUrl: process.env.OPENAI_BASE_URL || 'https://llm.dtzhejiang.com/v1',
+    },
+    anthropic: {
+      apiKey: process.env.ANTHROPIC_API_KEY || '',
+      baseUrl: process.env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com/v1',
+    },
+    alibaba: {
+      apiKey: process.env.DASHSCOPE_API_KEY || '',
+      baseUrl: process.env.DASHSCOPE_BASE_URL || 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+    },
+    embedding: {
+      provider: process.env.EMBEDDING_PROVIDER || 'openai',
+      model: process.env.OPENAI_EMBEDDING_MODEL || 'text-embedding-3-small',
+      alibabaModel: process.env.DASHSCOPE_EMBEDDING_MODEL || 'text-embedding-v2',
+    },
+    /** USD / 1k tokens；可用 `*` 作默认。可按模型覆盖 */
+    pricing: {
+      '*': { inputPer1k: 0.00015, outputPer1k: 0.0006, per1k: 0.00002 },
+    },
+  },
+  mcp: {
+    enabled: process.env.MCP_MODULE_ENABLED !== '0',
+    tokenPrefix: process.env.MCP_TOKEN_PREFIX || 'mcp_',
+    defaultExpiresDays: Number(process.env.MCP_DEFAULT_EXPIRES_DAYS || 90),
+    rateLimitPerToken: Number(process.env.MCP_RATE_LIMIT_PER_TOKEN || 60),
+    embedRateLimit: Number(process.env.MCP_EMBED_RATE_LIMIT || 5),
+    maxTokensPerUser: Number(process.env.MCP_MAX_TOKENS_PER_USER || 10),
   },
 });

@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react';
 import {
   mindnoteNodeLock,
-  type ActiveCellEditor,
   type BlockLockTarget,
   type DocumentCollabBridge,
 } from '@lingyi-doc/core';
@@ -12,14 +11,21 @@ interface UseCollabBlockLockOptions {
   resolveLock: (target: HTMLElement) => BlockLockTarget | null;
   isComposing?: () => boolean;
   fallbackNodeIdRef?: React.RefObject<string | null>;
+  /** 抢锁失败时回调（通常用于 toast） */
+  onLockDenied?: (lock: BlockLockTarget) => void;
 }
 
+/**
+ * 聚焦可编辑区域时抢占区域锁；同一区域被他人占用则失焦。
+ * 不同区域可并行编辑，不再把整文档切成只读。
+ */
 export function useCollabBlockLock({
   readOnly,
   collabBridgeRef,
   resolveLock,
   isComposing,
   fallbackNodeIdRef,
+  onLockDenied,
 }: UseCollabBlockLockOptions): void {
   const localLockRef = useRef<BlockLockTarget | null>(null);
 
@@ -48,6 +54,7 @@ export function useCollabBlockLock({
       if (!lock) return;
 
       if (!bridge.tryStartBlockEdit(lock)) {
+        onLockDenied?.(lock);
         target.blur();
         return;
       }
@@ -55,9 +62,19 @@ export function useCollabBlockLock({
     };
 
     const onFocusOut = () => {
+      const lockAtBlur = localLockRef.current;
       window.setTimeout(() => {
         if (isComposing?.()) return;
         if (!localLockRef.current) return;
+        // focus 已切到另一区域时，focusin 会更新 localLockRef，此处勿误释新锁
+        if (localLockRef.current !== lockAtBlur) return;
+        const active = document.activeElement;
+        if (
+          active instanceof HTMLElement
+          && (active.isContentEditable || active.tagName === 'TEXTAREA' || active.tagName === 'INPUT')
+        ) {
+          return;
+        }
         endLocalLock();
       }, 0);
     };
@@ -68,17 +85,5 @@ export function useCollabBlockLock({
       document.removeEventListener('focusin', onFocusIn, true);
       document.removeEventListener('focusout', onFocusOut, true);
     };
-  }, [readOnly, collabBridgeRef, resolveLock, isComposing, fallbackNodeIdRef, endLocalLock]);
-}
-
-export function isCollabViewOnly(
-  readOnly: boolean,
-  collabState: string,
-  activeBlockEditor: ActiveCellEditor | null,
-  myUserId: string,
-): boolean {
-  return !readOnly
-    && collabState === 'connected'
-    && activeBlockEditor != null
-    && activeBlockEditor.userId !== myUserId;
+  }, [readOnly, collabBridgeRef, resolveLock, isComposing, fallbackNodeIdRef, endLocalLock, onLockDenied]);
 }

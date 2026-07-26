@@ -1,0 +1,36 @@
+{
+  "name": "@lingyi-doc/editor-mindmap",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@lingyi-doc/core-mindmap": "*",
+    "@lingyi-doc/core-types": "*",
+    "@lingyi-doc/editor-shared": "*",
+    "@lingyi-doc/mind-map": "*",
+    "@lingyi-doc/mind-map-react": "*",
+    "@ant-design/icons": "^6.2.5",
+    "antd": "^6.4.5"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "typescript": "^5.3.0"
+  },
+  "peerDependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  }
+}

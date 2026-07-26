@@ -183,10 +183,13 @@ export class AdminController {
         limit: pageSize,
         offset: (page - 1) * pageSize,
       });
-      const items = await Promise.all(result.items.map(async item => ({
+      const roleMap = await this.adminRoleRepository.getUsersRoles(
+        result.items.map((item) => item.id),
+      );
+      const items = result.items.map((item) => ({
         ...item,
-        roles: await this.adminRoleRepository.getUserRoles(item.id),
-      })));
+        roles: roleMap.get(item.id) ?? [],
+      }));
       return { items, total: result.total, page, pageSize };
     } catch (err) {
       this.logger.error('list admins failed', err);

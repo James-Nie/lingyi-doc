@@ -1,33 +1,17 @@
 import { Global, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { DeployService } from '../config/deploy.service';
 import {
   AdminPermissionEntity,
   AdminRoleEntity,
   AdminRolePermissionEntity,
   UserAdminRoleEntity,
 } from '../database/entities/admin.entity';
-import { DocumentEntity } from '../database/entities/document.entity';
-import { DocumentSnapshotEntity } from '../database/entities/document-snapshot.entity';
 import {
   AuditLogEntity,
   AuthSessionEntity,
   DemoRequestEntity,
   SystemConfigEntity,
 } from '../database/entities/misc.entity';
-import {
-  OrganizationEntity,
-  TenantEntity,
-  TenantMemberEntity,
-  TenantPositionEntity,
-  TenantPositionGroupEntity,
-  TenantRoleEntity,
-} from '../database/entities/tenant.entity';
-import {
-  KbMemberEntity,
-  KbNodeEntity,
-  KnowledgeBaseEntity,
-} from '../database/entities/knowledge-base.entity';
 import {
   DocShareAuditLogEntity,
   DocShareEntity,
@@ -36,23 +20,19 @@ import {
   DocShareVisitLogEntity,
 } from '../database/entities/document-share.entity';
 import { DocTemplateEntity } from '../database/entities/doc-template.entity';
+import { DocUserVisitEntity } from '../database/entities/doc-user-visit.entity';
 import { UserEntity } from '../database/entities/user.entity';
 import { AdminRoleRepository } from './admin-role.repository';
 import { AuditLogRepository } from './audit-log.repository';
 import { AuthSessionRepository } from './auth-session.repository';
 import { DemoRequestRepository } from './demo-request.repository';
-import { DocumentRepository } from './document.repository';
-import { OrganizationRepository } from './organization.repository';
+import { DocumentDataModule } from './document-data.module';
+import { TenantDataModule } from './tenant-data.module';
+import { KnowledgeDataModule } from './knowledge-data.module';
 import { SystemConfigRepository } from './system-config.repository';
-import { TenantMemberRepository } from './tenant-member.repository';
-import { TenantRepository } from './tenant.repository';
-import { KnowledgeBaseRepository } from './knowledge-base.repository';
-import { KbNodeRepository } from './kb-node.repository';
 import { DocumentShareRepository } from './document-share.repository';
 import { DocTemplateRepository } from './doc-template.repository';
 import { UserRepository } from './user.repository';
-import { PositionRepository } from './position.repository';
-import { TenantRoleRepository } from './tenant-role.repository';
 import { AuthHelpersService } from '../services/auth-helpers.service';
 import { AuthService } from '../services/auth.service';
 import { OssService } from '../services/oss.service';
@@ -65,16 +45,13 @@ import { PasswordCryptoService } from '../services/password-crypto.service';
 import { RateLimitService } from '../services/rate-limit.service';
 import { SmsVerificationService } from '../services/sms-verification.service';
 
+/**
+ * 仍为 @Global() 的过渡模块。
+ * Document / Tenant / Knowledge 仓储已迁出至 *DataModule；
+ * 本模块不再导出它们（Knowledge 仅 import 供可能的共享服务使用时可加）。
+ */
 const ENTITIES = [
   UserEntity,
-  DocumentEntity,
-  DocumentSnapshotEntity,
-  TenantEntity,
-  TenantMemberEntity,
-  OrganizationEntity,
-  TenantPositionGroupEntity,
-  TenantPositionEntity,
-  TenantRoleEntity,
   AdminRoleEntity,
   AdminPermissionEntity,
   AdminRolePermissionEntity,
@@ -83,38 +60,27 @@ const ENTITIES = [
   SystemConfigEntity,
   AuthSessionEntity,
   DemoRequestEntity,
-  KnowledgeBaseEntity,
-  KbNodeEntity,
-  KbMemberEntity,
   DocShareEntity,
   DocShareUserEntity,
   DocShareJoinRequestEntity,
   DocShareVisitLogEntity,
   DocShareAuditLogEntity,
   DocTemplateEntity,
+  DocUserVisitEntity,
 ];
 
 const REPOSITORIES = [
   UserRepository,
   AuthSessionRepository,
-  DocumentRepository,
-  TenantRepository,
-  TenantMemberRepository,
-  OrganizationRepository,
-  PositionRepository,
-  TenantRoleRepository,
   AdminRoleRepository,
   AuditLogRepository,
   SystemConfigRepository,
   DemoRequestRepository,
-  KnowledgeBaseRepository,
-  KbNodeRepository,
   DocumentShareRepository,
   DocTemplateRepository,
 ];
 
 const SERVICES = [
-  DeployService,
   AuthService,
   SessionService,
   AuthHelpersService,
@@ -130,7 +96,12 @@ const SERVICES = [
 
 @Global()
 @Module({
-  imports: [TypeOrmModule.forFeature(ENTITIES)],
+  imports: [
+    DocumentDataModule,
+    TenantDataModule,
+    KnowledgeDataModule,
+    TypeOrmModule.forFeature(ENTITIES),
+  ],
   providers: [...REPOSITORIES, ...SERVICES],
   exports: [...REPOSITORIES, ...SERVICES],
 })

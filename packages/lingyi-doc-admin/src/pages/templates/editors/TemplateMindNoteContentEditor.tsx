@@ -1,15 +1,14 @@
 import React, { forwardRef, useCallback, useImperativeHandle, useRef, useState } from 'react';
 import { cloneMindNode } from '@lingyi-doc/core';
-import { MindNoteEditor } from '@lingyi-doc/editor';
+import { MindNoteEditor } from '@lingyi-doc/editor-mindmap';
 import { mindNoteFromContent } from '../templateContentUtils';
+import type { TemplateContentEditorHandle } from './TemplateContentEditorHandle';
+
+export type { TemplateContentEditorHandle };
 
 type MindNoteRoot = ReturnType<typeof cloneMindNode>;
 type MindNoteSettings = ReturnType<typeof mindNoteFromContent>['settings'];
 type MindNoteNodePatch = Partial<MindNoteRoot>;
-
-export interface TemplateContentEditorHandle {
-  getContentJson: () => unknown;
-}
 
 interface Props {
   documentTitle: string;

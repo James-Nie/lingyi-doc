@@ -1,7 +1,7 @@
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import type { BaseViewType } from '@lingyi-doc/core/types';
 import type { SheetInfo } from '@lingyi-doc/core/model';
-import { isBaseSheet } from '@lingyi-doc/core';
+import { isBaseSheet, BASE_THEME } from '@lingyi-doc/core';
 import {
   SheetContainer,
   SheetTabs,
@@ -10,18 +10,16 @@ import {
   FormulaBar,
   StatusBar,
   useSheetStore,
-  BASE_THEME,
   BaseViewSidebar,
   FormViewEditor,
   ensureFormView,
   activateBaseView,
   getActiveBaseView,
-} from '@lingyi-doc/editor';
+} from '@lingyi-doc/editor-sheet';
 import { workbookFromContent } from '../templateContentUtils';
+import type { TemplateContentEditorHandle } from './TemplateContentEditorHandle';
 
-export interface TemplateContentEditorHandle {
-  getContentJson: () => unknown;
-}
+export type { TemplateContentEditorHandle };
 
 interface Props {
   docType: 'freeform' | 'base';

@@ -774,7 +774,7 @@ Lookup 字段在记录中以以下格式存储：
 ```json
 // Lookup 字段值（通过"负责人"关联，查找"邮箱"）
 {
-  "负责人邮箱": { "id": "user_123", "name": "zhangsan@example.com" }
+  "负责人邮箱": { "id": "user_123", "name": "zhangsan@lingyidoc.com" }
 }
 ```
 

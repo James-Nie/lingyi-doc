@@ -58,23 +58,47 @@ export class DashboardService {
 
     const rangeStart = dayList[0];
     const rangeEnd = endOfDay(dayList[dayList.length - 1]);
-    const activeMap = await this.userRepository.countDailyActiveConsumers(rangeStart, rangeEnd);
 
-    return Promise.all(dayList.map(async (day) => {
-      const date = formatDateKey(day);
-      const end = endOfDay(day);
-      const [users, documents, storageBytes] = await Promise.all([
-        this.userRepository.countConsumersCreatedBefore(end),
-        this.documentRepository.countExistingAsOf(end),
-        this.documentRepository.sumStorageAsOf(end),
-      ]);
-      return {
+    // 固定次数查询：末日快照 + 区间日增量，再回推每日 as-of，避免 O(days) 次全表聚合
+    const [
+      activeMap,
+      finalUsers,
+      finalDocs,
+      finalStorage,
+      usersCreatedByDay,
+      docDeltas,
+    ] = await Promise.all([
+      this.userRepository.countDailyActiveConsumers(rangeStart, rangeEnd),
+      this.userRepository.countConsumersCreatedBefore(rangeEnd),
+      this.documentRepository.countExistingAsOf(rangeEnd),
+      this.documentRepository.sumStorageAsOf(rangeEnd),
+      this.userRepository.countConsumersCreatedByDay(rangeStart, rangeEnd),
+      this.documentRepository.getDailyExistenceDeltas(rangeStart, rangeEnd),
+    ]);
+
+    const results: DashboardTrendPoint[] = new Array(dayList.length);
+    let users = finalUsers;
+    let documents = finalDocs;
+    let storageBytes = finalStorage;
+
+    for (let i = dayList.length - 1; i >= 0; i -= 1) {
+      const date = formatDateKey(dayList[i]);
+      results[i] = {
         date,
         users,
         activeUsers: activeMap.get(date) ?? 0,
         documents,
         storageBytes,
       };
-    }));
+
+      if (i === 0) continue;
+      users -= usersCreatedByDay.get(date) ?? 0;
+      const created = docDeltas.created.get(date) ?? { count: 0, storage: 0 };
+      const deleted = docDeltas.deleted.get(date) ?? { count: 0, storage: 0 };
+      documents = documents - created.count + deleted.count;
+      storageBytes = storageBytes - created.storage + deleted.storage;
+    }
+
+    return results;
   }
 }

@@ -8,9 +8,8 @@ import { Form } from 'antd';
 import { adminFetch } from '../../stores/authStore';
 import { TemplateBasicInfoForm, type TemplateBasicFormValues } from './TemplateBasicInfoForm';
 import { TemplateContentPanel } from './TemplateContentPanel';
-import type { TemplateContentEditorHandle } from './editors/TemplateRichDocContentEditor';
+import type { TemplateContentEditorHandle } from './editors/TemplateContentEditorHandle';
 import {
-  DEFAULT_THUMB_GRADIENT,
   type TemplateDetail,
   type TemplateDocType,
   type TemplateStatus,
@@ -26,7 +25,6 @@ function buildMetaPayload(values: TemplateBasicFormValues) {
     usageLabel: values.usageLabel ?? null,
     isNew: !!values.isNew,
     isBlank: !!values.isBlank,
-    thumbGradient: values.thumbGradient || DEFAULT_THUMB_GRADIENT,
     sortOrder: values.sortOrder ?? 0,
     status: (values.status ?? 'draft') as TemplateStatus,
   };
@@ -75,7 +73,6 @@ export const TemplateEditPage: React.FC = () => {
         usageLabel: detail.usageLabel ?? undefined,
         isNew: detail.isNew,
         isBlank: detail.isBlank,
-        thumbGradient: detail.thumbGradient,
         sortOrder: detail.sortOrder,
         status: detail.status,
       });
@@ -339,6 +336,7 @@ function TEMPLATE_DOC_TYPE_LABEL(docType?: TemplateDocType): string {
     richtext: '文档',
     freeform: '表格',
     base: '多维表格',
+    questionnaire: '问卷',
     mindnote: '思维笔记',
     slides: '幻灯片',
     whiteboard: '画板',

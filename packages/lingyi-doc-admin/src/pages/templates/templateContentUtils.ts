@@ -6,7 +6,7 @@ import {
   createEmptyDocument,
   createEmptyMindNote,
   createEmptyWhiteboard,
-  cloneWhiteboardElements,
+  createQuestionnaireWorkbook,
 } from '@lingyi-doc/core';
 import type { TemplateDocType } from './templateConstants';
 
@@ -34,6 +34,10 @@ export function createDefaultContentJson(
       wb.switchSheet(newId);
       return wb.toJSON();
     }
+    case 'questionnaire':
+      return createQuestionnaireWorkbook({
+        formTitle: documentTitle || '未命名问卷',
+      }).toJSON();
     default:
       return null;
   }
@@ -72,16 +76,18 @@ export function whiteboardFromContent(contentJson: unknown | null, documentTitle
 
 export function workbookFromContent(
   contentJson: unknown | null,
-  docType: 'freeform' | 'base',
+  docType: 'freeform' | 'base' | 'questionnaire',
 ) {
   const wb = contentJson
     ? Workbook.fromJSON(contentJson as Record<string, unknown>)
-    : Workbook.create();
-  wb.normalizeAfterLoad(docType);
+    : docType === 'questionnaire'
+      ? createQuestionnaireWorkbook()
+      : Workbook.create();
+  wb.normalizeAfterLoad(docType === 'questionnaire' ? 'base' : docType);
   if (!wb.activeSheet) {
-    if (docType === 'base') {
+    if (docType === 'base' || docType === 'questionnaire') {
       const defaultId = wb.activeSheetId;
-      const newId = wb.addSheet('多维表格', 'base');
+      const newId = wb.addSheet(docType === 'questionnaire' ? '问卷' : '多维表格', 'base');
       wb.removeSheet(defaultId);
       wb.switchSheet(newId);
     } else {

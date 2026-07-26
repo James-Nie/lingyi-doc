@@ -58,19 +58,33 @@ export type ClientMessage =
   | { type: 'auth'; token: string; docId: string }
   | { type: 'heartbeat'; ts: number }
   | { type: 'crdt_op'; operation: CrdtOperation }
+  | { type: 'crdt_op_batch'; operations: CrdtOperation[] }
   | { type: 'sync_request'; fromVersion: number }
   | { type: 'cursor_move'; docKind?: string; payload: Record<string, unknown> }
   | { type: 'selection_change'; docKind?: string; payload: Record<string, unknown> };
 
 export type ServerMessage =
-  | { type: 'connected'; docVersion: number; globalVersion: number; onlineUsers: OnlineUser[]; activeCellEditor?: ActiveCellEditor | null }
+  | {
+      type: 'connected';
+      docVersion: number;
+      globalVersion: number;
+      onlineUsers: OnlineUser[];
+      /** @deprecated 使用 activeCellEditors */
+      activeCellEditor?: ActiveCellEditor | null;
+      activeCellEditors?: ActiveCellEditor[];
+    }
   | { type: 'heartbeat_ack'; serverTime: number }
   | { type: 'crdt_op'; operation: CrdtOperation; globalVersion: number; senderId: string }
   | { type: 'user_joined'; user: OnlineUser }
   | { type: 'user_left'; userId: string }
   | { type: 'cursor_update'; userId: string; payload: Record<string, unknown> }
   | { type: 'selection_update'; userId: string; payload: Record<string, unknown> }
-  | { type: 'cell_editing_update'; editor: ActiveCellEditor | null }
+  | {
+      type: 'cell_editing_update';
+      /** @deprecated 使用 editors */
+      editor: ActiveCellEditor | null;
+      editors?: ActiveCellEditor[];
+    }
   | { type: 'sync_response'; operations: CrdtOperation[]; currentVersion: number }
   | { type: 'comment_update'; senderId: string; payload: import('../../types/document-comment').CommentUpdatePayload }
   | { type: 'conflict_resolved'; target: string; resolution: CrdtOperation }

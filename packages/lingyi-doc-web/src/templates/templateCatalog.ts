@@ -3,7 +3,6 @@
  */
 import { TemplateApi } from '../api/template';
 import type { TemplateCategoryId, TemplateDocType, DocTemplate } from './docTemplates';
-import { DOC_TEMPLATES, filterTemplates } from './docTemplates';
 import {
   mapApiDetailToDocTemplate,
   mapApiSummaryToDocTemplate,
@@ -19,17 +18,6 @@ export async function fetchPublishedTemplates(params: {
   typeFilter?: 'all' | TemplateDocType;
   query?: string;
 }): Promise<{ templates: DocTemplate[]; source: TemplateCatalogSource }> {
-  // 问卷、思维导图、流程图为本地模板类型，服务端 docType 仍为 base / whiteboard
-  if (params.typeFilter === 'questionnaire' || params.typeFilter === 'mindmap' || params.typeFilter === 'flowchart') {
-    return {
-      templates: filterTemplates(DOC_TEMPLATES, {
-        category: params.category ?? 'recommended',
-        typeFilter: 'questionnaire',
-        query: params.query ?? '',
-      }),
-      source: 'fallback',
-    };
-  }
 
   try {
     const res = await TemplateApi.list({
@@ -44,11 +32,7 @@ export async function fetchPublishedTemplates(params: {
     };
   } catch {
     return {
-      templates: filterTemplates(DOC_TEMPLATES, {
-        category: params.category ?? 'recommended',
-        typeFilter: params.typeFilter ?? 'all',
-        query: params.query ?? '',
-      }),
+      templates: [],
       source: 'fallback',
     };
   }
@@ -65,8 +49,6 @@ export async function hydrateTemplate(template: DocTemplate): Promise<DocTemplat
     detailCache.set(template.id, hydrated);
     return hydrated;
   } catch {
-    const fallback = DOC_TEMPLATES.find(t => t.id === template.id);
-    if (fallback) return fallback;
     return template;
   }
 }

@@ -7,7 +7,7 @@ import {
   type WhiteboardJSON,
   type WhiteboardViewport,
 } from '@lingyi-doc/core';
-import { WhiteboardEditor } from '@lingyi-doc/editor';
+import { WhiteboardEditor } from '@lingyi-doc/editor-pro';
 
 interface WhiteboardEditorPreviewProps {
   title: string;

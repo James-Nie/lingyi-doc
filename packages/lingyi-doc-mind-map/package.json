@@ -1,7 +1,9 @@
 {
   "name": "@lingyi-doc/mind-map",
   "version": "0.1.0",
-  "private": true,
+  "private": false,
+  "license": "Apache-2.0",
+  "description": "Canvas mind-map engine (Open Core)",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -16,7 +18,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@lingyi-doc/core": "*"
+    "@lingyi-doc/core-mindmap": "*"
   },
   "devDependencies": {
     "typescript": "^5.3.0"

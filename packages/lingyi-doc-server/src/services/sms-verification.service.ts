@@ -142,7 +142,7 @@ export class SmsVerificationService {
       return { expiresIn: codeMinutes * 60 };
     } catch (err) {
       this.logger.error('send sms failed', err);
-      throw new SmsVerificationError(120011, err instanceof Error ? err.message : '发送验证码失败');
+      throw new SmsVerificationError(120011, this.toFriendlySmsError(err, '发送验证码失败，请稍后重试'));
     }
   }
 
@@ -180,7 +180,12 @@ export class SmsVerificationService {
       });
     } catch (err) {
       this.logger.error('verify sms failed', err);
-      throw new SmsVerificationError(120011, err instanceof Error ? err.message : '验证码校验失败');
+      // 校验类失败按「验证码错误」处理，避免把阿里云原始报文抛给前端
+      if (this.isValidateStyleError(err)) {
+        passed = false;
+      } else {
+        throw new SmsVerificationError(120011, this.toFriendlySmsError(err, '验证码校验失败，请稍后重试'));
+      }
     }
 
     if (!passed) {
@@ -191,7 +196,7 @@ export class SmsVerificationService {
         this.verifyFailCount.delete(key);
         throw new SmsVerificationError(120008, '验证码错误次数过多，请重新获取验证码');
       }
-      throw new SmsVerificationError(120008, '验证码错误或已失效');
+      throw new SmsVerificationError(120008, '验证码错误，请重新输入');
     }
 
     this.pending.delete(key);
@@ -238,6 +243,30 @@ export class SmsVerificationService {
       this.consumedJtis.add(payload.jti);
     }
     return normalized;
+  }
+
+  private isValidateStyleError(err: unknown): boolean {
+    const text = err instanceof Error ? `${err.name} ${err.message}` : String(err ?? '');
+    return /ValidateFail|验证失败|verify.*fail|CodeVerifyFailed/i.test(text)
+      || /\bcode:\s*400\b/i.test(text);
+  }
+
+  /** 将供应商原始错误收敛为用户可读文案，完整报文只打日志 */
+  private toFriendlySmsError(err: unknown, fallback: string): string {
+    const text = err instanceof Error ? err.message : String(err ?? '');
+    if (/未配置|not configured|AccessKey/i.test(text)) {
+      return '短信服务暂不可用，请稍后重试或联系管理员';
+    }
+    if (/频率|FREQUENCY|throttle|too many/i.test(text)) {
+      return '操作过于频繁，请稍后再试';
+    }
+    if (/余额|BALANCE|Insufficient/i.test(text)) {
+      return '短信服务暂不可用，请稍后重试';
+    }
+    if (/ValidateFail|验证失败|isv\./i.test(text)) {
+      return '验证码错误，请重新输入';
+    }
+    return fallback;
   }
 }
 

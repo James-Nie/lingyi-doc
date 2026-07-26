@@ -7,7 +7,7 @@ export interface AuthUser {
   userId: string;
   email: string;
   userType: UserType;
-  audience: 'consumer' | 'admin';
+  audience: 'consumer' | 'admin' | 'mcp';
   userSource?: UserSource;
   currentIdentityType?: IdentityType;
   currentTenantId?: string | null;
@@ -16,6 +16,8 @@ export interface AuthUser {
   accountMode?: AccountMode;
   roles?: string[];
   permissions?: string[];
+  mcpScopes?: string[];
+  mcpTokenId?: string;
 }
 
 export const CurrentUser = createParamDecorator(

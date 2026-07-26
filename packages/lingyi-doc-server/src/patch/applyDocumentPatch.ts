@@ -4,6 +4,7 @@ export type DocumentPatchOp =
   | { type: 'remove_sheet'; sheetId: string }
   | { type: 'set_sheet_meta'; sheetId: string; patch: Record<string, unknown> }
   | { type: 'set_cell'; sheetId: string; key: string; cell: unknown | null }
+  | { type: 'set_cells'; sheetId: string; cells: Record<string, unknown | null> }
   | { type: 'set_doc_meta'; patch: { title?: string; documentId?: string } }
   | { type: 'replace_content'; content: unknown[] }
   | { type: 'update_content_block'; index: number; block: unknown }
@@ -79,6 +80,16 @@ function applyWorkbookOp(workbook: WorkbookJson, op: DocumentPatchOp): void {
       const cells = sheet.data.cells as Record<string, unknown>;
       if (op.cell == null) delete cells[op.key];
       else cells[op.key] = op.cell;
+      break;
+    }
+    case 'set_cells': {
+      const sheet = ensureSheet(workbook, op.sheetId);
+      if (!sheet.data.cells || typeof sheet.data.cells !== 'object') sheet.data.cells = {};
+      const cells = sheet.data.cells as Record<string, unknown>;
+      for (const [key, cell] of Object.entries(op.cells)) {
+        if (cell == null) delete cells[key];
+        else cells[key] = cell;
+      }
       break;
     }
   }

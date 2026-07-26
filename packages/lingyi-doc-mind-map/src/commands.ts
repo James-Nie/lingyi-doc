@@ -1,11 +1,11 @@
-import type { MindNode } from '@lingyi-doc/core';
+import type { MindNode } from '@lingyi-doc/core-mindmap';
 import {
   deleteMindNode,
   insertMindChild,
   insertMindParent,
   insertMindSibling,
   toggleMindCollapse,
-} from '@lingyi-doc/core';
+} from '@lingyi-doc/core-mindmap';
 
 export type MindmapNodeAction =
   | 'child'

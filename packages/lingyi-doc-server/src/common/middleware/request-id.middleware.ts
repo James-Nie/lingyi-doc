@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto';
 import type { NextFunction, Request, Response } from 'express';
+import { requestContextStorage } from '../logger/request-context';
 
 export function requestIdMiddleware(req: Request, res: Response, next: NextFunction): void {
   const incoming = req.headers['x-request-id'];
@@ -9,5 +10,5 @@ export function requestIdMiddleware(req: Request, res: Response, next: NextFunct
 
   req.requestId = requestId;
   res.setHeader('X-Request-Id', requestId);
-  next();
+  requestContextStorage.run({ requestId }, () => next());
 }

@@ -14,6 +14,10 @@ export class DocumentSnapshotEntity {
   @Column({ name: 'snapshot_type', type: 'varchar', length: 20, default: 'checkpoint' })
   snapshotType!: string;
 
+  /** create | auto | named | restore */
+  @Column({ name: 'action_type', type: 'varchar', length: 32, nullable: true })
+  actionType!: string | null;
+
   @Column({ name: 'parent_version', type: 'int', nullable: true })
   parentVersion!: number | null;
 

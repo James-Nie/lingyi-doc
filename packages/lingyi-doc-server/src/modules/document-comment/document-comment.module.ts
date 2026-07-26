@@ -6,12 +6,14 @@ import {
   DocCommentThreadEntity,
 } from '../../database/entities/document-comment.entity';
 import { DocumentCommentRepository } from '../../repositories/document-comment.repository';
+import { DocumentDataModule } from '../../repositories/document-data.module';
 import { CollabModule } from '../collab/collab.module';
 import { DocumentCommentController } from './document-comment.controller';
 import { DocumentCommentService } from './document-comment.service';
 
 @Module({
   imports: [
+    DocumentDataModule,
     TypeOrmModule.forFeature([DocCommentThreadEntity, DocCommentReplyEntity, DocCommentReplyLikeEntity]),
     CollabModule,
   ],

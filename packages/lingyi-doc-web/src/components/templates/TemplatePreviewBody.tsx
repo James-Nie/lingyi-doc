@@ -19,13 +19,13 @@ export const TemplatePreviewBody: React.FC<TemplatePreviewBodyProps> = ({ templa
     );
   }
 
-  if ((template.docType === 'freeform' || template.docType === 'base') && template.buildWorkbook) {
+  if ((template.docType === 'freeform' || template.docType === 'base' || template.docType === 'questionnaire') && template.buildWorkbook) {
     return (
       <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
         <SheetEditorPreview
           key={template.id}
           workbook={template.buildWorkbook()}
-          docType={template.docType}
+          docType={template.docType === 'questionnaire' ? 'base' : template.docType}
         />
       </div>
     );

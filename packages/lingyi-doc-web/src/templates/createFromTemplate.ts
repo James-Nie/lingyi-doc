@@ -8,6 +8,7 @@ import {
   createEmptyWhiteboard,
   createFlowchartWhiteboard,
   createMindmapBoardWhiteboard,
+  createQuestionnaireWorkbook,
 } from '@lingyi-doc/core';
 import type { DocTemplate } from './docTemplates';
 
@@ -47,9 +48,15 @@ export async function createDocumentFromTemplate(template: DocTemplate): Promise
     );
   }
 
+  if (template.docType === 'questionnaire') {
+    const wb = template.buildWorkbook
+      ? template.buildWorkbook()
+      : createQuestionnaireWorkbook({ formTitle: title });
+    return DocumentManager.create(title, wb, 'base');
+  }
+
   if (template.buildWorkbook) {
-    const docType = template.docType === 'questionnaire' ? 'base' : template.docType;
-    return DocumentManager.create(title, template.buildWorkbook(), docType);
+    return DocumentManager.create(title, template.buildWorkbook(), template.docType);
   }
 
   const wb = Workbook.create();

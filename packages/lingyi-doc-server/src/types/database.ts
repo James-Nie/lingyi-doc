@@ -130,6 +130,22 @@ import type { DocSharePermissionLevel } from './document-share';
 export type DocumentPermission = 'owner' | DocSharePermissionLevel;
 export type DocumentViewMode = 'edit' | 'preview';
 
+/** 文档基本信息补丁（不碰 content_json / current_version） */
+export interface DocumentMetaPatch {
+  title?: string;
+  description?: string | null;
+  // 后续可扩展：cover / icon / tags 等
+}
+
+export interface DocumentMetaResult {
+  id: string;
+  title: string;
+  description: string | null;
+  /** 内容版本，元信息更新时不变 */
+  version: number;
+  updatedAt: number;
+}
+
 export interface DocumentRecord {
   id: string;
   title: string;
@@ -163,6 +179,10 @@ export interface DocumentListItem {
   createdAt: number;
   updatedAt: number;
   lastVisitedAt: number;
+  /** 公开路径片段，列表可直接跳转，无需再调 path 接口 */
+  docSlug?: string | null;
+  spaceSlug?: string | null;
+  bookSlug?: string | null;
   sharePermission?: import('./document-share').DocSharePermissionLevel;
   sharedByName?: string;
 }

@@ -1,0 +1,167 @@
+/* 拖动/缩放时的布局栅格引导（虚线圆角格，与列间距对齐） */
+.dashboard-layout-guide {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.dashboard-layout-guide-cell {
+  position: absolute;
+  box-sizing: border-box;
+  border: 1px dashed #d0d3d9;
+  border-radius: 8px;
+  background: transparent;
+}
+
+.dashboard-grid-layout {
+  position: relative;
+  z-index: 1;
+}
+
+/* 仪表盘内嵌多维表：铺满内容区 */
+.dashboard-grid-widget {
+  min-height: 0;
+  height: 100%;
+}
+
+.dashboard-grid-layout .react-grid-item:has(.dashboard-grid-widget) .dashboard-interactive-body {
+  padding: 0 !important;
+}
+
+/* 覆盖 react-grid-layout 默认手柄样式 */
+
+.dashboard-grid-layout .react-grid-item {
+  transition: none !important;
+  overflow: visible !important;
+}
+
+.dashboard-grid-layout .react-grid-item.is-selected,
+.dashboard-grid-layout .react-grid-item.resizing,
+.dashboard-grid-layout .react-grid-item.react-draggable-dragging {
+  z-index: 20 !important;
+}
+
+.dashboard-grid-layout .react-grid-item > .dashboard-grid-item-content {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  box-sizing: border-box;
+  position: relative;
+  overflow: visible;
+  z-index: 0;
+}
+
+.dashboard-grid-layout .react-grid-item.react-grid-placeholder {
+  background: rgba(22, 119, 255, 0.12);
+  border-radius: 10px;
+  opacity: 1;
+}
+
+/*
+ * 缩放热区：透明可点；视觉角标改由 WidgetShell 的 L 形绘制（对齐产品图）。
+ * 四边中点不画蓝条，避免和图示不符。
+ */
+.dashboard-grid-layout .react-grid-item > .react-resizable-handle {
+  position: absolute;
+  box-sizing: border-box;
+  background: transparent !important;
+  background-image: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  transform: none !important;
+  opacity: 1;
+  z-index: 40 !important;
+  pointer-events: auto !important;
+}
+
+.dashboard-grid-layout .react-grid-item > .react-resizable-handle::after {
+  display: none !important;
+  content: none !important;
+}
+
+/* —— 四角热区（与 L 形角标重合） —— */
+.dashboard-grid-layout .react-grid-item > .react-resizable-handle-se,
+.dashboard-grid-layout .react-grid-item > .react-resizable-handle-sw,
+.dashboard-grid-layout .react-grid-item > .react-resizable-handle-ne,
+.dashboard-grid-layout .react-grid-item > .react-resizable-handle-nw {
+  width: 22px !important;
+  height: 22px !important;
+  margin: 0 !important;
+  top: auto !important;
+  left: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+}
+
+.dashboard-grid-layout .react-grid-item > .react-resizable-handle-se {
+  right: 0 !important;
+  bottom: 0 !important;
+  cursor: se-resize;
+}
+.dashboard-grid-layout .react-grid-item > .react-resizable-handle-sw {
+  left: 0 !important;
+  bottom: 0 !important;
+  cursor: sw-resize;
+}
+.dashboard-grid-layout .react-grid-item > .react-resizable-handle-ne {
+  right: 0 !important;
+  top: 0 !important;
+  cursor: ne-resize;
+}
+.dashboard-grid-layout .react-grid-item > .react-resizable-handle-nw {
+  left: 0 !important;
+  top: 0 !important;
+  cursor: nw-resize;
+}
+
+/* —— 四边热区（无可见装饰） —— */
+.dashboard-grid-layout .react-grid-item > .react-resizable-handle-n,
+.dashboard-grid-layout .react-grid-item > .react-resizable-handle-s,
+.dashboard-grid-layout .react-grid-item > .react-resizable-handle-e,
+.dashboard-grid-layout .react-grid-item > .react-resizable-handle-w {
+  width: 28px !important;
+  height: 28px !important;
+  margin: 0 !important;
+}
+
+.dashboard-grid-layout .react-grid-item > .react-resizable-handle-n {
+  top: 0 !important;
+  left: 50% !important;
+  right: auto !important;
+  bottom: auto !important;
+  margin-left: -14px !important;
+  cursor: n-resize;
+}
+.dashboard-grid-layout .react-grid-item > .react-resizable-handle-s {
+  bottom: 0 !important;
+  left: 50% !important;
+  right: auto !important;
+  top: auto !important;
+  margin-left: -14px !important;
+  cursor: s-resize;
+}
+.dashboard-grid-layout .react-grid-item > .react-resizable-handle-e {
+  right: 0 !important;
+  top: 50% !important;
+  left: auto !important;
+  bottom: auto !important;
+  margin-top: -14px !important;
+  cursor: e-resize;
+}
+.dashboard-grid-layout .react-grid-item > .react-resizable-handle-w {
+  left: 0 !important;
+  top: 50% !important;
+  right: auto !important;
+  bottom: auto !important;
+  margin-top: -14px !important;
+  cursor: w-resize;
+}
+
+.dashboard-widget-drag-handle {
+  cursor: grab;
+}
+.dashboard-widget-drag-handle:active {
+  cursor: grabbing;
+}

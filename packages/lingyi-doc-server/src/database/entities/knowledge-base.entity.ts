@@ -41,6 +41,15 @@ export class KnowledgeBaseEntity {
   @Column({ type: 'varchar', length: 20, default: 'members' })
   visibility!: string;
 
+  @Column({ name: 'invite_token', type: 'varchar', length: 64, nullable: true })
+  inviteToken!: string | null;
+
+  @Column({ name: 'invite_role', type: 'varchar', length: 20, default: 'editor' })
+  inviteRole!: string;
+
+  @Column({ name: 'invite_enabled', type: 'tinyint', width: 1, default: 1 })
+  inviteEnabled!: number;
+
   @Column({ name: 'created_by', type: 'char', length: 36 })
   createdBy!: string;
 

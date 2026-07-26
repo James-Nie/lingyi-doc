@@ -1,5 +1,5 @@
-import type { MindMapLayout, MindNode, MindNoteBranchStyle, MindNoteStructure } from '@lingyi-doc/core';
-import { hitMindmapNode, getMindmapNodeRect } from './hitTest';
+import type { MindMapLayout, MindNode, MindNoteBranchStyle, MindNoteStructure } from '@lingyi-doc/core-mindmap';
+import { getMindmapNodeImageScreenLayoutRect, getMindmapNodeRect, hitMindmapNode } from './hitTest';
 import { measureMindmapElementSize } from './measureBounds';
 import { computeMindmapLayout, paintMindmap, paintMindmapBackground } from './renderer/paintMindmap';
 import type {
@@ -105,6 +105,7 @@ export class MindmapEngine {
       localY,
       this.contentPadding,
       this.layout(),
+      this.themeId,
     );
   }
 
@@ -116,6 +117,19 @@ export class MindmapEngine {
       nodeId,
       this.contentPadding,
       this.layout(),
+      this.themeId,
+    );
+  }
+
+  getNodeImageRect(nodeId: string): { x: number; y: number; width: number; height: number } | null {
+    return getMindmapNodeImageScreenLayoutRect(
+      this.root,
+      this.structure,
+      this.branchStyle,
+      nodeId,
+      this.contentPadding,
+      this.layout(),
+      this.themeId,
     );
   }
 

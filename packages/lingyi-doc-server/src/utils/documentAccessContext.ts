@@ -61,7 +61,7 @@ export function buildCollaboratorReadExistsSql(alias = 'd'): string {
       AND su.subject_type = 'user'
       AND su.subject_id = :collabUserId
       AND su.permission_level IN ('read', 'comment', 'edit', 'manage')
-      AND (su.expire_time IS NULL OR su.expire_time > NOW())
+      AND (su.expire_time IS NULL OR su.expire_time > UTC_TIMESTAMP())
   )`;
 }
 
@@ -73,7 +73,51 @@ export function buildCollaboratorWriteExistsSql(alias = 'd'): string {
       AND su.subject_type = 'user'
       AND su.subject_id = :collabUserId
       AND su.permission_level IN ('edit', 'manage')
-      AND (su.expire_time IS NULL OR su.expire_time > NOW())
+      AND (su.expire_time IS NULL OR su.expire_time > UTC_TIMESTAMP())
+  )`;
+}
+
+/**
+ * 通过知识库节点挂载获得文档读权限：
+ * KB 所有者 / 创建者 / kb_members 任意角色
+ */
+export function buildKbMemberReadExistsSql(alias = 'd'): string {
+  return `EXISTS (
+    SELECT 1 FROM kb_nodes kn
+    INNER JOIN knowledge_bases kb ON kb.id = kn.kb_id AND kb.is_deleted = 0
+    WHERE kn.doc_id = ${alias}.id
+      AND kn.is_deleted = 0
+      AND (
+        (kb.scope = 1 AND kb.owner_id = :kbAccessUserId)
+        OR kb.created_by = :kbAccessUserId
+        OR EXISTS (
+          SELECT 1 FROM kb_members km
+          WHERE km.kb_id = kb.id AND km.user_id = :kbAccessUserId
+        )
+      )
+  )`;
+}
+
+/**
+ * 通过知识库节点挂载获得文档写权限：
+ * KB 所有者 / 创建者 / kb_members 的 owner|admin|editor
+ */
+export function buildKbMemberWriteExistsSql(alias = 'd'): string {
+  return `EXISTS (
+    SELECT 1 FROM kb_nodes kn
+    INNER JOIN knowledge_bases kb ON kb.id = kn.kb_id AND kb.is_deleted = 0
+    WHERE kn.doc_id = ${alias}.id
+      AND kn.is_deleted = 0
+      AND (
+        (kb.scope = 1 AND kb.owner_id = :kbAccessUserId)
+        OR kb.created_by = :kbAccessUserId
+        OR EXISTS (
+          SELECT 1 FROM kb_members km
+          WHERE km.kb_id = kb.id
+            AND km.user_id = :kbAccessUserId
+            AND km.role IN ('owner', 'admin', 'editor')
+        )
+      )
   )`;
 }
 
@@ -84,7 +128,33 @@ export function applyDocumentReadAccessWithShare(
 ): void {
   const access = buildDocumentAccessClause(ctx, alias);
   qb.andWhere(
-    `(${access.sql} OR ${buildCollaboratorReadExistsSql(alias)})`,
-    { ...access.params, collabUserId: ctx.userId },
+    `(${access.sql} OR ${buildCollaboratorReadExistsSql(alias)} OR ${buildKbMemberReadExistsSql(alias)})`,
+    { ...access.params, collabUserId: ctx.userId, kbAccessUserId: ctx.userId },
+  );
+}
+
+/** 文档挂在「仅成员可见」知识库下时，租户宽写权限不能绕过 KB 角色 */
+export function buildKbMembersOnlyDocExistsSql(alias = 'd'): string {
+  return `EXISTS (
+    SELECT 1 FROM kb_nodes kn
+    INNER JOIN knowledge_bases kb ON kb.id = kn.kb_id AND kb.is_deleted = 0
+    WHERE kn.doc_id = ${alias}.id
+      AND kn.is_deleted = 0
+      AND kb.visibility = 'members'
+  )`;
+}
+
+export function applyDocumentWriteAccessWithShare(
+  qb: SelectQueryBuilder<DocumentEntity>,
+  ctx: DocumentAccessContext,
+  alias = 'd',
+): void {
+  const access = buildDocumentAccessClause(ctx, alias);
+  // 成员制知识库内的文档：必须具备 KB 编辑角色或文档协作者写权限，避免「同租户即可改」
+  qb.andWhere(
+    `((${access.sql} AND NOT ${buildKbMembersOnlyDocExistsSql(alias)})`
+      + ` OR ${buildCollaboratorWriteExistsSql(alias)}`
+      + ` OR ${buildKbMemberWriteExistsSql(alias)})`,
+    { ...access.params, collabUserId: ctx.userId, kbAccessUserId: ctx.userId },
   );
 }

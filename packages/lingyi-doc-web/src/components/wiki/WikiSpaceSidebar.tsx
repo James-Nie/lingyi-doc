@@ -6,7 +6,8 @@ import { CreateDocSidebarTrigger } from '../createDoc';
 import { useCreateDocument } from '../../hooks/useCreateDocument';
 import { SidebarDocContextMenu, type SidebarDocAction } from '../layout/SidebarDocContextMenu';
 import { RenameDocumentModal } from '../RenameDocumentModal';
-import { SidebarDirectorySection } from '../layout/sidebar/SidebarDirectorySection';
+import { SidebarDocumentDirectory } from '../layout/sidebar/SidebarDocumentDirectory';
+import { mapKbNodesToDirectoryItems } from '../layout/sidebar/mapToDirectoryItems';
 import { SidebarResizeHandle } from '../layout/sidebar/SidebarResizeHandle';
 import { useSidebarResize } from '../layout/sidebar/useSidebarResize';
 import { useSidebarContextMenu } from '../layout/sidebar/useSidebarContextMenu';
@@ -17,11 +18,7 @@ import { knowledgeBaseStore, type KnowledgeBase, type WikiSpaceNode } from '../.
 import { documentLibraryStore } from '../../stores/documentLibraryStore';
 import { appPath } from '../../utils/appPaths';
 import { confirmDeleteToRecycleBin } from '../../utils/appDialog';
-import {
-  buildKbTree,
-  collectAncestorIds,
-  flattenKbTree,
-} from '../../utils/kbTreeUtils';
+import { collectAncestorIds } from '../../utils/kbTreeUtils';
 import {
   canDropKbNode,
   computeKbNodeMove,
@@ -43,17 +40,6 @@ interface WikiSpaceSidebarProps {
 const WIKI_SIDEBAR_WIDTH_KEY = 'wiki-space-sidebar-width';
 const WIKI_SIDEBAR_DEFAULT_W = 260;
 
-function getNodeDisplayType(node: WikiSpaceNode, documents: DocumentListItem[]): string {
-  if (node.isHome || node.type === 'page') return 'page';
-  if (node.type === 'folder') return 'folder';
-  if (node.docId) {
-    const doc = documents.find(item => item.id === node.docId);
-    if (doc?.docType) return doc.docType;
-  }
-  if (node.type === 'sheet') return 'freeform';
-  return 'richtext';
-}
-
 export const WikiSpaceSidebar: React.FC<WikiSpaceSidebarProps> = ({
   kb,
   nodes,
@@ -66,7 +52,6 @@ export const WikiSpaceSidebar: React.FC<WikiSpaceSidebarProps> = ({
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [createParentId, setCreateParentId] = useState<string | null>(null);
-  const [directoryExpanded, setDirectoryExpanded] = useState(true);
   const [sortAsc, setSortAsc] = useState(true);
   const [documents, setDocuments] = useState<DocumentListItem[]>([]);
   const [busyNodeId, setBusyNodeId] = useState<string | null>(null);
@@ -88,8 +73,6 @@ export const WikiSpaceSidebar: React.FC<WikiSpaceSidebarProps> = ({
     defaultWidth: WIKI_SIDEBAR_DEFAULT_W,
   });
   const {
-    hoveredItemId,
-    setHoveredItemId,
     menuItemId,
     menuAnchor,
     openMenu,
@@ -101,7 +84,7 @@ export const WikiSpaceSidebar: React.FC<WikiSpaceSidebarProps> = ({
   const toast = useCallback((msg: string) => onToast?.(msg), [onToast]);
 
   useEffect(() => {
-    DocumentManager.list('lastVisited').then(setDocuments).catch(() => { /* ignore */ });
+    DocumentManager.listOwned('lastVisited').then(setDocuments).catch(() => { /* ignore */ });
   }, []);
 
   const homeNode = useMemo(() => nodes.find(node => node.isHome) ?? null, [nodes]);
@@ -189,29 +172,15 @@ export const WikiSpaceSidebar: React.FC<WikiSpaceSidebarProps> = ({
     return list;
   }, [nodes, search, sortAsc, isSearching]);
 
-  const directoryItems = useMemo(() => {
-    if (isSearching) {
-      return filteredNodes.map(node => ({
-        id: node.id,
-        title: node.title,
-        docType: getNodeDisplayType(node, documents),
-        depth: 0,
-        isFolder: node.type === 'folder',
-      }));
-    }
-
-    const tree = buildKbTree(filteredNodes);
-    const flat = flattenKbTree(tree, expandedIds);
-    return flat.map(({ node, depth, hasChildren }) => ({
-      id: node.id,
-      title: node.title,
-      docType: getNodeDisplayType(node, documents),
-      depth,
-      hasChildren,
-      isFolder: node.type === 'folder',
-      expanded: expandedIds.has(node.id),
-    }));
-  }, [filteredNodes, documents, expandedIds, isSearching]);
+  const directoryItems = useMemo(
+    () => mapKbNodesToDirectoryItems({
+      nodes: filteredNodes,
+      documents,
+      expandedIds,
+      isSearching,
+    }),
+    [filteredNodes, documents, expandedIds, isSearching],
+  );
 
   const existingDocIds = useMemo(
     () => nodes.map(node => node.docId).filter((id): id is string => Boolean(id)),
@@ -649,22 +618,15 @@ export const WikiSpaceSidebar: React.FC<WikiSpaceSidebarProps> = ({
         <span style={{ fontSize: 14, color: '#1f2329' }}>问问知识库</span>
       </button>
 
-      <div style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: '0 8px 16px' }}>
-        <SidebarDirectorySection
+      <div style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: '0 0 16px 8px' }}>
+        <SidebarDocumentDirectory
           title="目录"
-          expanded={directoryExpanded}
-          onToggleExpanded={() => setDirectoryExpanded(v => !v)}
-          onToggleSort={() => setSortAsc(v => !v)}
           emptyText="暂无目录项"
           items={directoryItems}
           activeItemId={activeNodeId}
-          hoveredItemId={hoveredItemId}
           menuItemId={menuItemId}
+          onToggleSort={() => setSortAsc(v => !v)}
           onItemClick={item => handleNodeClick(item.id)}
-          onItemMouseEnter={setHoveredItemId}
-          onItemMouseLeave={id => {
-            if (menuItemId !== id) setHoveredItemId(null);
-          }}
           onItemQuickAdd={(id, e) => {
             e.stopPropagation();
             const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
@@ -674,7 +636,7 @@ export const WikiSpaceSidebar: React.FC<WikiSpaceSidebarProps> = ({
           onItemContextMenu={(id, e) => {
             openMenuAt(id, new DOMRect(e.clientX, e.clientY, 0, 0));
           }}
-          onItemToggleExpand={(id) => handleToggleExpand(id)}
+          onItemToggleExpand={id => handleToggleExpand(id)}
           dragEnabled={!isSearching}
           draggingId={draggingId}
           dropTarget={dropTarget}

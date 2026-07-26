@@ -269,7 +269,7 @@ ALTER TABLE documents
 ```json
 {
   "sub": "550e8400-e29b-41d4-a716-446655440000",
-  "email": "user@example.com",
+  "email": "user@lingyidoc.com",
   "aud": "consumer",
   "userType": "consumer",
   "userSource": 1,

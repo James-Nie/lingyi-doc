@@ -127,6 +127,9 @@ export interface SharedDocumentListItemDto {
   createdAt: number;
   updatedAt: number;
   lastVisitedAt: number;
+  docSlug?: string | null;
+  spaceSlug?: string | null;
+  bookSlug?: string | null;
   sharePermission: DocSharePermissionLevel;
   sharedByName?: string;
 }

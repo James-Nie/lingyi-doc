@@ -1,4 +1,8 @@
-/** 从文档 JSON 统计字数/字符数，并汇总正文 JSON 与内嵌附件/图片体积 */
+/** 从文档 JSON 统计字数/字符数，并汇总正文 JSON 与内嵌附件/图片体积
+ *
+ * 正文字数/字符数算法与 @lingyi-doc/core `contentStats` 保持一致（文档信息「总字数/总字符数」）。
+ * 修改字数规则时请同步更新 core 中的实现。
+ */
 
 export interface DocumentTextStats {
   wordCount: number;
@@ -229,8 +233,8 @@ function collectWorkbookDocument(data: unknown, out: string[]): void {
   collectSheetData(wb, out);
 }
 
-/** 统计文档正文字数与字符数 */
-export function computeDocumentTextStats(data: unknown, docType: string): DocumentTextStats {
+/** 提取文档纯文本（富文本 / 表格 / 白板等） */
+export function extractDocumentPlainText(data: unknown, docType: string): string {
   const chunks: string[] = [];
   switch (normalizeDocType(docType)) {
     case 'richtext':
@@ -253,7 +257,12 @@ export function computeDocumentTextStats(data: unknown, docType: string): Docume
       collectWhiteboard(data, chunks);
       break;
   }
-  const text = chunks.join('\n');
+  return chunks.join('\n');
+}
+
+/** 统计文档正文字数与字符数 */
+export function computeDocumentTextStats(data: unknown, docType: string): DocumentTextStats {
+  const text = extractDocumentPlainText(data, docType);
   return {
     charCount: text.length,
     wordCount: countWords(text),

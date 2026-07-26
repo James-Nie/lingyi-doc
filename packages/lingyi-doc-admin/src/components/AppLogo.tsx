@@ -1,6 +1,6 @@
 import React from 'react';
 
-export const APP_LOGO_SRC = '/logo.png';
+export const APP_LOGO_SRC = `${import.meta.env.BASE_URL}logo.png`;
 export const APP_NAME = '零一文档';
 
 interface AppLogoProps {

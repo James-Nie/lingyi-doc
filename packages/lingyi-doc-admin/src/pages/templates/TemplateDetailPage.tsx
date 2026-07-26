@@ -36,7 +36,6 @@ export const TemplateDetailPage: React.FC = () => {
         usageLabel: res.usageLabel ?? undefined,
         isNew: res.isNew,
         isBlank: res.isBlank,
-        thumbGradient: res.thumbGradient,
         sortOrder: res.sortOrder,
         status: res.status,
       });

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DocumentManager, importDocumentFile } from '@lingyi-doc/core';
 import type { DocumentListItem } from '@lingyi-doc/core';
@@ -13,9 +13,8 @@ import { isDocumentTitleTaken } from '../utils/documentTitle';
 import { CreateDocQuickCard, CreateDocTemplateLibraryCard } from '../components/createDoc';
 import { useCreateDocument } from '../hooks/useCreateDocument';
 import { PageTopBar } from '../components/layout/topBar';
-import { authStore } from '../stores/authStore';
 import { appPath } from '../utils/appPaths';
-import { navigateToDoc } from '../utils/navigateToDoc';
+import { navigateToDoc, rememberDocPathsFromList } from '../utils/navigateToDoc';
 
 type SortKey = 'lastVisited' | 'created' | 'updated';
 type TabKey = 'recent' | 'owned' | 'shared' | 'starred';
@@ -39,8 +38,6 @@ const cellEllipsis: React.CSSProperties = {
 
 export const DocumentListPage: React.FC = () => {
   const navigate = useNavigate();
-  const authState = useSyncExternalStore(authStore.subscribe, authStore.getState);
-  const currentUserId = authState.user?.id ?? null;
   const createDoc = useCreateDocument();
   const [documents, setDocuments] = useState<DocumentListItem[]>([]);
   const [sharedDocuments, setSharedDocuments] = useState<DocumentListItem[]>([]);
@@ -64,20 +61,24 @@ export const DocumentListPage: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const items = await DocumentManager.list(sort);
+      const items = activeTab === 'owned'
+        ? await DocumentManager.listOwned(sort)
+        : await DocumentManager.listRecent(sort, 30);
+      rememberDocPathsFromList(items);
       setDocuments(items);
     } catch (err) {
       setError((err as Error).message);
     } finally {
       setLoading(false);
     }
-  }, [sortBy]);
+  }, [sortBy, activeTab]);
 
   const loadSharedDocuments = useCallback(async (sort: SortKey = sortBy) => {
     setLoading(true);
     setError(null);
     try {
       const items = await DocumentManager.listSharedWithMe(sort);
+      rememberDocPathsFromList(items);
       setSharedDocuments(items);
     } catch (err) {
       setError((err as Error).message);
@@ -199,17 +200,16 @@ export const DocumentListPage: React.FC = () => {
   const isSharedTab = activeTab === 'shared';
   const filteredDocs = useMemo(() => {
     if (isSharedTab) return sharedDocuments;
-    if (activeTab === 'owned' && currentUserId) {
-      return documents.filter(doc => doc.ownerId === currentUserId);
-    }
     return documents;
-  }, [activeTab, currentUserId, documents, isSharedTab, sharedDocuments]);
+  }, [activeTab, documents, isSharedTab, sharedDocuments]);
 
   const emptyMessage = isSharedTab
     ? '暂无共享文档'
     : activeTab === 'owned'
       ? '暂无归你所有的文档'
-      : '暂无文档，点击「新建」创建第一个表格';
+      : activeTab === 'recent'
+        ? '近 30 天暂无访问记录'
+        : '暂无文档，点击「新建」创建第一个表格';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minWidth: 0, overflow: 'hidden' }}>
@@ -393,7 +393,13 @@ export const DocumentListPage: React.FC = () => {
             return (
               <div
                 key={doc.id}
-                onClick={() => { void navigateToDoc(navigate, doc.id); }}
+                onClick={() => {
+                  void navigateToDoc(navigate, doc.id, {
+                    path: doc.spaceSlug && doc.bookSlug && doc.docSlug
+                      ? { spaceSlug: doc.spaceSlug, bookSlug: doc.bookSlug, docSlug: doc.docSlug }
+                      : null,
+                  });
+                }}
                 onMouseEnter={() => setHoveredDocId(doc.id)}
                 onMouseLeave={() => { if (!isMenuOpen) setHoveredDocId(null); }}
                 style={{

@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
+import { DomainMetricsService } from '../../common/metrics/domain-metrics.service';
+import { DeployService } from '../../config/deploy.service';
 import { RedisService } from '../../redis/redis.service';
 
 @Injectable()
@@ -10,6 +12,8 @@ export class HealthService {
     @InjectDataSource() private readonly dataSource: DataSource,
     private readonly redis: RedisService,
     private readonly config: ConfigService,
+    private readonly deployService: DeployService,
+    private readonly domainMetrics: DomainMetricsService,
   ) {}
 
   async pingDatabase(): Promise<boolean> {
@@ -40,6 +44,13 @@ export class HealthService {
       collaboration: {
         enabled: collabEnabled,
       },
+      deploy: {
+        edition: this.deployService.getEdition(),
+        type: this.deployService.type,
+        license: this.deployService.getLicenseResult().status,
+        licenseEnforced: this.deployService.isLicenseEnforced(),
+      },
+      metrics: this.domainMetrics.snapshot(),
     };
   }
 }

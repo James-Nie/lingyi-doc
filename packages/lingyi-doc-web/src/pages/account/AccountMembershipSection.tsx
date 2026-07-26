@@ -20,6 +20,19 @@ const FEATURE_LABELS: Record<string, string> = {
   advanced_share_link: '高级分享链接',
 };
 
+const MODULE_LABELS: Record<string, string> = {
+  'mod.doc': '富文本文档',
+  'mod.sheet': '表格/多维表',
+  'mod.whiteboard': '白板',
+  'mod.mindmap': '思维导图/思维笔记',
+  'mod.form': '表单/问卷',
+  'mod.knowledge': '知识库',
+  'mod.collab': '实时协作',
+  'mod.ai': 'AI 能力',
+  'mod.mcp': 'MCP 接入',
+  'mod.enterprise': '企业安全',
+};
+
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -87,6 +100,20 @@ export const AccountMembershipSection: React.FC = () => {
       .map(([key]) => FEATURE_LABELS[key] ?? key);
   }, [summary]);
 
+  const enabledModules = useMemo(() => {
+    if (!summary?.modules) return [];
+    return Object.entries(summary.modules)
+      .filter(([, enabled]) => enabled)
+      .map(([key]) => MODULE_LABELS[key] ?? key);
+  }, [summary]);
+
+  const disabledModules = useMemo(() => {
+    if (!summary?.modules) return [];
+    return Object.entries(summary.modules)
+      .filter(([, enabled]) => !enabled)
+      .map(([key]) => MODULE_LABELS[key] ?? key);
+  }, [summary]);
+
   if (loading && !summary) {
     return (
       <Card bordered={false}>
@@ -138,6 +165,12 @@ export const AccountMembershipSection: React.FC = () => {
 
       <Card title="配额使用" bordered={false}>
         <QuotaRow
+          label="知识库数量"
+          used={summary.quotas.knowledgeBases?.used ?? 0}
+          limit={summary.quotas.knowledgeBases?.limit ?? null}
+          percent={summary.quotas.knowledgeBases?.percent ?? null}
+        />
+        <QuotaRow
           label="文档数量"
           used={summary.quotas.documents.used}
           limit={summary.quotas.documents.limit}
@@ -149,6 +182,14 @@ export const AccountMembershipSection: React.FC = () => {
           limit={summary.quotas.storageBytes.limit}
           percent={summary.quotas.storageBytes.percent}
         />
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 13, color: '#646a73', marginBottom: 6 }}>
+            单文件上限：
+            {summary.quotas.maxFileBytes == null
+              ? '50 MB（默认）'
+              : formatBytes(summary.quotas.maxFileBytes)}
+          </div>
+        </div>
         <QuotaRow
           label="今日导出"
           used={summary.quotas.dailyExports.used}
@@ -157,11 +198,33 @@ export const AccountMembershipSection: React.FC = () => {
         />
         {summary.quotas.members && (
           <QuotaRow
-            label="团队成员"
+            label={summary.spaceKind === 'team' ? '团队成员' : '协作人数'}
             used={summary.quotas.members.used}
             limit={summary.quotas.members.limit}
             percent={summary.quotas.members.percent}
           />
+        )}
+      </Card>
+
+      <Card title="已开通产品模块" bordered={false}>
+        {enabledModules.length === 0 ? (
+          <div style={{ color: '#8f959e', fontSize: 13 }}>暂无模块信息（请升级服务端后刷新）。</div>
+        ) : (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {enabledModules.map(name => (
+              <Tag key={name} color="success">{name}</Tag>
+            ))}
+          </div>
+        )}
+        {disabledModules.length > 0 && (
+          <div style={{ marginTop: 12 }}>
+            <div style={{ fontSize: 12, color: '#8f959e', marginBottom: 8 }}>未开通</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {disabledModules.map(name => (
+                <Tag key={name}>{name}</Tag>
+              ))}
+            </div>
+          </div>
         )}
       </Card>
 

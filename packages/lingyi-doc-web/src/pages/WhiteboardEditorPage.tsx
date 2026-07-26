@@ -13,8 +13,9 @@ import {
   cloneWhiteboardElements,
   buildWhiteboardCommentAnchor,
   getWhiteboardCommentPin,
+  isUnsubmittedCommentThread,
   isWhiteboardCommentAnchor,
-  updateCommentThreadPin,
+  updateCommentThreadAnchor,
   type ActiveCellEditor,
   type BlockLockTarget,
   type CollabConnectionState,
@@ -27,10 +28,23 @@ import {
   type WhiteboardJSON,
   type WhiteboardViewport,
 } from '@lingyi-doc/core';
-import { WhiteboardEditor, DocCommentPanel, useDocCommentController, downloadWhiteboardElementsAsPng, printWhiteboard } from '@lingyi-doc/editor';
+import {
+  WhiteboardEditor,
+  DocCommentPanel,
+  useDocCommentController,
+  downloadWhiteboardElementsAsPng,
+  printWhiteboard,
+  resolveCommentBindAtPoint,
+  syncWhiteboardCommentPinsWithElements,
+} from '@lingyi-doc/editor-pro';
 import { DocumentBar } from '../components/DocumentBar';
 import { CollabStatusBar } from '../components/CollabStatusBar';
-import { isCollabViewOnly, useCollabBlockLock } from '../hooks/useCollabBlockLock';
+import {
+  DocumentHistoryPanelSlot,
+  DocumentHistoryToolbarSlot,
+} from '../components/history/DocumentHistoryChrome';
+import { useCollabBlockLock } from '../hooks/useCollabBlockLock';
+import { useDocumentHistory } from '../hooks/useDocumentHistory';
 import { appPath } from '../utils/appPaths';
 import { authStore } from '../stores/authStore';
 import type { EditorAccessProps } from '../types/editorAccess';
@@ -67,10 +81,7 @@ export const WhiteboardEditorPage: React.FC<{ docId?: string; prefetched?: Docum
 
   const [collabUsers, setCollabUsers] = useState<OnlineUser[]>([]);
   const [collabState, setCollabState] = useState<CollabConnectionState>('idle');
-  const [activeBlockEditor, setActiveBlockEditor] = useState<ActiveCellEditor | null>(null);
-  const myUserIdRef = useRef(authStore.getState().user?.id ?? '');
-
-  const collabViewOnly = isCollabViewOnly(readOnly, collabState, activeBlockEditor, myUserIdRef.current);
+  const [activeBlockEditors, setActiveBlockEditors] = useState<ActiveCellEditor[]>([]);
 
   const [loading, setLoading] = useState(true);
   const [title, setTitle] = useState('未命名画板');
@@ -109,12 +120,54 @@ export const WhiteboardEditorPage: React.FC<{ docId?: string; prefetched?: Docum
     setViewport({ ...doc.viewport });
   }, []);
 
-  const handleSnapshotReplace = useCallback((snapshot: Record<string, unknown>) => {
+  const reloadDocumentFromServer = useCallback(async () => {
+    if (!docId) return;
+    const result = await DocumentManager.loadWhiteboard(docId);
+    if (!result) return;
+    docRef.current = result.document;
+    setTitle(result.title);
+    titleRef.current = result.title;
+    syncFromDoc(result.document);
+    setSaveStatus('saved');
+    setLastModified(Date.now());
+    saveManagerRef.current?.initialize(
+      result.version,
+      result.document.toJSON() as unknown as Record<string, unknown>,
+      result.title,
+    );
+  }, [docId, syncFromDoc]);
+
+  const applyDocumentSnapshot = useCallback((
+    snapshot: Record<string, unknown>,
+    opts?: { markDirty?: boolean; syncTitle?: boolean },
+  ) => {
     const doc = WhiteboardDocument.fromJSON(snapshot as unknown as WhiteboardJSON);
     docRef.current = doc;
+    if (opts?.syncTitle !== false && typeof snapshot.title === 'string' && snapshot.title.trim()) {
+      setTitle(snapshot.title);
+      titleRef.current = snapshot.title;
+    }
     syncFromDoc(doc);
-    saveManagerRef.current?.markDirty();
+    if (opts?.markDirty) {
+      saveManagerRef.current?.markDirty();
+    }
   }, [syncFromDoc]);
+
+  const history = useDocumentHistory({
+    docId,
+    canRestore: canEdit && !readOnly,
+    saveManagerRef,
+    applyPreviewSnapshot: (snapshot) => {
+      applyDocumentSnapshot(snapshot, { markDirty: false, syncTitle: true });
+    },
+    reloadCurrentDocument: reloadDocumentFromServer,
+  });
+
+  const handleSnapshotReplace = useCallback((snapshot: Record<string, unknown>) => {
+    if (history.historyOpenRef.current) return;
+    applyDocumentSnapshot(snapshot, { markDirty: false, syncTitle: false });
+    saveManagerRef.current?.adoptRemoteSnapshot(snapshot);
+  }, [applyDocumentSnapshot, history.historyOpenRef]);
 
   const handleSnapshotReplaceRef = useRef(handleSnapshotReplace);
   handleSnapshotReplaceRef.current = handleSnapshotReplace;
@@ -147,6 +200,12 @@ export const WhiteboardEditorPage: React.FC<{ docId?: string; prefetched?: Docum
     collabBridgeRef,
     resolveLock: resolveWhiteboardLock,
     isComposing: isWhiteboardComposing,
+    onLockDenied: (lock) => {
+      const holder = collabBridgeRef.current
+        ?.getRemoteBlockEditors()
+        .find(e => e.sheetId === lock.sheetId && e.row === lock.row && e.col === lock.col);
+      message.warning(holder ? `${holder.displayName} 正在编辑该区域` : '该区域正在被他人编辑');
+    },
   });
 
   useEffect(() => {
@@ -218,25 +277,40 @@ export const WhiteboardEditorPage: React.FC<{ docId?: string; prefetched?: Docum
         saveManagerRef.current = manager;
 
         collabBridgeRef.current?.disconnect();
-        const bridge = new DocumentCollabBridge({
-          docId,
-          userId: authStore.getState().user?.id ?? '',
-          patchKind: 'whiteboard',
-          getToken: () => authStore.getAccessToken(),
-          getSnapshot: () => docRef.current?.toJSON() as unknown as Record<string, unknown> | null,
-          onSnapshotReplace: (snap) => handleSnapshotReplaceRef.current(snap),
-          isLocalEditing: isWhiteboardComposing,
-          onPresenceChange: setCollabUsers,
-          onBlockEditingChange: setActiveBlockEditor,
-          onStateChange: setCollabState,
-          onCommentUpdate: (senderId, payload) => {
-            if (senderId === authStore.getState().user?.id) return;
-            setRemoteCommentUpdate(payload);
-          },
-        });
-        bridge.initialize(result.document.toJSON() as unknown as Record<string, unknown>);
-        collabBridgeRef.current = bridge;
-        bridge.connect();
+        if (features.collab) {
+          const bridge = new DocumentCollabBridge({
+            docId,
+            userId: authStore.getState().user?.id ?? '',
+            patchKind: 'whiteboard',
+            getToken: () => authStore.getAccessToken(),
+            getSnapshot: () => docRef.current?.toJSON() as unknown as Record<string, unknown> | null,
+            onSnapshotReplace: (snap) => handleSnapshotReplaceRef.current(snap),
+            isLocalEditing: isWhiteboardComposing,
+            onPresenceChange: setCollabUsers,
+            onBlockEditingChange: setActiveBlockEditors,
+            onStateChange: setCollabState,
+            onError: (err) => {
+              if (err.message.includes('210009') || err.message.includes('正在编辑')) {
+                if (document.activeElement instanceof HTMLElement) {
+                  document.activeElement.blur();
+                }
+              }
+              message.warning(`协同: ${err.message}`);
+            },
+            onCommentUpdate: (senderId, payload) => {
+              if (senderId === authStore.getState().user?.id) return;
+              setRemoteCommentUpdate(payload);
+            },
+          });
+          bridge.initialize(result.document.toJSON() as unknown as Record<string, unknown>);
+          collabBridgeRef.current = bridge;
+          bridge.connect();
+        } else {
+          collabBridgeRef.current = null;
+          setCollabState('idle');
+          setCollabUsers([]);
+          setActiveBlockEditors([]);
+        }
       } else {
         saveManagerRef.current?.dispose();
         saveManagerRef.current = null;
@@ -252,23 +326,32 @@ export const WhiteboardEditorPage: React.FC<{ docId?: string; prefetched?: Docum
       collabBridgeRef.current = null;
       setCollabState('idle');
       setCollabUsers([]);
-      setActiveBlockEditor(null);
+      setActiveBlockEditors([]);
     };
   }, [docId, navigate, syncFromDoc, prefetched, readOnly]);
 
   useEffect(() => {
-    const onLeave = () => { void saveManagerRef.current?.flush(true); };
+    const onLeave = (e: BeforeUnloadEvent) => {
+      const manager = saveManagerRef.current;
+      if (!manager) return;
+      const hadDirty = manager.isDirty();
+      void manager.flush(false);
+      if (hadDirty) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
     window.addEventListener('beforeunload', onLeave);
     return () => window.removeEventListener('beforeunload', onLeave);
   }, []);
 
   const markDirty = useCallback(() => {
-    if (readOnly) return;
+    if (readOnly || history.historyOpenRef.current) return;
     saveManagerRef.current?.markDirty();
     if (!collabBridgeRef.current?.isApplyingRemote()) {
       collabBridgeRef.current?.scheduleBroadcast();
     }
-  }, [readOnly]);
+  }, [readOnly, history.historyOpenRef]);
 
   const handleTitleChange = useCallback((t: string) => {
     if (readOnly) return;
@@ -351,6 +434,7 @@ export const WhiteboardEditorPage: React.FC<{ docId?: string; prefetched?: Docum
       ? async ({ thread }) => createDocumentComment(docId, {
           id: thread.id,
           anchor: thread.anchor,
+          text: thread.replies[0]?.text,
         })
       : undefined,
     onPersistReply: commentsEnabled && canComment && docId
@@ -370,6 +454,34 @@ export const WhiteboardEditorPage: React.FC<{ docId?: string; prefetched?: Docum
       : undefined,
   });
 
+  const elementsRefForComments = useRef(elements);
+  elementsRefForComments.current = elements;
+
+  const handleElementsChangeWithCommentFollow = useCallback((next: WhiteboardElement[], recordHistory = true) => {
+    const prevElements = elementsRefForComments.current;
+    handleElementsChange(next, recordHistory);
+    if (!commentsEnabled || !canComment || !docId || !recordHistory) return;
+
+    const { threads: syncedThreads, changedIds } = syncWhiteboardCommentPinsWithElements(
+      commentCtrl.allCommentThreads,
+      next,
+    );
+    if (!changedIds.length) return;
+    commentCtrl.setCommentThreads(syncedThreads);
+    for (const threadId of changedIds) {
+      const thread = syncedThreads.find(t => t.id === threadId);
+      if (!thread) continue;
+      void updateDocumentCommentAnchor(
+        docId,
+        threadId,
+        thread.anchor.start,
+        thread.anchor.end,
+      ).catch(() => {
+        commentCtrl.setCommentThreads(cur => syncWhiteboardCommentPinsWithElements(cur, prevElements).threads);
+      });
+    }
+  }, [canComment, commentCtrl, commentsEnabled, docId, handleElementsChange]);
+
   const scrollToWhiteboardComment = useCallback((threadId: string) => {
     const thread = commentCtrl.allCommentThreads.find(t => t.id === threadId);
     if (!thread) return;
@@ -388,11 +500,13 @@ export const WhiteboardEditorPage: React.FC<{ docId?: string; prefetched?: Docum
   }, [commentCtrl, scrollToWhiteboardComment]);
 
   const handleRequestAddComment = useCallback((input: {
-    elementId: string;
+    elementId?: string;
     mindNodeId?: string;
     pinX: number;
     pinY: number;
     quote: string;
+    pinOffsetX?: number;
+    pinOffsetY?: number;
   }) => {
     if (!docId || !canComment) return;
     const anchor = buildWhiteboardCommentAnchor({
@@ -402,19 +516,107 @@ export const WhiteboardEditorPage: React.FC<{ docId?: string; prefetched?: Docum
       pinX: input.pinX,
       pinY: input.pinY,
       quote: input.quote,
+      pinOffsetX: input.pinOffsetX,
+      pinOffsetY: input.pinOffsetY,
     });
+
+    // 仅允许一条未提交评论：新落点替换旧草稿锚点，不另建 thread
+    const existingDraft = commentCtrl.allCommentThreads.find(
+      t => isUnsubmittedCommentThread(t) && isWhiteboardCommentAnchor(t.anchor),
+    );
+    if (existingDraft) {
+      commentCtrl.setCommentThreads(cur => updateCommentThreadAnchor(cur, existingDraft.id, anchor));
+      commentCtrl.setSelectedCommentId(existingDraft.id);
+      commentCtrl.setShowCommentPanel(true);
+      const meta = input.elementId
+        ? {
+            quote: input.quote,
+            anchorType: anchor.anchorType,
+            elementId: input.elementId,
+            mindNodeId: input.mindNodeId,
+            pinOffsetX: input.pinOffsetX,
+            pinOffsetY: input.pinOffsetY,
+          }
+        : {
+            quote: input.quote,
+            clearBind: true as const,
+          };
+      void (async () => {
+        const tryUpdate = () => updateDocumentCommentAnchor(
+          docId,
+          existingDraft.id,
+          input.pinX,
+          input.pinY,
+          meta,
+        );
+        try {
+          await tryUpdate();
+        } catch {
+          // 常见于「首条草稿尚在创建」时立刻换点，稍后再试一次
+          try {
+            await new Promise(r => setTimeout(r, 400));
+            await tryUpdate();
+          } catch {
+            message.error('更新评论位置失败');
+          }
+        }
+      })();
+      return;
+    }
+
     commentCtrl.requestAddComment(anchor);
   }, [canComment, commentCtrl, docId]);
 
   const handleCommentPinMove = useCallback((threadId: string, pinX: number, pinY: number) => {
     if (!docId) return;
     const prevThreads = commentCtrl.allCommentThreads;
-    commentCtrl.setCommentThreads(cur => updateCommentThreadPin(cur, threadId, pinX, pinY));
-    void updateDocumentCommentAnchor(docId, threadId, pinX, pinY).catch(() => {
+    const bind = resolveCommentBindAtPoint(elements, { x: pinX, y: pinY });
+    const anchor = bind
+      ? buildWhiteboardCommentAnchor({
+          docId,
+          elementId: bind.elementId,
+          mindNodeId: bind.mindNodeId,
+          pinX,
+          pinY,
+          quote: bind.quote,
+          pinOffsetX: bind.pinOffsetX,
+          pinOffsetY: bind.pinOffsetY,
+        })
+      : buildWhiteboardCommentAnchor({
+          docId,
+          pinX,
+          pinY,
+          quote: '画板',
+        });
+
+    commentCtrl.setCommentThreads(cur => updateCommentThreadAnchor(cur, threadId, {
+      ...anchor,
+      blockId: cur.find(t => t.id === threadId)?.anchor.blockId ?? anchor.blockId,
+    }));
+
+    void updateDocumentCommentAnchor(
+      docId,
+      threadId,
+      pinX,
+      pinY,
+      bind
+        ? {
+            quote: bind.quote,
+            anchorType: anchor.anchorType,
+            elementId: bind.elementId,
+            mindNodeId: bind.mindNodeId,
+            pinOffsetX: bind.pinOffsetX,
+            pinOffsetY: bind.pinOffsetY,
+          }
+        : {
+            quote: '画板',
+            clearBind: true,
+          },
+    ).catch(() => {
       commentCtrl.setCommentThreads(prevThreads);
       message.error('更新评论位置失败');
     });
-  }, [commentCtrl, docId]);
+  }, [commentCtrl, docId, elements]);
 
   if (loading || !docRef.current) {
     return (
@@ -444,19 +646,32 @@ export const WhiteboardEditorPage: React.FC<{ docId?: string; prefetched?: Docum
           effectiveViewMode={effectiveViewMode}
           onTogglePreview={onTogglePreview}
           breadcrumbItems={breadcrumbItems}
+          onOpenHistory={() => { void history.openHistory(); }}
         />
       )}
+      <DocumentHistoryToolbarSlot
+        historyOpen={history.historyOpen}
+        selectedIndex={history.selectedHistoryIndex}
+        items={history.historyItems}
+        canRestore={canEdit && !readOnly}
+        restoring={history.historyRestoring}
+        previewLoading={history.historyPreviewLoading}
+        onRestore={() => { void history.restoreHistoryVersion(); }}
+        onPrev={history.goPrevHistory}
+        onNext={history.goNextHistory}
+        onClose={() => { void history.closeHistory(); }}
+      />
       <div style={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden' }}>
         <WhiteboardEditor
           title={title}
           elements={elements}
           viewport={viewport}
-          readOnly={readOnly || collabViewOnly}
+          readOnly={readOnly || history.historyOpen}
           embedded={embedded}
           canUndo={doc.canUndo()}
           canRedo={doc.canRedo()}
           onTitleChange={handleTitleChange}
-          onElementsChange={handleElementsChange}
+          onElementsChange={handleElementsChangeWithCommentFollow}
           onViewportChange={handleViewportChange}
           onElementUpdate={handleElementUpdate}
           onUndo={() => {
@@ -471,15 +686,15 @@ export const WhiteboardEditorPage: React.FC<{ docId?: string; prefetched?: Docum
               markDirty();
             }
           }}
-          commentsEnabled={commentsEnabled && canComment}
+          commentsEnabled={commentsEnabled && canComment && !history.historyOpen}
           commentThreads={commentCtrl.commentThreads}
           selectedCommentId={commentCtrl.selectedCommentId}
           onSelectComment={handleSelectWhiteboardComment}
-          onCommentPinMove={canComment ? handleCommentPinMove : undefined}
-          onRequestAddComment={canComment ? handleRequestAddComment : undefined}
+          onCommentPinMove={canComment && !history.historyOpen ? handleCommentPinMove : undefined}
+          onRequestAddComment={canComment && !history.historyOpen ? handleRequestAddComment : undefined}
         />
 
-        {commentsEnabled && commentCtrl.showCommentPanel && (
+        {commentsEnabled && commentCtrl.showCommentPanel && !history.historyOpen && (
           <DocCommentPanel
             threads={commentCtrl.commentThreads}
             selectedId={commentCtrl.selectedCommentId}
@@ -496,13 +711,22 @@ export const WhiteboardEditorPage: React.FC<{ docId?: string; prefetched?: Docum
             currentAuthorAvatar={commentCtrl.commentAuthor.authorAvatar}
           />
         )}
+        {docId && (
+          <DocumentHistoryPanelSlot
+            docId={docId}
+            historyOpen={history.historyOpen}
+            selectedVersion={history.selectedHistoryVersion}
+            onSelectVersion={(version) => { void history.previewHistoryVersion(version); }}
+            onVersionsChange={history.handleHistoryVersionsChange}
+            onClose={() => { void history.closeHistory(); }}
+          />
+        )}
       </div>
-      {!readOnly && (
+      {!readOnly && !history.historyOpen && (
         <CollabStatusBar
           collabState={collabState}
           collabUsers={collabUsers}
-          collabViewOnly={collabViewOnly}
-          activeBlockEditor={activeBlockEditor}
+          activeEditors={activeBlockEditors}
         />
       )}
     </div>

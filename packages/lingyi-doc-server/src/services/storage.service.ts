@@ -6,9 +6,10 @@ import { AppLoggerService } from '../common/logger/app-logger.service';
 import { DocumentRepository } from '../repositories/document.repository';
 import { DocumentShareRepository } from '../repositories/document-share.repository';
 import { TenantRepository } from '../repositories/tenant.repository';
-import type { DocumentListItem, DocumentPermission, DocumentRecord, DocumentScope, DocumentViewMode } from '../types/database';
+import type { DocumentListItem, DocumentMetaPatch, DocumentMetaResult, DocumentPermission, DocumentRecord, DocumentScope, DocumentViewMode } from '../types/database';
 import type { DocumentAccessContext } from '../types/session';
 import { documentAccessFromAuth } from '../utils/documentAccessContext';
+import { buildDocumentRecordJson, wrapApiDataJson } from '../utils/documentRecordJson';
 import type { AuthUser } from '../auth/decorators/current-user.decorator';
 import type { DocumentPatchOp } from '../patch/applyDocumentPatch';
 
@@ -88,17 +89,30 @@ export class StorageService implements OnModuleInit {
     return result;
   }
 
+  async updateDocumentMeta(
+    docId: string,
+    patch: DocumentMetaPatch,
+    ctx: DocumentAccessContext,
+  ): Promise<DocumentMetaResult> {
+    this.ensureReady();
+    const result = await this.documentRepository.updateMeta(docId, patch, ctx);
+    if (!result) throw new Error(`Document not found: ${docId}`);
+    return result;
+  }
+
   async resolveDocumentAccess(
     docId: string,
     ctx: DocumentAccessContext,
   ): Promise<{ permission: DocumentPermission; canEdit: boolean; viewMode: DocumentViewMode } | null> {
     this.ensureReady();
-    const doc = await this.documentRepository.findAccessibleById(docId, ctx);
-    if (!doc) return null;
+    const readable = await this.documentRepository.hasReadAccess(docId, ctx);
+    if (!readable) return null;
 
-    const canEdit = await this.documentRepository.hasWriteAccess(docId, ctx);
-    const owned = await this.documentRepository.findOwnedById(docId, ctx);
-    const sharePermission = await this.documentShareRepository.getCollaboratorPermission(docId, ctx.userId);
+    const [canEdit, owned, sharePermission] = await Promise.all([
+      this.documentRepository.hasWriteAccess(docId, ctx),
+      this.documentRepository.isOwnedByUser(docId, ctx),
+      this.documentShareRepository.getCollaboratorPermission(docId, ctx.userId),
+    ]);
 
     if (canEdit) {
       return {
@@ -117,11 +131,24 @@ export class StorageService implements OnModuleInit {
 
   async loadDocumentForUser(docId: string, ctx: DocumentAccessContext): Promise<DocumentRecord | null> {
     this.ensureReady();
-    const doc = await this.documentRepository.findAccessibleById(docId, ctx);
-    if (!doc) return null;
     const access = await this.resolveDocumentAccess(docId, ctx);
     if (!access) return null;
+    const doc = await this.documentRepository.findAccessibleById(docId, ctx);
+    if (!doc) return null;
     return { ...doc, ...access };
+  }
+
+  /**
+   * 加载文档并返回已包装的 API JSON 字符串（data 字段直出 DB JSON，不经 parse/stringify）。
+   */
+  async loadDocumentWrappedJson(docId: string, ctx: DocumentAccessContext): Promise<string | null> {
+    this.ensureReady();
+    const access = await this.resolveDocumentAccess(docId, ctx);
+    if (!access) return null;
+    const row = await this.documentRepository.findAccessibleWithRawContent(docId, ctx);
+    if (!row) return null;
+    const dataJson = buildDocumentRecordJson({ ...row.meta, ...access }, row.contentJsonRaw);
+    return wrapApiDataJson(dataJson);
   }
 
   async listDocuments(
@@ -129,7 +156,32 @@ export class StorageService implements OnModuleInit {
     ctx: DocumentAccessContext,
   ): Promise<DocumentListItem[]> {
     this.ensureReady();
-    return this.documentRepository.list(sortBy, ctx);
+    return this.documentRepository.listLibrary(sortBy ?? 'lastVisited', ctx);
+  }
+
+  async listLibraryDocuments(
+    sortBy: 'lastVisited' | 'created' | 'updated' | undefined,
+    ctx: DocumentAccessContext,
+  ): Promise<DocumentListItem[]> {
+    this.ensureReady();
+    return this.documentRepository.listLibrary(sortBy ?? 'lastVisited', ctx);
+  }
+
+  async listOwnedDocuments(
+    sortBy: 'lastVisited' | 'created' | 'updated' | undefined,
+    ctx: DocumentAccessContext,
+  ): Promise<DocumentListItem[]> {
+    this.ensureReady();
+    return this.documentRepository.listOwned(sortBy ?? 'lastVisited', ctx);
+  }
+
+  async listRecentDocuments(
+    sortBy: 'lastVisited' | 'created' | 'updated' | undefined,
+    ctx: DocumentAccessContext,
+    days = 30,
+  ): Promise<DocumentListItem[]> {
+    this.ensureReady();
+    return this.documentRepository.listRecent(sortBy ?? 'lastVisited', ctx, days);
   }
 
   async touchLastVisited(docId: string, ctx: DocumentAccessContext): Promise<void> {
@@ -163,6 +215,11 @@ export class StorageService implements OnModuleInit {
   async deleteDocument(docId: string, ctx: DocumentAccessContext): Promise<boolean> {
     this.ensureReady();
     return this.documentRepository.softDelete(docId, ctx);
+  }
+
+  async deleteDocuments(docIds: string[], ctx: DocumentAccessContext): Promise<number> {
+    this.ensureReady();
+    return this.documentRepository.softDeleteByIds(docIds, ctx);
   }
 
   async listRecycleBin(ctx: DocumentAccessContext) {

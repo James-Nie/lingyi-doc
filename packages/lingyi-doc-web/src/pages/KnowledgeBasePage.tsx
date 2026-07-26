@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { CreateDocQuickCard, CreateDocTemplateLibraryCard } from '../components/createDoc';
 import { PageTopBar } from '../components/layout/topBar';
 import { useCreateDocument } from '../hooks/useCreateDocument';
+import { canManageKnowledgeBase } from '../api/knowledgeBase';
 import { knowledgeBaseStore, type KnowledgeBase } from '../stores/knowledgeBaseStore';
 import { authStore } from '../stores/authStore';
 import { appPath } from '../utils/appPaths';
@@ -181,7 +182,10 @@ export const KnowledgeBasePage: React.FC = () => {
               <KnowledgeBaseCard
                 key={item.id}
                 item={item}
-                onClick={() => navigate(appPath.wikiSpace(item.id))}
+                onOpen={() => navigate(appPath.wikiSpace(item.id))}
+                onSettings={canManageKnowledgeBase(item.myRole)
+                  ? () => navigate(appPath.wikiSettings(item.id))
+                  : undefined}
               />
             ))}
           </div>
@@ -251,90 +255,114 @@ function QuickActionCard({
 
 function KnowledgeBaseCard({
   item,
-  onClick,
+  onOpen,
+  onSettings,
 }: {
   item: KnowledgeBase;
-  onClick: () => void;
+  onOpen: () => void;
+  onSettings?: () => void;
 }) {
+  const isSunset = item.cover === 'sunset';
+  const titleColor = isSunset ? '#fff' : '#1f2329';
+  const descColor = isSunset ? 'rgba(255,255,255,0.88)' : '#646a73';
+
   return (
-    <button
-      type="button"
-      onClick={onClick}
+    <div
       style={{
-        border: 'none',
-        padding: 0,
-        background: 'transparent',
-        cursor: 'pointer',
-        textAlign: 'left',
-      }}
-    >
-      <div style={{
         position: 'relative',
-        height: 120,
+        height: onSettings ? 200 : 164,
         borderRadius: 12,
         overflow: 'hidden',
-        border: '1px solid #ebebeb',
-        background: item.cover === 'sunset'
-          ? 'linear-gradient(180deg, #4a3b63 0%, #ff8a4c 55%, #ffd27d 100%)'
-          : 'linear-gradient(180deg, #eaf3ff 0%, #d8ebff 55%, #c8e2ff 100%)',
-      }}>
-        {item.tag && (
-          <span style={{
-            position: 'absolute',
-            top: 10,
-            left: 10,
-            padding: '2px 8px',
-            borderRadius: 4,
-            background: 'rgba(51, 112, 255, 0.92)',
-            color: '#fff',
-            fontSize: 11,
-            lineHeight: '18px',
-          }}>
-            {item.tag}
-          </span>
-        )}
-        {item.cover === 'blue' && (
-          <div style={{
-            position: 'absolute',
-            right: -8,
-            bottom: -12,
-            width: 88,
-            height: 88,
-            borderRadius: 18,
-            background: 'rgba(255,255,255,0.45)',
-            transform: 'rotate(18deg)',
-          }} />
-        )}
-        {item.cover === 'sunset' && (
-          <div style={{
-            position: 'absolute',
-            left: '50%',
-            bottom: 18,
-            transform: 'translateX(-50%)',
-            width: 4,
-            height: 42,
-            background: 'rgba(255,255,255,0.85)',
-            borderRadius: 2,
-          }} />
-        )}
+        border: isSunset ? '1px solid rgba(255,255,255,0.18)' : '1px solid #d6e6ff',
+        background: isSunset
+          ? 'linear-gradient(165deg, #3d2f55 0%, #ff8a4c 52%, #ffd27d 100%)'
+          : 'linear-gradient(165deg, #4c7dff 0%, #6a9bff 42%, #9ec3ff 100%)',
+        boxShadow: '0 2px 10px rgba(31, 35, 41, 0.06)',
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
+      {!isSunset && (
         <div style={{
           position: 'absolute',
-          left: 12,
-          top: item.tag ? 38 : 12,
-          right: 12,
-          fontSize: 14,
-          fontWeight: 600,
-          color: item.cover === 'sunset' ? '#fff' : '#1f2329',
-          lineHeight: '20px',
+          inset: 0,
+          backgroundImage: 'repeating-linear-gradient(-32deg, rgba(255,255,255,0.14) 0 1px, transparent 1px 10px)',
+          opacity: 0.35,
+          pointerEvents: 'none',
+        }} />
+      )}
+
+      <button
+        type="button"
+        onClick={onOpen}
+        style={{
+          flex: 1,
+          minHeight: 0,
+          border: 'none',
+          padding: '16px 14px 12px',
+          background: 'transparent',
+          cursor: 'pointer',
+          textAlign: 'left',
+          position: 'relative',
+          zIndex: 1,
+        }}
+      >
+        <div style={{
+          fontSize: 16,
+          fontWeight: 700,
+          color: titleColor,
+          lineHeight: '22px',
           overflow: 'hidden',
           textOverflow: 'ellipsis',
-          display: '-webkit-box',
-          WebkitLineClamp: 2,
-          WebkitBoxOrient: 'vertical',
+          whiteSpace: 'nowrap',
         }}>
-          {item.name}
+          {item.emoji ? `${item.emoji} ` : ''}{item.name}
         </div>
-      </div>
-    </button>
+        <div style={{
+          marginTop: 8,
+          fontSize: 12,
+          color: descColor,
+          lineHeight: '18px',
+          display: '-webkit-box',
+          WebkitLineClamp: 3,
+          WebkitBoxOrient: 'vertical',
+          overflow: 'hidden',
+        }}>
+          {item.description?.trim() || '暂无简介'}
+        </div>
+      </button>
+
+      {onSettings && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onSettings();
+          }}
+          style={{
+            position: 'relative',
+            zIndex: 2,
+            height: 36,
+            flexShrink: 0,
+            border: 'none',
+            borderTop: '1px solid rgba(255,255,255,0.18)',
+            background: 'rgba(20, 24, 32, 0.42)',
+            color: '#fff',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 6,
+            fontSize: 13,
+          }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+            <circle cx="12" cy="12" r="3" />
+            <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+          </svg>
+          知识库设置
+        </button>
+      )}
+    </div>
   );
 }
