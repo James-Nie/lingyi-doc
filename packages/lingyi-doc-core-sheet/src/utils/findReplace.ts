@@ -3,8 +3,8 @@ import { getCellText, getEditText, keyToCoord, parseCellValue } from '@lingyi-do
 import type { FreeTable } from '../model/FreeTable';
 
 /** 匹配单元格：浅黄；当前匹配：浅绿（对齐产品示意） */
-export const SHEET_FIND_MATCH_BG = '#FFF8D1';
-export const SHEET_FIND_ACTIVE_BG = '#C6EFCE';
+export const SHEET_FIND_MATCH_BG = '#d8e3f6';
+export const SHEET_FIND_ACTIVE_BG = '#d8e3f6';
 
 export interface SheetFindMatch {
   row: number;

@@ -434,7 +434,6 @@ const FieldConfigPanelInner: React.FC<FieldConfigPanelProps> = ({
               showSearch
               value={selectedType}
               onChange={handleTypeChange}
-              optionFilterProp="label"
               options={fieldTypeOptions}
               {...baseSheetSelectProps}
               labelRender={({ value }) => {

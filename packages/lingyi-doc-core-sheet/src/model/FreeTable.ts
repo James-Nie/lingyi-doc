@@ -1920,6 +1920,7 @@ export class FreeTable {
       defaultStyle: this._sheet.defaultStyle,
       freezeState: this._sheet.freezeState,
       charts: this._sheet.charts,
+      floatingImages: this._sheet.floatingImages,
     };
 
     if (isFreeformSheet(this._sheet)) {
@@ -2096,5 +2097,48 @@ export class FreeTable {
 
   private _initBase(): void {
     this._applyDefaultBaseSchema(true);
+  }
+
+  // ==================== 浮动图片 ====================
+
+  /** 获取所有浮动图片 */
+  getFloatingImages(): import('@lingyi-doc/core-types').FloatingImage[] {
+    return this._sheet.floatingImages || [];
+  }
+
+  /** 添加浮动图片 */
+  addFloatingImage(image: Omit<import('@lingyi-doc/core-types').FloatingImage, 'id'>): void {
+    if (!this._sheet.floatingImages) {
+      this._sheet.floatingImages = [];
+    }
+    this._sheet.floatingImages.push({
+      ...image,
+      id: `floating-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    });
+    this._notifyChange(null);
+  }
+
+  /** 更新浮动图片（位置或尺寸） */
+  updateFloatingImage(id: string, updates: Partial<Pick<import('@lingyi-doc/core-types').FloatingImage, 'x' | 'y' | 'width' | 'height' | 'row' | 'col'>>): void {
+    const images = this._sheet.floatingImages;
+    if (!images) return;
+
+    const index = images.findIndex(img => img.id === id);
+    if (index !== -1) {
+      images[index] = { ...images[index], ...updates };
+      this._notifyChange(null);
+    }
+  }
+
+  /** 删除浮动图片 */
+  deleteFloatingImage(id: string): void {
+    const images = this._sheet.floatingImages;
+    if (!images) return;
+
+    const index = images.findIndex(img => img.id === id);
+    if (index !== -1) {
+      images.splice(index, 1);
+      this._notifyChange(null);
+    }
   }
 }

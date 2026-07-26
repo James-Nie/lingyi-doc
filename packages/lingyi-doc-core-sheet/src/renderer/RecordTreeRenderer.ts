@@ -78,6 +78,14 @@ export class RecordTreeRenderer {
     ctx.restore();
   }
 
+  /**
+   * 绘制折叠箭头
+   * @param ctx 上下文
+   * @param cx 三角中心 x 坐标
+   * @param cy 三角中心 y 坐标
+   * @param size 三角大小
+   * @param expanded 是否展开
+   */
   private _drawChevron(
     ctx: CanvasRenderingContext2D,
     cx: number,

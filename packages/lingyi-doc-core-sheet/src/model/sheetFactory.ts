@@ -39,6 +39,7 @@ function createSheetModelBase(options: CreateSheetModelOptions): SheetModelBase 
     defaultStyle: { ...DEFAULT_CELL_STYLE },
     freezeState: { frozenRows: 0, frozenCols: 0 },
     charts: [],
+    floatingImages: [],
   };
 }
 
@@ -112,6 +113,10 @@ function readSharedFields(data: any, base: SheetModelBase): void {
 
   if (Array.isArray(data.charts)) {
     base.charts = data.charts;
+  }
+
+  if (Array.isArray(data.floatingImages)) {
+    base.floatingImages = data.floatingImages;
   }
 }
 

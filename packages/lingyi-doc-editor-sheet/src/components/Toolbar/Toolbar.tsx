@@ -594,9 +594,9 @@ export const Toolbar: React.FC<ToolbarProps> = ({
 
   const handleClearFormat = useCallback(() => {
     if (!guardCell()) return;
-    const resetStyle = { ...DEFAULT_CELL_STYLE };
+    // 使用 clearCellFormat 方法完全清除格式（将 style 设置为 undefined）
     for (const { row, col } of getSelectionCells()) {
-      table.setCellStyle(row, col, resetStyle);
+      table.clearCellFormat(row, col);
     }
     setBoldActive(false);
     setItalicActive(false);

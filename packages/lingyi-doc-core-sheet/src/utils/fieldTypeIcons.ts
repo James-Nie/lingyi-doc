@@ -1,4 +1,5 @@
 import type { ColumnType } from '@lingyi-doc/core-types';
+import { drawStar, drawPaperclip } from './canvasShapes';
 
 /** 在 canvas 上绘制字段类型图标（列头 / 分组列头） */
 export function drawFieldTypeIcon(
@@ -168,12 +169,7 @@ export function drawFieldTypeIcon(
       break;
     }
     case 'attachment': {
-      ctx.beginPath();
-      ctx.moveTo(x + s * 0.62, y + s * 0.12);
-      ctx.lineTo(x + s * 0.28, y + s * 0.52);
-      ctx.arc(x + s * 0.42, y + s * 0.66, s * 0.16, Math.PI * 0.7, Math.PI * 1.85);
-      ctx.arc(x + s * 0.58, y + s * 0.5, s * 0.16, Math.PI * 1.25, Math.PI * 2.1);
-      ctx.stroke();
+      drawPaperclip(ctx, cx, cy, s, color);
       break;
     }
     case 'number':
@@ -307,19 +303,7 @@ export function drawFieldTypeIcon(
     }
     case 'rating': {
       const outerR = s * 0.42;
-      const innerR = s * 0.17;
-      const spikes = 5;
-      ctx.beginPath();
-      for (let i = 0; i < spikes * 2; i++) {
-        const r = i % 2 === 0 ? outerR : innerR;
-        const angle = (Math.PI / 2) + (i * Math.PI / spikes);
-        const px = cx + Math.cos(angle) * r;
-        const py = cy + Math.sin(angle) * r;
-        if (i === 0) ctx.moveTo(px, py);
-        else ctx.lineTo(px, py);
-      }
-      ctx.closePath();
-      ctx.stroke();
+      drawStar(ctx, cx, cy, outerR, false, color);
       break;
     }
     default: {

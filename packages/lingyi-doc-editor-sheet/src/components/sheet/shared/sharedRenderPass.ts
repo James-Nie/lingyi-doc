@@ -1,4 +1,4 @@
-import { BASE_THEME, clipCanvasToScrollablePane, drawFillHandle, getFillHandleAnchor, getFilteredColumnIndices, normalizeRange, RENDER_LAYERS, resolveCellBackgroundFillColor, resolveGroupedMetadataDividerX, shouldShowFillHandle, SHEET_FIND_ACTIVE_BG, SHEET_FIND_MATCH_BG } from '@lingyi-doc/core-sheet';
+import { BASE_THEME, clipCanvasToScrollablePane, drawFillHandle, fillFrozenPanesOpaque, getFillHandleAnchor, getFilteredColumnIndices, normalizeRange, RENDER_LAYERS, resolveCellBackgroundFillColor, resolveGroupedMetadataDividerX, shouldShowFillHandle, SHEET_FIND_ACTIVE_BG, SHEET_FIND_MATCH_BG } from '@lingyi-doc/core-sheet';
 import type { CellRange } from '@lingyi-doc/core-types';
 import { isSheetCommentCellSelected } from '@lingyi-doc/core-doc';
 import { useSheetStore } from '../../../store/sheetStore';
@@ -11,11 +11,18 @@ import { parseFormulaRanges } from '../../FormulaRangeParser';
 import { rangesEqual } from './sheetUtils';
 import type { SheetRenderHelpers, SheetRenderPassContext } from './sheetRenderTypes';
 
+/**
+ * 绘制共享背景单元格
+ * @param ctx 渲染上下文
+ * @param helpers 渲染帮助函数
+ * @description 绘制共享背景单元格
+ * @returns 无
+ */
 export function drawSharedBackgroundCells(
   ctx: SheetRenderPassContext,
   helpers: SheetRenderHelpers,
 ): void {
-  const { layerManager, renderer, table, sheet, mergeRanges, isGroupedView } = ctx;
+  const { layerManager, viewport, renderer, table, sheet, mergeRanges, isGroupedView, containerSize } = ctx;
   const bgCtx = layerManager.getLayer(RENDER_LAYERS.BACKGROUND);
 
   const drawBackgroundCell = (r: number, c: number) => {
@@ -31,10 +38,32 @@ export function drawSharedBackgroundCells(
   };
 
   if (!isGroupedView) {
+    // 如果有冻结行列，先填充冻结区域为不透明色，防止滚动区域背景透出
+    if (helpers.useFreezeSplit) {
+      const { frozenRows, frozenCols } = helpers.freezeState;
+      fillFrozenPanesOpaque(
+        bgCtx,
+        viewport,
+        sheet.columnWidths,
+        ctx.activeRowHeights,
+        frozenRows,
+        frozenCols,
+        containerSize.width,
+        containerSize.height,
+        BASE_THEME.pageBg,
+      );
+    }
     helpers.forEachVisibleCellWithFreezeSplit(bgCtx, drawBackgroundCell);
   }
 }
 
+/**
+ * 绘制网格线
+ * @param ctx 渲染上下文
+ * @param helpers 渲染帮助函数
+ * @description 绘制网格线
+ * @returns 无
+ */
 export function drawGridlinesLayer(
   ctx: SheetRenderPassContext,
   helpers: SheetRenderHelpers,
@@ -116,7 +145,14 @@ export function drawGridlinesLayer(
   });
 }
 
-/** 分组视图：记录行 metadata 竖线 */
+/**
+ * 分组视图：记录行 metadata 竖线
+ * @param ctx 渲染上下文
+ * @param helpers 渲染帮助函数
+ * @param gridCtx 网格线上下文
+ * @description 绘制分组视图：记录行 metadata 竖线
+ * @returns 无
+ */
 function drawGroupedGridExtras(
   ctx: SheetRenderPassContext,
   helpers: SheetRenderHelpers,
@@ -149,6 +185,13 @@ function drawGroupedGridExtras(
   }
 }
 
+/**
+ * 绘制合并单元格
+ * @param ctx 渲染上下文
+ * @param helpers 渲染帮助函数
+ * @description 绘制合并单元格
+ * @returns 无
+ */
 export function drawMergeCellsLayer(
   ctx: SheetRenderPassContext,
   helpers: SheetRenderHelpers,
@@ -218,6 +261,9 @@ export function drawMergeCellsLayer(
   });
 }
 
+/**
+ * 选择渲染状态
+ */
 export interface SelectionRenderState {
   selRange: ReturnType<typeof useSheetStore.getState>['selectionRange'];
   discreteCells: ReturnType<typeof useSheetStore.getState>['discreteSelections'];
@@ -228,6 +274,12 @@ export interface SelectionRenderState {
   allRowsChecked: boolean;
 }
 
+/**
+ * 解析选择渲染状态
+ * @param ctx 渲染上下文
+ * @description 解析选择渲染状态
+ * @returns 选择渲染状态
+ */
 export function resolveSelectionRenderState(ctx: SheetRenderPassContext): SelectionRenderState {
   const { sheet, isBaseSheet, previewMode, discreteAxisCols, discreteAxisRows, checkedRows } = ctx;
   const selRange = previewMode ? null : useSheetStore.getState().selectionRange;
@@ -241,6 +293,12 @@ export function resolveSelectionRenderState(ctx: SheetRenderPassContext): Select
   return { selRange, discreteCells, selectedCols, selectedRows, activeCellRow, isAllSelected, allRowsChecked };
 }
 
+/**
+ * 绘制评论高亮
+ * @param ctx 渲染上下文
+ * @description 绘制评论高亮
+ * @returns 无
+ */
 export function drawCommentHighlightLayer(ctx: SheetRenderPassContext): void {
   const { layerManager, renderer, sheet, mergeRanges, sheetCommentCells, selectedCommentId } = ctx;
   if (!sheetCommentCells?.length) return;
@@ -261,6 +319,13 @@ export function drawCommentHighlightLayer(ctx: SheetRenderPassContext): void {
   }
 }
 
+/**
+ * 绘制评论标记
+ * @param ctx 渲染上下文
+ * @param helpers 渲染帮助函数
+ * @description 绘制评论标记
+ * @returns 无
+ */
 export function drawCommentMarkerLayer(
   ctx: SheetRenderPassContext,
   helpers: SheetRenderHelpers,
@@ -318,6 +383,13 @@ export function drawCommentMarkerLayer(
   }
 }
 
+/**
+ * 绘制选择
+ * @param ctx 渲染上下文
+ * @param selection 选择渲染状态
+ * @description 绘制选择
+ * @returns 无
+ */
 export function drawSelectionLayer(
   ctx: SheetRenderPassContext,
   selection: SelectionRenderState,
@@ -424,6 +496,12 @@ export function drawSelectionLayer(
   }
 }
 
+/**
+ * 绘制查找高亮
+ * @param ctx 渲染上下文
+ * @description 绘制查找高亮
+ * @returns 无
+ */
 export function drawFindHighlightLayer(ctx: SheetRenderPassContext): void {
   const { layerManager, renderer, sheet, mergeRanges, previewMode } = ctx;
   if (previewMode) return;
@@ -450,6 +528,14 @@ export function drawFindHighlightLayer(ctx: SheetRenderPassContext): void {
   }
 }
 
+/**
+ * 绘制 overlay
+ * @param ctx 渲染上下文
+ * @param helpers 渲染帮助函数
+ * @param selection 选择渲染状态
+ * @description 绘制 overlay
+ * @returns 无
+ */
 export function drawOverlayLayer(
   ctx: SheetRenderPassContext,
   helpers: SheetRenderHelpers,
@@ -494,12 +580,14 @@ export function drawOverlayLayer(
     overlayCtx, visibleRange, sheet.colCount, sheet.columnWidths, columnDefs,
     hoveredCol, selectedCols, undefined, filterIconCols, activeFilterCols,
   );
+  
   renderer.drawRowHeaders(
     overlayCtx,
     visibleRange,
     gridRowCount,
-    ctx.activeRowHeights,
-    activeHoverRow,
+    sheet.columnWidths,
+    sheet.rowHeights,
+    activeHoverRow !== null ? [activeHoverRow] : undefined,
     selectedRows,
     isGroupedView ? [] : checkedRowsForRender,
     isGroupedView ? undefined : rowTreeMeta,
@@ -509,6 +597,7 @@ export function drawOverlayLayer(
     isGroupedView ? ctx.isGroupDisplayRow : undefined,
   );
 
+  /** 绘制角头 */
   renderer.drawCornerHeader(overlayCtx, isBaseSheet ? allRowsChecked : isAllSelected, cornerHovered);
 
   const axisDrag = axisDragRef.current;

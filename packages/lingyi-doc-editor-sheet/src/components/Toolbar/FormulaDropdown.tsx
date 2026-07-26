@@ -1,6 +1,8 @@
 // ============================================================
 // FormulaDropdown — 完整的公式下拉面板
-// 含高频函数区、AI写公式、分类导航、功能介绍
+// 支持两种录入模式：
+// 1. 选中单元格录入：选中目标单元格 → 点击函数 → 单元格进入编辑态，显示公式内容
+// 2. 直接手动录入：双击单元格 → 直接在单元格内输入公式
 // ============================================================
 
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
@@ -280,6 +282,8 @@ const CategorySubmenu: React.FC<{
   onSelect: (fn: FunctionDef) => void;
   onClose: () => void;
 }> = ({ category, parentRect, onSelect, onClose }) => {
+  const [hoveredFn, setHoveredFn] = useState<string | null>(null);
+  
   const popupStyle = useMemo(() => {
     const left = parentRect.right + 2;
     const top = parentRect.top - 4;
@@ -309,13 +313,21 @@ const CategorySubmenu: React.FC<{
       {category.functions.map(fn => (
         <div
           key={fn.name}
-          style={itemStyle}
-          onMouseEnter={e => (e.currentTarget.style.background = '#e8f0fe')}
-          onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+          style={{ ...itemStyle, flexDirection: 'column', alignItems: 'flex-start', padding: '8px 12px' }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = '#e8f0fe';
+            setHoveredFn(fn.name);
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'transparent';
+            setHoveredFn(null);
+          }}
           onClick={() => { onSelect(fn); onClose(); }}
         >
-          <span style={{ fontWeight: 600, color: '#4285F4', minWidth: 70, fontSize: 12 }}>{fn.name}</span>
-          <span style={{ color: '#666', fontSize: 12, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fn.description}</span>
+          <span style={{ fontWeight: 600, color: '#4285F4', fontSize: 12 }}>{fn.name}</span>
+          {hoveredFn === fn.name && (
+            <span style={{ color: '#666', fontSize: 11, marginTop: 2 }}>{fn.description}</span>
+          )}
         </div>
       ))}
     </div>
@@ -333,6 +345,7 @@ export const FormulaDropdown: React.FC<FormulaDropdownProps> = ({ table, onInser
   const [visible, setVisible] = useState(false);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [categoryAnchor, setCategoryAnchor] = useState<DOMRect | null>(null);
+  const [hoveredFunction, setHoveredFunction] = useState<string | null>(null);
   const buttonRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const hoverTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -367,54 +380,34 @@ export const FormulaDropdown: React.FC<FormulaDropdownProps> = ({ table, onInser
     return { left: rect.left, top: rect.bottom + 4 };
   }, [visible]);
 
+  // 插入公式到单元格，让单元格进入编辑态显示公式内容
   const insertFormula = useCallback((fn: FunctionDef) => {
     const store = useSheetStore.getState();
-    const sel = store.selectionRange;
-    let targetRow: number = store.activeCell?.row ?? 0;
-    let targetCol: number = store.activeCell?.col ?? 0;
-
-    // Build formula with selection reference
-    let formula = fn.template;
-    if (sel && ['SUM', 'AVERAGE', 'COUNT', 'MAX', 'MIN'].includes(fn.name)) {
-      // Quick functions: auto-fill selection
-      const colToLetter = (c: number) => {
-        let result = '';
-        c += 1;
-        while (c > 0) { c--; result = String.fromCharCode(65 + (c % 26)) + result; c = Math.floor(c / 26); }
-        return result;
-      };
-      const startRef = `${colToLetter(sel.start.col)}${sel.start.row + 1}`;
-      const endRef = `${colToLetter(sel.end.col)}${sel.end.row + 1}`;
-      formula = `=${fn.name}(${startRef}:${endRef})`;
-
-      // Auto-place formula below the selection (or at activeCell if no multi-row selection)
-      if (sel.start.row !== sel.end.row || sel.start.col !== sel.end.col) {
-        // Multi-cell selection: place formula below the last row, first column
-        targetRow = sel.end.row + 1;
-        targetCol = sel.start.col;
-      } else {
-        // Single cell: use active cell
-        targetRow = store.activeCell?.row ?? 0;
-        targetCol = store.activeCell?.col ?? 0;
-      }
-    } else if (sel && fn.template.includes('()')) {
-      // Other general functions: set activeCell as editing cell
-      targetRow = store.activeCell?.row ?? 0;
-      targetCol = store.activeCell?.col ?? 0;
-    }
-
+    const activeCell = store.activeCell;
+    
+    // 确定目标单元格
+    let targetRow: number = activeCell?.row ?? 0;
+    let targetCol: number = activeCell?.col ?? 0;
+    
+    // 直接使用函数模板，让用户在单元格内编辑参数
+    // 支持两种模式：
+    // 1. 手动录入模式：用户可以直接输入数值，如 =SUM(1,2,3,4,5)
+    // 2. 选区模式：用户可以在单元格内手动输入单元格引用，如 =SUM(A1:A5)
+    const formula = fn.template;
+    
+    // 设置单元格值并进入编辑态
     table.setCell(targetRow, targetCol, formula);
-    store.setFormulaBarText(formula);
     store.setEditingCell({ row: targetRow, col: targetCol });
-    // Also set selection to the formula cell so it's visually selected
+    store.setFormulaBarText(formula);
     store.setSelection({
       sheetId: table.sheetId,
       start: { row: targetRow, col: targetCol },
       end: { row: targetRow, col: targetCol },
     }, { row: targetRow, col: targetCol });
-    store.setStatusText(`已插入 ${fn.name} 公式（结果将显示在下方）`);
-
+    
     if (onInsertFormula) onInsertFormula(formula);
+    
+    store.setStatusText(`已插入 ${fn.name} 公式，请在单元格内编辑参数`);
     setVisible(false);
     setActiveCategory(null);
   }, [table, onInsertFormula]);
@@ -423,6 +416,7 @@ export const FormulaDropdown: React.FC<FormulaDropdownProps> = ({ table, onInser
     insertFormula(fn);
   }, [insertFormula]);
 
+  // 处理AI写公式
   const handleAIWrite = useCallback(() => {
     const store = useSheetStore.getState();
     store.setStatusText('AI写公式功能即将上线');
@@ -475,20 +469,33 @@ export const FormulaDropdown: React.FC<FormulaDropdownProps> = ({ table, onInser
 
       {visible && createPortal(
         <div ref={panelRef} data-sheet-keep-selection style={{ ...panelStyle, left: panelPos.left, top: panelPos.top }} onClick={e => e.stopPropagation()}>
+          {/* 提示信息 */}
+          <div style={{ padding: '8px 14px', borderBottom: '1px solid #eee', fontSize: 11, color: '#888' }}>
+            点击函数后，公式将插入到当前单元格，双击单元格可编辑公式
+          </div>
+
           {/* Quick Functions */}
           <div style={sectionTitleStyle}>常用函数</div>
           {QUICK_FUNCTIONS.map(fn => (
             <div
               key={fn.name}
-              style={itemStyle}
+              style={{ ...itemStyle, flexDirection: 'column', alignItems: 'flex-start', padding: '8px 14px' }}
               onClick={() => handleQuickFunction(fn)}
-              onMouseEnter={e => (e.currentTarget.style.background = '#e8f0fe')}
-              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = '#e8f0fe';
+                setHoveredFunction(fn.name);
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'transparent';
+                setHoveredFunction(null);
+              }}
             >
               <span style={{
-                fontWeight: 600, color: '#4285F4', minWidth: 60, fontSize: 13,
+                fontWeight: 600, color: '#4285F4', fontSize: 13,
               }}>{fn.name}</span>
-              <span style={{ color: '#888', fontSize: 11 }}>{fn.description}</span>
+              {hoveredFunction === fn.name && (
+                <span style={{ color: '#666', fontSize: 11, marginTop: 2 }}>{fn.description}</span>
+              )}
             </div>
           ))}
 

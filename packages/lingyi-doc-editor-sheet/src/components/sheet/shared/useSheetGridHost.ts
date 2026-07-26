@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
-import { BaseCellRenderer, CellRenderer, DirtyTracker, LayerManager, ViewportManager } from '@lingyi-doc/core-sheet';
+import { BaseCellRenderer, CellRenderer, DirtyTracker, LayerManager, ViewportManager, AsyncAssetManager } from '@lingyi-doc/core-sheet';
 import type { SheetGridMode } from '../SheetGridView.types';
 
 export interface SheetGridHostValue {
@@ -24,8 +24,6 @@ export function useSheetGridHost(mode: SheetGridMode): SheetGridHostValue {
   const canvasContainerRef = useRef<HTMLDivElement | null>(null);
   const viewportRef = useRef(new ViewportManager());
   const layerManagerRef = useRef<LayerManager | null>(null);
-  const cellRendererRef = useRef(new CellRenderer(viewportRef.current));
-  const baseCellRendererRef = useRef(new BaseCellRenderer({ viewportManager: viewportRef.current }));
   const dirtyTrackerRef = useRef(new DirtyTracker());
 
   const [layoutVersion, setLayoutVersion] = useState(0);
@@ -48,14 +46,28 @@ export function useSheetGridHost(mode: SheetGridMode): SheetGridHostValue {
     });
   }, []);
 
+  // 共享的 assetManager，用于图片缓存和异步加载
+  const assetManagerRef = useRef(new AsyncAssetManager());
+
+  // CellRenderer 和 BaseCellRenderer 共享同一个 assetManager
+  const cellRendererRef = useRef<CellRenderer>();
+  const baseCellRendererRef = useRef<BaseCellRenderer>();
+
   useEffect(() => {
+    const assetManager = assetManagerRef.current;
+    assetManager.setOnAssetLoaded(scheduleRender);
+
+    cellRendererRef.current = new CellRenderer(viewportRef.current, { assetManager });
+    baseCellRendererRef.current = new BaseCellRenderer({ viewportManager: viewportRef.current, assetManager });
+
     return () => {
       if (renderFrameRef.current) {
         cancelAnimationFrame(renderFrameRef.current);
         renderFrameRef.current = 0;
       }
+      assetManager.clear();
     };
-  }, []);
+  }, [scheduleRender]);
 
   const bumpLayoutVersion = useCallback(() => {
     setLayoutVersion(v => v + 1);
@@ -67,8 +79,8 @@ export function useSheetGridHost(mode: SheetGridMode): SheetGridHostValue {
     canvasContainerRef,
     viewportRef,
     layerManagerRef,
-    cellRendererRef,
-    baseCellRendererRef,
+    cellRendererRef: cellRendererRef as MutableRefObject<CellRenderer>,
+    baseCellRendererRef: baseCellRendererRef as MutableRefObject<BaseCellRenderer>,
     dirtyTrackerRef,
     layoutVersion,
     bumpLayoutVersion,

@@ -1,6 +1,6 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState, useRef } from 'react';
 import type { FreeTable } from '@lingyi-doc/core-sheet';
-import type { CellRange } from '@lingyi-doc/core-types';
+import type { CellRange, ImageValue } from '@lingyi-doc/core-types';
 import { findDropdownValidationOverlapping } from '@lingyi-doc/core-sheet';
 import { useSheetStore } from '../../store/sheetStore';
 import { ToolbarPopover } from './ToolbarPopover';
@@ -9,6 +9,7 @@ import {
   validationToDropdownConfig,
   type DropdownListConfig,
 } from '../DropdownListConfigModal';
+import { uploadImageFile } from '@lingyi-doc/editor-shared';
 
 interface InsertDropdownProps {
   table: FreeTable;
@@ -227,9 +228,13 @@ function IconNote() {
 export const InsertDropdown: React.FC<InsertDropdownProps> = ({ table, onInsertChart }) => {
   const [open, setOpen] = useState(false);
   const [configModalOpen, setConfigModalOpen] = useState(false);
+  const [linkInputOpen, setLinkInputOpen] = useState(false);
+  const [linkUrl, setLinkUrl] = useState('');
   const activeCell = useSheetStore(s => s.activeCell);
   const selectionRange = useSheetStore(s => s.selectionRange);
   const setStatusText = useSheetStore(s => s.setStatusText);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [insertType, setInsertType] = useState<'cell' | 'floating'>('cell');
 
   const close = useCallback(() => setOpen(false), []);
 
@@ -311,6 +316,69 @@ export const InsertDropdown: React.FC<InsertDropdownProps> = ({ table, onInsertC
     setStatusText('已移除下拉列表');
   }, [table, setStatusText]);
 
+  // 图片插入相关函数
+  const openImageFilePicker = useCallback((type: 'cell' | 'floating') => {
+    if (!guardCell()) return;
+    setInsertType(type);
+    close();
+    // 触发文件选择框
+    fileInputRef.current?.click();
+  }, [guardCell, close]);
+
+  const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !activeCell) return;
+    
+    // 清空 input 以便可以再次选择同一文件
+    e.target.value = '';
+    
+    try {
+      const { row, col } = activeCell;
+      const imageUrl = await uploadImageFile(file);
+      
+      if (insertType === 'cell') {
+        // 单元格图片：支持多个图片，存储为数组
+        const existingCell = table.getCell(row, col);
+        const existingValue = existingCell?.value;
+        const existingImages = (existingValue?.type === 'image' ? existingValue.images : []) || [];
+        const newImages = [...existingImages, { url: imageUrl, id: Date.now().toString() }];
+        const imageValue: ImageValue = { type: 'image', images: newImages };
+        table.setCellValue(row, col, imageValue);
+        setStatusText(`已插入单元格图片（共 ${newImages.length} 张）`);
+      } else {
+        // 浮动图片：通过事件通知上层组件
+        const event = new CustomEvent('sheet-add-floating-image', {
+          detail: { imageUrl, row, col, sheetId: table.sheetId }
+        });
+        document.dispatchEvent(event);
+        setStatusText('已插入浮动图片，可拖动调整位置');
+      }
+    } catch (err) {
+      setStatusText('图片上传失败，请重试');
+      console.error('Image upload failed:', err);
+    }
+  }, [activeCell, insertType, table, setStatusText]);
+
+  const openLinkInput = useCallback(() => {
+    if (!guardCell()) return;
+    setLinkUrl('');
+    setLinkInputOpen(true);
+    close();
+  }, [guardCell, close]);
+
+  const handleLinkConfirm = useCallback(() => {
+    if (!activeCell || !linkUrl.trim()) return;
+    const { row, col } = activeCell;
+    
+    table.setCellValue(row, col, { 
+      type: 'link', 
+      url: linkUrl.trim(),
+      text: linkUrl.trim().split('/').pop() || '图片链接'
+    } as any);
+    setStatusText('已插入图片链接，点击可跳转');
+    setLinkInputOpen(false);
+  }, [activeCell, linkUrl, table, setStatusText]);
+
   const trigger = (
     <button
       type="button"
@@ -348,8 +416,9 @@ export const InsertDropdown: React.FC<InsertDropdownProps> = ({ table, onInsertC
 
   const imageSubmenu = (
     <>
-      <MenuItem label="上传图片" onClick={() => stub('上传图片')} />
-      <MenuItem label="图片链接" onClick={() => stub('图片链接')} />
+      <MenuItem label="单元格图片" onClick={() => openImageFilePicker('cell')} />
+      <MenuItem label="浮动图片" onClick={() => openImageFilePicker('floating')} />
+      <MenuItem label="图片链接" onClick={openLinkInput} />
     </>
   );
 
@@ -387,6 +456,121 @@ export const InsertDropdown: React.FC<InsertDropdownProps> = ({ table, onInsertC
         onConfirm={handleDropdownConfirm}
         onRemove={handleDropdownRemove}
       />
+      
+      {/* 隐藏的文件选择框 */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        style={{ display: 'none' }}
+        onChange={handleFileChange}
+      />
+      
+      {/* 图片链接输入弹框 */}
+      {linkInputOpen && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10003,
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setLinkInputOpen(false);
+          }}
+        >
+          <div
+            style={{
+              background: '#fff',
+              borderRadius: 12,
+              padding: 24,
+              width: 400,
+              maxWidth: '90vw',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600 }}>插入图片链接</h3>
+              <button
+                onClick={() => setLinkInputOpen(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: 20,
+                  cursor: 'pointer',
+                  color: '#999',
+                  padding: 4,
+                }}
+              >
+                ×
+              </button>
+            </div>
+            
+            <p style={{ color: '#666', fontSize: 13, marginBottom: 16 }}>
+              输入图片URL，插入后支持点击跳转
+            </p>
+            
+            <input
+              type="text"
+              value={linkUrl}
+              onChange={(e) => setLinkUrl(e.target.value)}
+              placeholder="https://example.com/image.jpg"
+              autoFocus
+              style={{
+                width: '100%',
+                padding: '8px 12px',
+                border: '1px solid #ddd',
+                borderRadius: 6,
+                fontSize: 13,
+                outline: 'none',
+                marginBottom: 16,
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleLinkConfirm();
+                if (e.key === 'Escape') setLinkInputOpen(false);
+              }}
+            />
+            
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <button
+                onClick={() => setLinkInputOpen(false)}
+                style={{
+                  padding: '8px 16px',
+                  border: '1px solid #ddd',
+                  borderRadius: 6,
+                  background: '#fff',
+                  cursor: 'pointer',
+                  fontSize: 13,
+                }}
+              >
+                取消
+              </button>
+              <button
+                onClick={handleLinkConfirm}
+                disabled={!linkUrl.trim()}
+                style={{
+                  padding: '8px 16px',
+                  border: 'none',
+                  borderRadius: 6,
+                  background: linkUrl.trim() ? '#4285F4' : '#ccc',
+                  color: '#fff',
+                  cursor: linkUrl.trim() ? 'pointer' : 'not-allowed',
+                  fontSize: 13,
+                }}
+              >
+                插入
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 };

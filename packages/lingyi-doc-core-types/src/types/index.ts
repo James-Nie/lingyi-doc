@@ -128,6 +128,21 @@ export interface LinkValue {
   text?: string;
 }
 
+/** 单元格图片值 */
+export interface CellImage {
+  id: string;
+  url: string;
+  width?: number;
+  height?: number;
+  alt?: string;
+}
+
+/** 图片值 */
+export interface ImageValue {
+  type: 'image';
+  images: CellImage[];
+}
+
 /** 单元格值 — 判别联合 */
 export type CellValue =
   | { type: 'empty' }
@@ -138,7 +153,8 @@ export type CellValue =
   | { type: 'formula'; formula: string; cached?: CellValue }
   | { type: 'error'; error: FormulaError }
   | { type: 'richtext'; segments: RichTextSegment[] }
-  | LinkValue;
+  | LinkValue
+  | ImageValue;
 
 // ==================== CellData（新结构） ====================
 
@@ -220,6 +236,7 @@ export function getCellText(value: CellValue): string {
     case 'error':   return value.error;
     case 'richtext': return value.segments.map(s => s.text).join('');
     case 'link':    return value.text || value.url;
+    case 'image':   return value.images.length > 0 ? `[${value.images.length}张图片]` : '';
   }
 }
 
@@ -248,6 +265,7 @@ export function getRawValue(value: CellValue): string | number | boolean | null 
     case 'error':   return null;
     case 'richtext': return value.segments.map(s => s.text).join('');
     case 'link':    return value.url;
+    case 'image':   return null;
   }
 }
 
@@ -263,6 +281,7 @@ export function getEditText(value: CellValue): string {
     case 'error':   return '';
     case 'richtext': return value.segments.map(s => s.text).join('');
     case 'link':    return value.url;
+    case 'image':   return value.images.length > 0 ? `[${value.images.length}张图片]` : '';
   }
 }
 
@@ -620,6 +639,19 @@ export type ActiveSheetType = 'freeform' | 'base';
  */
 export type SheetType = 'standard' | 'freeform' | 'base';
 
+/** 浮动图片 */
+export interface FloatingImage {
+  id: string;
+  imageUrl: string;
+  row: number;
+  col: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  sheetId: string;
+}
+
 export interface SheetModelBase {
   sheetId: string;
   name: string;
@@ -634,6 +666,7 @@ export interface SheetModelBase {
   defaultStyle: CellStyle;
   freezeState: FreezeState;
   charts: import('../chart/types').ChartInstance[];
+  floatingImages?: FloatingImage[];
 }
 
 /** 普通表格模型 */
@@ -851,3 +884,9 @@ export type {
   DashboardWidget,
   DashboardModel,
 } from './dashboard';
+
+// ==================== 评论高亮颜色 ====================
+
+/** 与 doc/comments 视觉对齐 — 同时供 core-doc 和 core-sheet 使用，避免循环依赖 */
+export const DOC_COMMENT_HIGHLIGHT_SELECTED_BG = '#FFF5B8';
+export const DOC_COMMENT_HIGHLIGHT_IDLE_BG = 'rgba(255, 237, 150, 0.38)';

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import {
   Badge,
   Button,
@@ -40,6 +40,7 @@ import { useSheetStore } from '../../store/sheetStore';
 import { FieldManagePopover } from '../FieldManagePopover';
 import type { FreeTable } from '@lingyi-doc/core-sheet';
 import type { ColumnDef, GroupRule, FilterCondition, SortRule } from '@lingyi-doc/core-types';
+import { getCellText } from '@lingyi-doc/core-types';
 import { BASE_THEME, isGroupableColumn } from '@lingyi-doc/core-sheet';
 import { isBaseSheet } from '@lingyi-doc/core-types';
 import { baseSheetPopoverProps, baseSheetSelectProps, baseToolbarBtnActiveStyle } from '../base/baseAntdConfig';
@@ -277,6 +278,99 @@ function toolbarBtnStyle(active?: boolean): React.CSSProperties {
   return active ? { ...baseToolbarBtnActiveStyle } : {};
 }
 
+interface FindPanelProps {
+  findOpen: boolean;
+  setFindOpen: (open: boolean) => void;
+  findQuery: string;
+  onFindQueryChange: (value: string) => void;
+  onFind: () => void;
+  onFindPrev: () => void;
+  onFindNext: () => void;
+}
+
+const FindPanel: React.FC<FindPanelProps> = ({
+  findOpen,
+  setFindOpen,
+  findQuery,
+  onFindQueryChange,
+  onFind,
+  onFindPrev,
+  onFindNext,
+}) => {
+  const findMatches = useSheetStore(s => s.findMatches);
+  const findActiveIndex = useSheetStore(s => s.findActiveIndex);
+
+  return (
+    <Popover
+      open={findOpen}
+      onOpenChange={setFindOpen}
+      trigger="click"
+      placement="bottomLeft"
+      title={
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <SearchOutlined style={{ color: '#999' }} />
+          <span>查找</span>
+        </div>
+      }
+      content={
+        <div style={{ width: 280 }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <Input
+              size="small"
+              placeholder="输入查找内容"
+              value={findQuery}
+              onChange={e => onFindQueryChange(e.target.value)}
+              onPressEnter={onFind}
+              autoFocus
+              style={{ flex: 1 }}
+            />
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: 4,
+              color: '#999',
+              fontSize: 12,
+              flexShrink: 0,
+            }}>
+              <Button
+                type="text"
+                size="small"
+                icon={<ArrowUpOutlined />}
+                onClick={onFindPrev}
+                disabled={findMatches.length === 0}
+                style={{ padding: '0 4px', minWidth: 'auto' }}
+              />
+              <span style={{ minWidth: 40, textAlign: 'center' }}>
+                {findMatches.length > 0 ? `${findActiveIndex + 1}/${findMatches.length}` : '0/0'}
+              </span>
+              <Button
+                type="text"
+                size="small"
+                icon={<ArrowDownOutlined />}
+                onClick={onFindNext}
+                disabled={findMatches.length === 0}
+                style={{ padding: '0 4px', minWidth: 'auto' }}
+              />
+            </div>
+          </div>
+          {findMatches.length === 0 && findQuery.trim() && (
+            <div style={{ color: '#999', fontSize: 12, marginTop: 8, textAlign: 'center' }}>
+              未找到匹配项
+            </div>
+          )}
+        </div>
+      }
+    >
+      <Button
+        type="text"
+        size="small"
+        icon={<SearchOutlined />}
+        style={findOpen ? baseToolbarBtnActiveStyle : undefined}
+      />
+    </Popover>
+  );
+};
+
 export const BaseToolbar: React.FC<BaseToolbarProps> = ({
   table, onToggleFieldVisibility, onReorderFields,
   onConfirmField, onDeleteField, onAddRecord, onGenerateForm, recordCount, filteredRecordCount, selectedCount = 0,
@@ -314,6 +408,9 @@ export const BaseToolbar: React.FC<BaseToolbarProps> = ({
   const titleFieldId = columnDefs.find(c => !c.hidden)?.id;
   const [activePopover, setActivePopover] = useState<PopoverKey | null>(null);
   const [findQuery, setFindQuery] = useState('');
+  const [findOpen, setFindOpen] = useState(false);
+  const [findMatches, setFindMatches] = useState<Array<{ row: number; col: number }>>([]);
+  const [findIndex, setFindIndex] = useState(0);
   const [autoSort, setAutoSort] = useState(true);
   const [rowHeightMode, setRowHeightMode] = useState<'compact' | 'standard' | 'loose'>(() =>
     rowHeightToMode(table.getDefaultRowHeight()),
@@ -339,26 +436,64 @@ export const BaseToolbar: React.FC<BaseToolbarProps> = ({
 
   const handleFind = useCallback(() => {
     if (!findQuery.trim()) {
-      setStatusText('请输入查找内容');
+      useSheetStore.getState().setFindHighlights(false);
       return;
     }
     const query = findQuery.trim().toLowerCase();
+    const matches: Array<{ row: number; col: number }> = [];
+    
     for (let r = 0; r < table.rowCount; r++) {
       for (let c = 0; c < table.colCount; c++) {
         const cell = table.getCell(r, c);
-        const text = cell?.value ? String(cell.value) : '';
+        const text = cell?.value ? getCellText(cell.value) : '';
         if (text.toLowerCase().includes(query)) {
-          useSheetStore.getState().setSelection(
-            { sheetId: table.sheetId, start: { row: r, col: c }, end: { row: r, col: c } },
-            { row: r, col: c },
-          );
-          setStatusText(`找到匹配项 (第 ${r + 1} 行, 列 ${String.fromCharCode(65 + c)})`);
-          return;
+          matches.push({ row: r, col: c });
         }
       }
     }
-    setStatusText('未找到匹配项');
+    
+    if (matches.length > 0) {
+      useSheetStore.getState().setFindHighlights(true, matches, 0);
+      const first = matches[0];
+      useSheetStore.getState().setSelection(
+        { sheetId: table.sheetId, start: first, end: first },
+        first,
+      );
+    } else {
+      useSheetStore.getState().setFindHighlights(false);
+    }
   }, [findQuery, table, setStatusText]);
+
+  const handleFindPrev = useCallback(() => {
+    const { findMatches, findActiveIndex } = useSheetStore.getState();
+    if (findMatches.length === 0) return;
+    const newIndex = findActiveIndex > 0 ? findActiveIndex - 1 : findMatches.length - 1;
+    useSheetStore.getState().setFindActiveIndex(newIndex);
+    const coord = findMatches[newIndex];
+    useSheetStore.getState().setSelection(
+      { sheetId: table.sheetId, start: coord, end: coord },
+      coord,
+    );
+  }, [table, setStatusText]);
+
+  const handleFindNext = useCallback(() => {
+    const { findMatches, findActiveIndex } = useSheetStore.getState();
+    if (findMatches.length === 0) return;
+    const newIndex = findActiveIndex < findMatches.length - 1 ? findActiveIndex + 1 : 0;
+    useSheetStore.getState().setFindActiveIndex(newIndex);
+    const coord = findMatches[newIndex];
+    useSheetStore.getState().setSelection(
+      { sheetId: table.sheetId, start: coord, end: coord },
+      coord,
+    );
+  }, [table, setStatusText]);
+
+  const handleFindQueryChange = useCallback((value: string) => {
+    setFindQuery(value);
+    if (!value.trim()) {
+      useSheetStore.getState().setFindHighlights(false);
+    }
+  }, []);
 
   const handleAddFilter = useCallback(() => {
     if (!columnDefs.length || !onFilterChange) return;
@@ -848,15 +983,14 @@ export const BaseToolbar: React.FC<BaseToolbarProps> = ({
 
       {isEmbed && <Divider type="vertical" style={{ height: 18, margin: '0 4px' }} />}
 
-      <Input
-        size="small"
-        allowClear
-        prefix={<SearchOutlined style={{ color: BASE_THEME.secondaryTextColor }} />}
-        placeholder="查找"
-        value={findQuery}
-        onChange={e => setFindQuery(e.target.value)}
-        onPressEnter={handleFind}
-        style={{ width: isEmbed ? 140 : 180 }}
+      <FindPanel
+        findOpen={findOpen}
+        setFindOpen={setFindOpen}
+        findQuery={findQuery}
+        onFindQueryChange={handleFindQueryChange}
+        onFind={handleFind}
+        onFindPrev={handleFindPrev}
+        onFindNext={handleFindNext}
       />
 
       <Flex align="center" gap={4} style={{ marginLeft: 'auto' }}>

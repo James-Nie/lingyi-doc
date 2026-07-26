@@ -1,4 +1,4 @@
-import { CellData, CellCoord, CellRange, CellStyle, CellValue, ColumnDef, SelectOption, getCellText, getCellAlign, DEFAULT_CELL_STYLE, DEFAULT_COLUMN_WIDTH, DEFAULT_ROW_HEIGHT, NumberFormat, DateFormat } from '@lingyi-doc/core-types';
+import { CellData, CellCoord, CellRange, CellStyle, CellValue, ImageValue, ColumnDef, SelectOption, getCellText, getCellAlign, DEFAULT_CELL_STYLE, DEFAULT_COLUMN_WIDTH, DEFAULT_ROW_HEIGHT, NumberFormat, DateFormat } from '@lingyi-doc/core-types';
 import { findSelectOption, getSelectDisplayName, parseMultiSelectOptionIds } from '../utils/selectOptions';
 import { getRatingConfig, parseRatingValue, computeRatingLayout, getRatingItemColors } from '../utils/ratingConfig';
 import {
@@ -15,9 +15,13 @@ import { ViewportManager, VisibleRange } from './index';
 import { getSelectTagColors } from './baseTheme';
 import { formatColumnDateString } from '../utils/columnDateFormat';
 import { getPersonAvatarText } from '../utils/recordHistory';
+import { drawStar, drawPaperclip } from '../utils/canvasShapes';
 
 // ==================== AsyncAssetManager ====================
 
+/**
+ * 异步加载图片的管理器
+ */
 export class AsyncAssetManager {
   private _imageCache = new Map<string, ImageBitmap>();
   private _pendingLoads = new Set<string>();
@@ -119,6 +123,19 @@ export class BaseCellRenderer {
 
   // ─── 公共入口：根据字段类型路由到对应绘制方法 ───
 
+  /**
+   * 
+   * @param ctx 
+   * @param coord 
+   * @param cellData 
+   * @param columnDef 
+   * @param columnWidths 
+   * @param rowHeights 
+   * @param mergeRanges 
+   * @param contentInsetLeft 
+   * @param options 
+   * @returns 
+   */
   drawBaseCellContent(
     ctx: CanvasRenderingContext2D,
     coord: CellCoord,
@@ -164,7 +181,13 @@ export class BaseCellRenderer {
         this._drawDateCell(ctx, value, columnDef, drawRect);
         break;
       case 'multilineText': this._drawMultilineText(ctx, value, cellData.style, drawRect); break;
-      default:             this._drawDefaultText(ctx, value, cellData.style, drawRect); break;
+      default:
+        if (value.type === 'image') {
+          this._drawImage(ctx, value, drawRect);
+        } else {
+          this._drawDefaultText(ctx, value, cellData.style, drawRect);
+        }
+        break;
     }
 
     ctx.restore();
@@ -598,8 +621,13 @@ export class BaseCellRenderer {
     }
   }
 
-  // ─── 评分 ───
-
+  /**
+   * 绘制评分 
+   * @param ctx Canvas 上下文
+   * @param value 评分值
+   * @param columnDef 列定义
+   * @param rect 绘制矩形
+   */
   private _drawRating(
     ctx: CanvasRenderingContext2D,
     value: CellValue,
@@ -622,7 +650,18 @@ export class BaseCellRenderer {
     }
   }
 
-  /** 绘制单个评分项（图示样式：彩色激活 / 灰色未激活，无圆形底） */
+  /**
+   * 绘制单个评分项（图示样式：彩色激活 / 灰色未激活，无圆形底）
+   * @param ctx Canvas 上下文
+   * @param x 评分项中心 x 坐标
+   * @param y 评分项中心 y 坐标
+   * @param size 评分项大小
+   * @param filled 是否填充
+   * @param halfFilled 是否半填充
+   * @param config 评分配置
+   * @param itemValue 评分项值
+   * @param zoom 缩放比例
+   */
   private _drawRatingItem(
     ctx: CanvasRenderingContext2D,
     x: number,
@@ -643,6 +682,7 @@ export class BaseCellRenderer {
     ctx.save();
 
     if (iconDef.isNumber) {
+      // 数字样式：圆角背景 + 数字
       const r = 2 * zoom;
       ctx.beginPath();
       ctx.roundRect(x, y + (size - size * 0.85) / 2, size, size * 0.85, r);
@@ -653,27 +693,12 @@ export class BaseCellRenderer {
       ctx.textBaseline = 'middle';
       ctx.fillStyle = active ? '#FFFFFF' : '#999999';
       ctx.fillText(String(itemValue), cx, cy);
-    } else if (config.iconKey === 'star') {
-      const outerR = size / 2 - 1 * zoom;
-      if (halfFilled) {
-        this._drawStarShape(ctx, cx, cy, outerR, false, iconDef.inactiveColor);
-        ctx.save();
-        ctx.beginPath();
-        ctx.rect(x, y, size / 2, size);
-        ctx.clip();
-        this._drawStarShape(ctx, cx, cy, outerR, true, iconDef.activeColor);
-        ctx.restore();
-      } else {
-        this._drawStarShape(ctx, cx, cy, outerR, active, colors.color);
-      }
-    } else if (iconDef.useEmoji) {
-      if (!active) ctx.filter = 'grayscale(1)';
-      ctx.globalAlpha = active ? 1 : 0.35;
-      ctx.font = `${Math.max(8, size * 0.75)}px Arial, sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(iconDef.char, cx, cy + size * 0.02);
     } else {
+      // 字符/emoji 样式：统一处理
+      if (!active && iconDef.useEmoji) {
+        ctx.filter = 'grayscale(1)';
+        ctx.globalAlpha = 0.35;
+      }
       ctx.font = `${Math.max(8, size * 0.75)}px Arial, sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
@@ -693,21 +718,7 @@ export class BaseCellRenderer {
     filled: boolean,
     color: string,
   ): void {
-    const innerR = outerR * 0.4;
-    const points = 5;
-
-    ctx.beginPath();
-    for (let i = 0; i < points * 2; i++) {
-      const r = i % 2 === 0 ? outerR : innerR;
-      const angle = (Math.PI / points) * i - Math.PI / 2;
-      const px = cx + Math.cos(angle) * r;
-      const py = cy + Math.sin(angle) * r;
-      if (i === 0) ctx.moveTo(px, py);
-      else ctx.lineTo(px, py);
-    }
-    ctx.closePath();
-    ctx.fillStyle = color;
-    ctx.fill();
+    drawStar(ctx, cx, cy, outerR, filled, color);
     if (filled) {
       ctx.strokeStyle = '#D4A000';
       ctx.lineWidth = 0.5;
@@ -1001,5 +1012,103 @@ export class BaseCellRenderer {
     const color = colors[Math.abs(hash) % colors.length];
     this._userColorCache.set(userId, color);
     return color;
+  }
+
+  // ─── 图片渲染 ───
+
+  private _drawImage(
+    ctx: CanvasRenderingContext2D,
+    value: ImageValue,
+    rect: BaseCellRect,
+  ): void {
+    if (value.images.length === 0) return;
+
+    const zoom = this._getZoom();
+    const padding = this._getPadding();
+    const assetManager = this._assetManager;
+
+    // 单张图片：居中渲染
+    if (value.images.length === 1) {
+      this._drawSingleImage(ctx, value.images[0], rect, padding, zoom, assetManager);
+      return;
+    }
+
+    // 多张图片：横向排列，带间距
+    const gap = 4 * zoom;
+    const imageHeight = rect.height - padding * 2;
+    const imageWidth = imageHeight; // 正方形缩略图
+    const totalWidth = value.images.length * imageWidth + (value.images.length - 1) * gap;
+    const startX = rect.x + (rect.width - totalWidth) / 2;
+
+    value.images.forEach((image, index) => {
+      const x = startX + index * (imageWidth + gap);
+      const y = rect.y + padding;
+
+      // 绘制背景
+      ctx.fillStyle = '#f5f5f5';
+      ctx.fillRect(x, y, imageWidth, imageHeight);
+
+      // 绘制边框
+      ctx.strokeStyle = '#e0e0e0';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x + 0.5, y + 0.5, imageWidth - 1, imageHeight - 1);
+
+      // 尝试绘制图片
+      if (assetManager) {
+        const bitmap = assetManager.getImage(image.url);
+        if (bitmap) {
+          const scale = Math.min(imageWidth / bitmap.width, imageHeight / bitmap.height);
+          const drawWidth = bitmap.width * scale;
+          const drawHeight = bitmap.height * scale;
+          const drawX = x + (imageWidth - drawWidth) / 2;
+          const drawY = y + (imageHeight - drawHeight) / 2;
+          ctx.drawImage(bitmap, drawX, drawY, drawWidth, drawHeight);
+        } else {
+          assetManager.loadImage(image.url);
+          // 绘制加载占位符
+          ctx.fillStyle = '#ddd';
+          ctx.fillRect(x + 4, y + 4, imageWidth - 8, imageHeight - 8);
+        }
+      } else {
+        ctx.fillStyle = '#ddd';
+        ctx.fillRect(x + 4, y + 4, imageWidth - 8, imageHeight - 8);
+      }
+    });
+  }
+
+  private _drawSingleImage(
+    ctx: CanvasRenderingContext2D,
+    image: import('@lingyi-doc/core-types').CellImage,
+    rect: BaseCellRect,
+    padding: number,
+    zoom: number,
+    assetManager?: AsyncAssetManager,
+  ): void {
+    const maxWidth = rect.width - padding * 2;
+    const maxHeight = rect.height - padding * 2;
+
+    if (assetManager) {
+      const bitmap = assetManager.getImage(image.url);
+      if (bitmap) {
+        const scale = Math.min(maxWidth / bitmap.width, maxHeight / bitmap.height);
+        const drawWidth = bitmap.width * scale;
+        const drawHeight = bitmap.height * scale;
+        const x = rect.x + (rect.width - drawWidth) / 2;
+        const y = rect.y + (rect.height - drawHeight) / 2;
+        ctx.drawImage(bitmap, x, y, drawWidth, drawHeight);
+        return;
+      } else {
+        assetManager.loadImage(image.url);
+      }
+    }
+
+    // 占位符
+    ctx.fillStyle = '#f0f0f0';
+    ctx.fillRect(rect.x + padding, rect.y + padding, maxWidth, maxHeight);
+    ctx.fillStyle = '#999';
+    ctx.font = `${12 * zoom}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('🖼️', rect.x + rect.width / 2, rect.y + rect.height / 2);
   }
 }

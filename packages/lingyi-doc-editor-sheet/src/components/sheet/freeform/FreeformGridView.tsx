@@ -9,6 +9,7 @@ import { FreeformGridOverlays } from './FreeformGridOverlays';
 import { useSheetGridContext } from '../shared/SheetGridContext';
 import { SheetCanvasSurface } from '../shared/SheetCanvasSurface';
 import { SheetSharedOverlays } from '../shared/SheetSharedOverlays';
+import { FloatingImageLayer } from './FloatingImage';
 import { runSheetRenderPass } from '../shared/runSheetRenderPass';
 import type { SheetRenderPassContext } from '../shared/sheetRenderTypes';
 import type { SheetInteractionDeps } from '../shared/sheetInteraction.types';
@@ -695,6 +696,15 @@ export const FreeformGridView: React.FC<FreeformGridViewProps> = ({
         onCancelDeleteRows={handleCancelDeleteRows}
         extraScrollBottom={addRowsExtraScrollBottom}
         applyScroll={applyScroll}
+      />
+
+      <FloatingImageLayer
+        table={table}
+        viewportRef={viewportRef}
+        containerRef={containerRef}
+        scrollLeft={scrollLeft}
+        scrollTop={scrollTop}
+        zoomLevel={zoomLevel}
       />
     </div>
   );

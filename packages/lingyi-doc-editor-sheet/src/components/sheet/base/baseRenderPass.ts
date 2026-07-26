@@ -44,6 +44,14 @@ export function drawBaseBackgroundLayer(
   }
 }
 
+/**
+ * 绘制基础行高亮
+ * @param ctx 渲染上下文
+ * @param helpers 渲染帮助函数
+ * @param activeCellRow 活动单元格行索引
+ * @description 绘制基础行高亮
+ * @returns 无
+ */
 export function drawBaseRowHighlightLayer(
   ctx: SheetRenderPassContext,
   helpers: SheetRenderHelpers,
@@ -99,6 +107,13 @@ export function drawBaseRowHighlightLayer(
   }
 }
 
+/**
+ * 绘制基础内容
+ * @param ctx 渲染上下文
+ * @param helpers 渲染帮助函数
+ * @description 绘制基础内容
+ * @returns 无
+ */
 export function drawBaseContentLayer(
   ctx: SheetRenderPassContext,
   helpers: SheetRenderHelpers,
@@ -183,6 +198,13 @@ export function drawBaseContentLayer(
     );
   };
 
+  /**
+   * 绘制分布局行
+   * @param displayRow 显示行索引
+   * @param canvasCtx 画布上下文
+   * @description 绘制分布局行
+   * @returns 无
+   */
   const drawGroupLayoutRow = (displayRow: number, canvasCtx: CanvasRenderingContext2D) => {
     const layoutItem = groupLayout?.items[displayRow];
     if (!layoutItem) return;
@@ -225,6 +247,14 @@ export function drawBaseContentLayer(
     }
   };
 
+  /**
+   * 绘制记录行
+   * @param displayRow 显示行索引
+   * @param canvasCtx 画布上下文
+   * @param colRange 列范围
+   * @description 绘制记录行
+   * @returns 无
+   */
   const drawRecordRow = (displayRow: number, canvasCtx: CanvasRenderingContext2D, colRange: 'frozen' | 'scrollable' | 'all') => {
     const rowHeight = ctx.activeRowHeights.get(displayRow) ?? 0;
     if (rowHeight <= 0) return;
@@ -248,6 +278,7 @@ export function drawBaseContentLayer(
     }
   };
 
+  
   if (isGroupedView && groupLayout) {
     for (let r = visibleRange.startRow; r <= visibleRange.endRow; r++) {
       const item = groupLayout.items[r];
@@ -296,6 +327,13 @@ export function drawBaseContentLayer(
   }
 }
 
+/**
+ * 绘制基础分布卡片边框
+ * @param ctx 渲染上下文
+ * @param helpers 渲染帮助函数
+ * @description 绘制基础分布卡片边框
+ * @returns 无
+ */
 export function drawBaseGroupedCardBorders(
   ctx: SheetRenderPassContext,
   helpers: SheetRenderHelpers,
@@ -319,6 +357,14 @@ export function drawBaseGroupedCardBorders(
   });
 }
 
+/**
+ * 
+ * @param ctx 
+ * @param helpers 
+ * @param activeCellRow 
+ * @param selectedRows 
+ * @returns 
+ */
 export function drawBaseGroupedRowControls(
   ctx: SheetRenderPassContext,
   helpers: SheetRenderHelpers,

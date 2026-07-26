@@ -343,7 +343,7 @@ export const FormFieldCard: React.FC<FormFieldCardProps> = ({
           {item.required && <span style={{ color: '#F54A45', marginRight: 2 }}>*</span>}
           {questionDisplay}
         </span>
-        {isLocked && <span style={{ fontSize: 12 }} title="锁定">🔒</span>}
+        {isLocked && <span style={{ fontSize: 16 }} title="锁定">🔒</span>}
         <div style={{ marginLeft: 'auto' }}>
           <FieldActions
             item={item}

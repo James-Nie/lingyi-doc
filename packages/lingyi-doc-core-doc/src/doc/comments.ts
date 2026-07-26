@@ -2,6 +2,7 @@ import type { DocBlock, TextMark } from './types';
 import type { TextSelectionSlice } from './selectionFormat';
 import type { TabStop } from './tabStops';
 import { genBlockId, isTextBlock, normalizeMarks } from './utils';
+import { DOC_COMMENT_HIGHLIGHT_SELECTED_BG, DOC_COMMENT_HIGHLIGHT_IDLE_BG } from '@lingyi-doc/core-types';
 
 export interface DocCommentAnchor {
   blockId: string;
@@ -41,9 +42,8 @@ export interface DocCommentThread {
   createdAt: number;
 }
 
-export const DOC_COMMENT_HIGHLIGHT_SELECTED_BG = '#FFF5B8';
+// BG constants are defined in @lingyi-doc/core-types; borders remain doc-local
 export const DOC_COMMENT_HIGHLIGHT_SELECTED_BORDER = '#F7C900';
-export const DOC_COMMENT_HIGHLIGHT_IDLE_BG = 'rgba(255, 237, 150, 0.38)';
 export const DOC_COMMENT_HIGHLIGHT_IDLE_BORDER = 'rgba(247, 201, 0, 0.45)';
 
 export function genCommentId(): string {
