@@ -34,7 +34,6 @@ import { AsyncAssetManager } from './BaseCellRenderer';
 import { DOC_COMMENT_HIGHLIGHT_SELECTED_BG, DOC_COMMENT_HIGHLIGHT_IDLE_BG } from '@lingyi-doc/core-types';
 
 export interface CellRendererOptions {
-  viewportManager: ViewportManager;
   assetManager?: AsyncAssetManager;
 }
 
@@ -2289,6 +2288,14 @@ export class CellRenderer {
     }
   }
 
+  /**
+   * 多维表行头：父记录分支操作（+ | 分支数，靠右不与折叠三角重叠）
+   * @param ctx 上下文
+   * @param drawY 行头顶部 y 坐标
+   * @param h 行头高度
+   * @param zoom 缩放比例
+   * @param isChecked 是否选中
+   */
   protected _drawBaseRowHeaderHover(
     ctx: CanvasRenderingContext2D,
     drawY: number,

@@ -210,7 +210,7 @@ export class DocumentManager {
     return request<DocumentApiResponse>(`/docs/${docId}`);
   }
 
-  /** 按语雀风格路径加载文档（权限与 viewMode 由后端根据当前用户/分享 token 决定） */
+  /** 按路径加载文档（权限与 viewMode 由后端根据当前用户/分享 token 决定） */
   static async fetchDocumentByPath(
     spaceSlug: string,
     bookSlug: string,

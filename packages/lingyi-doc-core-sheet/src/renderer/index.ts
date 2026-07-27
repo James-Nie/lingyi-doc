@@ -7,8 +7,8 @@ export { CellRenderer } from './CellRenderer';
 export { CellRendererFreeform } from './CellRenderer.freeform';
 export { CellRendererBase } from './CellRenderer.base';
 
-// Re-export the original AsyncAssetManager type for compatibility
-export type { AsyncAssetManager } from './BaseCellRenderer';
+// Re-export the AsyncAssetManager class
+export { AsyncAssetManager } from './BaseCellRenderer';
 
 // Re-export types that might not be captured by * exports
 export type { VisibleRange, RenderConfig, LayerIndex, BaseRowHeaderAction } from './types';

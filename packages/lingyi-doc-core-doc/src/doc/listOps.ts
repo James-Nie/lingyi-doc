@@ -1,7 +1,7 @@
 import type { DocBlock, ListBlock, ListItem, ListType, OrderedListStyle, ParagraphBlock, TextMark } from './types';
 import { createEmptyParagraph, genBlockId, getOrderedNumFmtForLevel, splitMarks, stripLeadingNewlines } from './utils';
 
-/** 飞书式有序列表固定 3 级 */
+/** 有序列表固定 3 级 */
 export const MAX_LIST_LEVEL = 3;
 export const LIST_INDENT_PX = 24;
 
@@ -12,7 +12,7 @@ export function clampListLevel(level: number): number {
   return Math.min(Math.max(1, level), MAX_LIST_LEVEL);
 }
 
-/** 飞书 3 级无序符号：● / ○ / — */
+/** 3 级无序符号：● / ○ / — */
 export function getBulletMarkerForLevel(level: number): string {
   const lv = clampListLevel(level);
   if (lv === 1) return '●';

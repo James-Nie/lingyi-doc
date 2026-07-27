@@ -379,7 +379,7 @@ function mergePartialStyles(base: Partial<CellStyle>, extra?: Partial<CellStyle>
   return { ...base, ...extra };
 }
 
-/** 解析 Excel 剪贴板 HTML 中 <style> 块里的 .xlNN 等 CSS 类（飞书/Office 通用方案） */
+/** 解析 Excel 剪贴板 HTML 中 <style> 块里的 .xlNN 等 CSS 类 */
 function parseExcelStylesheet(doc: Document): Map<string, Partial<CellStyle>> {
   const classStyles = new Map<string, Partial<CellStyle>>();
 

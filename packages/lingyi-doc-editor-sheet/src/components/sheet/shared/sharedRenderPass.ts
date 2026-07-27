@@ -587,7 +587,7 @@ export function drawOverlayLayer(
     gridRowCount,
     sheet.columnWidths,
     sheet.rowHeights,
-    activeHoverRow !== null ? [activeHoverRow] : undefined,
+    activeHoverRow,
     selectedRows,
     isGroupedView ? [] : checkedRowsForRender,
     isGroupedView ? undefined : rowTreeMeta,

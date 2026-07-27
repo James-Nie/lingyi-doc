@@ -23,7 +23,7 @@ function rectsIntersect(
 }
 
 /**
- * 将选区扩展为完整包含所有与之相交的合并区域（飞书/Excel 风格）。
+ * 将选区扩展为完整包含所有与之相交的合并区域（Excel 风格）。
  * 避免出现「只选中合并单元格一部分」的非法选区。
  */
 export function normalizeSelectionForMerges(

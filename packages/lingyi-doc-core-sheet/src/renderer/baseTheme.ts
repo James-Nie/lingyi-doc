@@ -1,4 +1,4 @@
-/** 多维表视觉规范（对齐飞书多维表格） */
+/** 多维表视觉规范 */
 export const BASE_THEME = {
   pageBg: '#F7F8FA',
   cardBg: '#FFFFFF',

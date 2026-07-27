@@ -847,7 +847,7 @@ export function supportsBlockHandle(block: DocBlock): boolean {
   return block.type === 'paragraph' || block.type === 'heading' || block.type === 'table' || block.type === 'base' || block.type === 'whiteboard';
 }
 
-/** 罗马数字（1–3999，飞书 3 级列表用 i / ii / iii） */
+/** 罗马数字（1–3999， 3 级列表用 i / ii / iii） */
 export function toRomanNumeral(n: number, upper = false): string {
   if (n <= 0 || n >= 4000) return String(n);
   const vals = [1000, 900, 500, 400, 100, 90, 50, 40, 10, 9, 5, 4, 1];
@@ -902,7 +902,7 @@ function formatListCounter(numFmt: string | undefined, counter: number): string 
   }
 }
 
-/** 飞书 3 级编号：1→decimal / 2→lowerLetter / 3→lowerRoman */
+/** 3 级编号：1→decimal / 2→lowerLetter / 3→lowerRoman */
 export function getOrderedNumFmtForLevel(level: number, style: OrderedListStyle = 'multiLevel'): string {
   const lv = Math.min(Math.max(1, level), 3);
   if (style === 'chinese') {
