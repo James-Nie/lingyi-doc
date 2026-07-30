@@ -16,6 +16,12 @@ interface BoardElementViewProps {
   onCellChange?: (id: string, row: number, col: number, value: string) => void;
 }
 
+/**
+ * 绘制形状元素
+ * @param param0 形状元素
+ * @param param0.el 形状元素
+ * @returns 形状元素的视图
+ */
 function ShapeView({ el }: { el: ShapeElement }) {
   const common: React.CSSProperties = {
     width: '100%',
@@ -32,6 +38,7 @@ function ShapeView({ el }: { el: ShapeElement }) {
   };
 
   switch (el.shapeKind) {
+    // 椭圆
     case 'ellipse':
       return (
         <div style={{
@@ -43,6 +50,7 @@ function ShapeView({ el }: { el: ShapeElement }) {
           {el.text}
         </div>
       );
+    // 钻石形
     case 'diamond':
       return (
         <div style={{ width: '100%', height: '100%', position: 'relative' }}>
@@ -56,6 +64,7 @@ function ShapeView({ el }: { el: ShapeElement }) {
           <div style={{ ...common, position: 'relative', zIndex: 1 }}>{el.text}</div>
         </div>
       );
+    // 圆角矩形
     case 'roundRect':
       return (
         <div style={{
@@ -67,6 +76,7 @@ function ShapeView({ el }: { el: ShapeElement }) {
           {el.text}
         </div>
       );
+    // 三角形
     case 'triangle':
       return (
         <svg width="100%" height="100%" viewBox="0 0 100 80" preserveAspectRatio="none">
@@ -76,6 +86,7 @@ function ShapeView({ el }: { el: ShapeElement }) {
           )}
         </svg>
       );
+    // 气泡
     case 'speechBubble':
       return (
         <div style={{

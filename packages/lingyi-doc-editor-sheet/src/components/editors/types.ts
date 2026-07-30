@@ -4,6 +4,7 @@ import type { DocCommentThread } from '@lingyi-doc/core-doc';
 import type { BaseViewType } from '@lingyi-doc/core-types';
 import type { FormSharePanelContext } from '../base/FormViewToolbar';
 import type { SheetCommentRequest } from '@lingyi-doc/editor-shared';
+import type { Dayjs } from 'dayjs';
 
 export interface SheetEditorProps {
   table: FreeTable;
@@ -27,6 +28,7 @@ export interface BaseSheetEditorProps extends SheetEditorProps {
   currentView: BaseViewType;
   activeFormView: BaseView | null;
   activeKanbanView?: BaseView | null;
+  activeCalendarView?: BaseView | null;
   onSelectView: (viewId: string) => void;
   onCreateView?: (viewType: BaseViewType) => void;
   onRenameView?: (viewId: string, name: string) => void;
@@ -34,6 +36,20 @@ export interface BaseSheetEditorProps extends SheetEditorProps {
   onDeleteView?: (viewId: string) => void;
   onFormViewChange: () => void;
   onKanbanViewChange?: () => void;
+  onCalendarViewChange?: () => void;
+  /** 日历视图数据版本号，用于触发数据刷新 */
+  calendarDataVersion?: number;
+  /** 日历视图：当前日期 */
+  calendarCurrentDate?: Dayjs;
+  onCalendarCurrentDateChange?: (date: Dayjs) => void;
+  /** 日历视图：视图类型 */
+  calendarViewType?: 'month' | 'week' | 'day';
+  onCalendarViewTypeChangeExternal?: (type: 'month' | 'week' | 'day') => void;
+  /** 日历视图：无日期抽屉 */
+  calendarNoDateDrawerOpen?: boolean;
+  onCalendarNoDateDrawerOpenChange?: (open: boolean) => void;
+  /** 日历视图：无日期记录数量变化 */
+  onCalendarNoDateCountChange?: (count: number) => void;
   /** 当前视图顶部工具栏（与内容区同列，不含左侧视图切换） */
   toolbar?: React.ReactNode;
   readOnly?: boolean;

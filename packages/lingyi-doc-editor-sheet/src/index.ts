@@ -66,6 +66,9 @@ export type {
 export type { PublicFormSchemaField } from './components/base/PublicFormFillView';
 export { DashboardEditor, ensureDashboardForSheet } from './dashboard';
 export type { DashboardEditorProps } from './dashboard';
+export { CalendarConfigPanel } from './components/sheet/calendar/CalendarConfigPanel';
+export { CalendarNavigationBar } from './components/sheet/calendar/CalendarNavigationBar';
+export { formatCalendarTitle } from './components/sheet/calendar/calendarUtils';
 export {
   registerWidgetConfigPanel,
   resolveWidgetConfigPanel,

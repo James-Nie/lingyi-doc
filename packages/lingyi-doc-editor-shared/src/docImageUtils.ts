@@ -2,6 +2,11 @@ import { DocumentManager } from '@lingyi-doc/core-client';
 
 const MAX_IMAGE_MB = 10;
 
+/**
+ * 读取图片文件为 Data URL
+ * @param file 图片文件
+ * @returns Data URL 字符串
+ */
 export function readFileAsDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -11,6 +16,11 @@ export function readFileAsDataUrl(file: File): Promise<string> {
   });
 }
 
+/**
+ * 加载图片尺寸
+ * @param url 图片 URL
+ * @returns 图片尺寸对象
+ */
 export function loadImageSize(url: string): Promise<{ width: number; height: number }> {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -20,6 +30,11 @@ export function loadImageSize(url: string): Promise<{ width: number; height: num
   });
 }
 
+/**
+ * 从剪贴板获取图片文件
+ * @param data 剪贴板数据
+ * @returns 图片文件（如果有）
+ */
 export function getImageFileFromClipboard(data: DataTransfer | null): File | null {
   if (!data) return null;
   const files = data.files;
@@ -40,6 +55,12 @@ export function getImageFileFromClipboard(data: DataTransfer | null): File | nul
   return null;
 }
 
+/**
+ * 验证图片文件
+ * @param file 图片文件
+ * @param maxMb 最大允许大小（MB）
+ * @returns 验证错误信息（如果有）
+ */
 export function validateImageFile(file: File, maxMb = MAX_IMAGE_MB): string | null {
   if (!file.type.startsWith('image/')) return '请选择图片文件';
   if (file.size > maxMb * 1024 * 1024) return `图片大小不能超过 ${maxMb}MB`;

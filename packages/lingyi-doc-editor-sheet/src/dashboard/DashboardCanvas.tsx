@@ -460,7 +460,8 @@ export const DashboardCanvas: React.FC<DashboardCanvasProps> = ({
                 rows={guideRows}
               />
             )}
-            {/* @ts-expect-error react-grid-layout types incompatible with React 18 refs */}
+            {/* react-grid-layout types incompatible with React 18 refs */}
+            {/* @ts-ignore */}
             <GridLayout
               className="dashboard-grid-layout"
               layout={liveLayout}

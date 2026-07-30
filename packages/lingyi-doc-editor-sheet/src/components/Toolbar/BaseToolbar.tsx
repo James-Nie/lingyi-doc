@@ -19,6 +19,7 @@ import {
   AppstoreOutlined,
   ArrowDownOutlined,
   ArrowUpOutlined,
+  CalendarOutlined,
   CloseOutlined,
   ColumnHeightOutlined,
   CommentOutlined,
@@ -34,6 +35,7 @@ import {
   SortAscendingOutlined,
   TableOutlined,
   UndoOutlined,
+  UnorderedListOutlined,
 } from '@ant-design/icons';
 import dayjs, { type Dayjs } from 'dayjs';
 import { useSheetStore } from '../../store/sheetStore';
@@ -78,8 +80,8 @@ interface BaseToolbarProps {
   mode?: 'full' | 'embed';
   /** embed 模式左侧标题，默认不展示「表格」文案 */
   embedTitle?: string;
-  /** grid=表格工具栏；kanban=看板工具栏（筛选/排序复用，分组改为分组依据） */
-  variant?: 'grid' | 'kanban';
+  /** grid=表格工具栏；kanban=看板工具栏；calendar=日历工具栏 */
+  variant?: 'grid' | 'kanban' | 'calendar';
   /** 看板：分组依据字段 */
   kanbanGroupFieldId?: string;
   onKanbanGroupFieldChange?: (fieldId: string) => void;
@@ -90,6 +92,23 @@ interface BaseToolbarProps {
   onKanbanShowFieldNamesChange?: (show: boolean) => void;
   kanbanCoverFieldId?: string | null;
   onKanbanCoverFieldIdChange?: (fieldId: string | null) => void;
+  /** 日历：日历配置点击 */
+  onCalendarConfigClick?: () => void;
+  /** 日历：配置弹层内容 */
+  calendarConfigContent?: React.ReactNode;
+  /** 日历：配置弹层标题 */
+  calendarConfigTitle?: string;
+  /** 日历：无日期记录数量 */
+  noDateCount?: number;
+  /** 日历：打开无日期记录抽屉 */
+  onOpenNoDate?: () => void;
+  /** 日历：导航标题（如 2025年7月） */
+  calendarTitle?: string;
+  /** 日历：切换视图类型 */
+  calendarViewType?: 'month' | 'week' | 'day';
+  onCalendarViewTypeChange?: (type: 'month' | 'week' | 'day') => void;
+  /** 日历：导航 */
+  onCalendarNavigate?: (direction: 'prev' | 'next' | 'today') => void;
   /** 评论功能开关 */
   commentsEnabled?: boolean;
   /** 评论面板是否已打开 */
@@ -98,7 +117,7 @@ interface BaseToolbarProps {
   onToggleCommentPanel?: () => void;
 }
 
-type PopoverKey = 'field' | 'view' | 'filter' | 'group' | 'sort' | 'rowHeight' | 'cardConfig' | 'kanbanGroup';
+type PopoverKey = 'field' | 'view' | 'filter' | 'group' | 'sort' | 'rowHeight' | 'cardConfig' | 'kanbanGroup' | 'calendarConfig';
 
 const ROW_HEIGHTS = { compact: 28, standard: 40, loose: 56 } as const;
 
@@ -389,12 +408,22 @@ export const BaseToolbar: React.FC<BaseToolbarProps> = ({
   onKanbanShowFieldNamesChange,
   kanbanCoverFieldId = null,
   onKanbanCoverFieldIdChange,
+  onCalendarConfigClick,
+  calendarConfigContent,
+  calendarConfigTitle,
+  noDateCount = 0,
+  onOpenNoDate,
+  calendarTitle,
+  calendarViewType,
+  onCalendarViewTypeChange,
+  onCalendarNavigate,
   commentsEnabled = false,
   commentPanelOpen = false,
   onToggleCommentPanel,
 }) => {
   const isEmbed = mode === 'embed';
   const isKanban = variant === 'kanban';
+  const isCalendar = variant === 'calendar';
   const setStatusText = useSheetStore(s => s.setStatusText);
   const zoomLevel = useSheetStore(s => s.zoomLevel);
   const setZoomLevel = useSheetStore(s => s.setZoomLevel);
@@ -794,88 +823,39 @@ export const BaseToolbar: React.FC<BaseToolbarProps> = ({
     count > 0 ? <Badge count={count} size="small" style={{ marginLeft: 4 }} /> : null
   );
 
-  return (
-    <Flex
-      data-sheet-keep-selection
-      align="center"
-      wrap="wrap"
-      gap={6}
-      style={{
-        padding: isEmbed ? '6px 12px' : '8px 16px',
-        borderBottom: `1px solid ${BASE_THEME.toolbarBorder}`,
-        background: BASE_THEME.toolbarBg,
-        minHeight: isEmbed ? 40 : 44,
-        userSelect: 'none',
-        position: 'relative',
-        fontFamily: BASE_THEME.fontFamily,
-      }}
-    >
-      {!isEmbed && (
-        <>
-          <Space size={6} align="center" style={{ marginRight: 6, flexShrink: 0 }}>
-            {isKanban
-              ? <AppstoreOutlined style={{ color: BASE_THEME.secondaryTextColor, fontSize: 14 }} />
-              : <TableOutlined style={{ color: BASE_THEME.secondaryTextColor, fontSize: 14 }} />}
-            <Typography.Text strong style={{ fontSize: 14 }}>{isKanban ? '看板' : '表格'}</Typography.Text>
-          </Space>
-          <Divider type="vertical" style={{ height: 20, margin: '0 6px' }} />
-          {isKanban ? (
-            sheet && onKanbanCardFieldsChange && onKanbanShowFieldNamesChange && onKanbanCoverFieldIdChange && renderToolbarPopover(
-              'cardConfig',
-              <><ProfileOutlined /> 卡片配置</>,
-              <KanbanCardConfigPopover
-                columnDefs={sheet.columnDefs}
-                titleFieldId={titleFieldId}
-                cardFieldIds={kanbanCardFields ?? []}
-                showFieldNames={kanbanShowFieldNames}
-                coverFieldId={kanbanCoverFieldId}
-                onChangeCardFields={onKanbanCardFieldsChange}
-                onChangeShowFieldNames={onKanbanShowFieldNamesChange}
-                onChangeCoverFieldId={onKanbanCoverFieldIdChange}
-              />,
-              { title: panelTitle('卡片配置'), width: 320 },
-            )
-          ) : (
-            <>
-              {sheet && onToggleFieldVisibility && onReorderFields && onConfirmField && onDeleteField && renderToolbarPopover(
-                'field',
-                <><SettingOutlined /> 字段配置</>,
-                <FieldManagePopover
-                  columnDefs={sheet.columnDefs}
-                  onToggleFieldVisibility={onToggleFieldVisibility}
-                  onReorderFields={onReorderFields}
-                  onConfirmField={onConfirmField}
-                  onDeleteField={onDeleteField}
-                />,
-                { width: 290, bodyPadding: 0 },
-              )}
-              {renderToolbarPopover(
-                'view',
-                <><EyeOutlined /> 视图配置</>,
-                <Flex align="center" justify="space-between" gap={12} style={{ width: 328 }}>
-                  <Typography.Text type="secondary" style={{ flexShrink: 0 }}>选择父记录字段</Typography.Text>
-                  <Select
-                    {...baseSheetSelectProps}
-                    style={{ flex: 1 }}
-                    placeholder="请选择父记录"
-                    allowClear
-                    options={fieldOptions}
-                  />
-                </Flex>,
-                { title: panelTitle('视图配置'), width: 360 },
-              )}
-            </>
-          )}
-          <Divider type="vertical" style={{ height: 20, margin: '0 6px' }} />
-        </>
+  const renderCalendarVariant = () => (
+    <>
+      <Space size={6} align="center" style={{ marginRight: 6, flexShrink: 0 }}>
+        <CalendarOutlined style={{ color: BASE_THEME.secondaryTextColor, fontSize: 14 }} />
+        <Typography.Text strong style={{ fontSize: 14 }}>日历</Typography.Text>
+      </Space>
+      <Divider type="vertical" style={{ height: 20, margin: '0 6px' }} />
+
+      {sheet && onToggleFieldVisibility && onReorderFields && onConfirmField && onDeleteField && renderToolbarPopover(
+        'field',
+        <><SettingOutlined /> 字段管理</>,
+        <FieldManagePopover
+          columnDefs={sheet.columnDefs}
+          onToggleFieldVisibility={onToggleFieldVisibility}
+          onReorderFields={onReorderFields}
+          onConfirmField={onConfirmField}
+          onDeleteField={onDeleteField}
+        />,
+        { width: 290, bodyPadding: 0 },
       )}
 
-      {isEmbed && embedTitle ? (
-        <>
-          <Typography.Text strong style={{ fontSize: 13, marginRight: 4 }}>{embedTitle}</Typography.Text>
-          <Divider type="vertical" style={{ height: 18, margin: '0 4px' }} />
-        </>
-      ) : null}
+      {renderToolbarPopover(
+        'calendarConfig',
+        <><SettingOutlined /> 日历配置</>,
+        calendarConfigContent || (
+          <div style={{ padding: '12px 16px', minWidth: 280 }}>
+            <Typography.Text type="secondary">点击"日历配置"按钮可配置日期字段、卡片颜色等</Typography.Text>
+          </div>
+        ),
+        { title: panelTitle(calendarConfigTitle || '日历配置'), width: 320 },
+      )}
+
+      <Divider type="vertical" style={{ height: 20, margin: '0 6px' }} />
 
       {renderToolbarPopover(
         'filter',
@@ -886,37 +866,6 @@ export const BaseToolbar: React.FC<BaseToolbarProps> = ({
           width: 480,
           active: activePopover === 'filter' || filterConditions.length > 0,
         },
-      )}
-
-      {isKanban ? (
-        renderToolbarPopover(
-          'kanbanGroup',
-          <><AppstoreOutlined /> 分组依据{kanbanGroupFieldName ? ` ${kanbanGroupFieldName}` : ''}</>,
-          <KanbanGroupFieldPopover
-            columnDefs={columnDefs}
-            groupFieldId={kanbanGroupFieldId}
-            onSelect={fieldId => {
-              onKanbanGroupFieldChange?.(fieldId);
-              closePopover();
-            }}
-          />,
-          {
-            title: panelTitle('分组依据'),
-            width: 260,
-            active: activePopover === 'kanbanGroup' || !!kanbanGroupFieldId,
-          },
-        )
-      ) : (
-        renderToolbarPopover(
-          'group',
-          <><AppstoreOutlined /> 分组{countBadge(groupRules.length)}</>,
-          groupPanel,
-          {
-            title: panelTitle('分组设置', groupRules.length > 0 ? () => onGroupRulesChange?.([]) : undefined),
-            width: 492,
-            active: activePopover === 'group' || groupRules.length > 0,
-          },
-        )
       )}
 
       {renderToolbarPopover(
@@ -938,46 +887,210 @@ export const BaseToolbar: React.FC<BaseToolbarProps> = ({
         },
       )}
 
-      {!isEmbed && !isKanban && (
+      {noDateCount > 0 ? (
         <>
-          <Divider type="vertical" style={{ height: 20, margin: '0 4px' }} />
-          {renderToolbarPopover('rowHeight', <><ColumnHeightOutlined /> 行高</>, rowHeightPanel, { title: panelTitle('行高') })}
-          <Divider type="vertical" style={{ height: 20, margin: '0 4px' }} />
-          <Button type="text" size="small" icon={<FormOutlined />} onClick={onGenerateForm}>
-            生成表单
+          <Divider type="vertical" style={{ height: 20, margin: '0 6px' }} />
+          <Button
+            type="text"
+            size="small"
+            icon={<UnorderedListOutlined />}
+            onClick={onOpenNoDate}
+          >
+            无日期的记录 ({noDateCount})
           </Button>
-          {commentsEnabled && onToggleCommentPanel && (
-            <Button
-              type="text"
-              size="small"
-              icon={<CommentOutlined />}
-              style={commentPanelOpen ? baseToolbarBtnActiveStyle : undefined}
-              onClick={onToggleCommentPanel}
-            >
-              评论
-            </Button>
-          )}
-          <Divider type="vertical" style={{ height: 20, margin: '0 4px' }} />
-          <Button type="text" size="small" icon={<UndoOutlined />} onClick={() => { table.undo(); setStatusText('已撤销'); }}>
-            撤销
-          </Button>
-          <Button type="text" size="small" icon={<RedoOutlined />} onClick={() => { table.redo(); setStatusText('已重做'); }}>
-            重做
-          </Button>
-          <Divider type="vertical" style={{ height: 20, margin: '0 4px' }} />
         </>
-      )}
+      ) : null}
+    </>
+  );
 
-      {!isEmbed && isKanban && (
+  return (
+    <Flex
+      data-sheet-keep-selection
+      align="center"
+      wrap="wrap"
+      gap={6}
+      style={{
+        padding: isEmbed ? '6px 12px' : '8px 16px',
+        borderBottom: `1px solid ${BASE_THEME.toolbarBorder}`,
+        background: BASE_THEME.toolbarBg,
+        minHeight: isEmbed ? 40 : 44,
+        userSelect: 'none',
+        position: 'relative',
+        fontFamily: BASE_THEME.fontFamily,
+      }}
+    >
+      {isCalendar && !isEmbed ? renderCalendarVariant() : (
         <>
-          <Divider type="vertical" style={{ height: 20, margin: '0 4px' }} />
-          <Button type="text" size="small" icon={<UndoOutlined />} onClick={() => { table.undo(); setStatusText('已撤销'); }}>
-            撤销
-          </Button>
-          <Button type="text" size="small" icon={<RedoOutlined />} onClick={() => { table.redo(); setStatusText('已重做'); }}>
-            重做
-          </Button>
-          <Divider type="vertical" style={{ height: 20, margin: '0 4px' }} />
+          {!isEmbed && (
+            <>
+              <Space size={6} align="center" style={{ marginRight: 6, flexShrink: 0 }}>
+                {isKanban
+                  ? <AppstoreOutlined style={{ color: BASE_THEME.secondaryTextColor, fontSize: 14 }} />
+                  : <TableOutlined style={{ color: BASE_THEME.secondaryTextColor, fontSize: 14 }} />}
+                <Typography.Text strong style={{ fontSize: 14 }}>{isKanban ? '看板' : '表格'}</Typography.Text>
+              </Space>
+              <Divider type="vertical" style={{ height: 20, margin: '0 6px' }} />
+              {isKanban ? (
+                sheet && onKanbanCardFieldsChange && onKanbanShowFieldNamesChange && onKanbanCoverFieldIdChange && renderToolbarPopover(
+                  'cardConfig',
+                  <><ProfileOutlined /> 卡片配置</>,
+                  <KanbanCardConfigPopover
+                    columnDefs={sheet.columnDefs}
+                    titleFieldId={titleFieldId}
+                    cardFieldIds={kanbanCardFields ?? []}
+                    showFieldNames={kanbanShowFieldNames}
+                    coverFieldId={kanbanCoverFieldId}
+                    onChangeCardFields={onKanbanCardFieldsChange}
+                    onChangeShowFieldNames={onKanbanShowFieldNamesChange}
+                    onChangeCoverFieldId={onKanbanCoverFieldIdChange}
+                  />,
+                  { title: panelTitle('卡片配置'), width: 320 },
+                )
+              ) : (
+                <>
+                  {sheet && onToggleFieldVisibility && onReorderFields && onConfirmField && onDeleteField && renderToolbarPopover(
+                    'field',
+                    <><SettingOutlined /> 字段配置</>,
+                    <FieldManagePopover
+                      columnDefs={sheet.columnDefs}
+                      onToggleFieldVisibility={onToggleFieldVisibility}
+                      onReorderFields={onReorderFields}
+                      onConfirmField={onConfirmField}
+                      onDeleteField={onDeleteField}
+                    />,
+                    { width: 290, bodyPadding: 0 },
+                  )}
+                  {renderToolbarPopover(
+                    'view',
+                    <><EyeOutlined /> 视图配置</>,
+                    <Flex align="center" justify="space-between" gap={12} style={{ width: 328 }}>
+                      <Typography.Text type="secondary" style={{ flexShrink: 0 }}>选择父记录字段</Typography.Text>
+                      <Select
+                        {...baseSheetSelectProps}
+                        style={{ flex: 1 }}
+                        placeholder="请选择父记录"
+                        allowClear
+                        options={fieldOptions}
+                      />
+                    </Flex>,
+                    { title: panelTitle('视图配置'), width: 360 },
+                  )}
+                </>
+              )}
+              <Divider type="vertical" style={{ height: 20, margin: '0 6px' }} />
+            </>
+          )}
+
+          {isEmbed && embedTitle ? (
+            <>
+              <Typography.Text strong style={{ fontSize: 13, marginRight: 4 }}>{embedTitle}</Typography.Text>
+              <Divider type="vertical" style={{ height: 18, margin: '0 4px' }} />
+            </>
+          ) : null}
+
+          {renderToolbarPopover(
+            'filter',
+            <><FilterOutlined /> 筛选{countBadge(filterConditions.length)}</>,
+            filterPanel,
+            {
+              title: panelTitle('筛选条件', filterConditions.length > 0 ? () => onFilterChange?.([]) : undefined),
+              width: 480,
+              active: activePopover === 'filter' || filterConditions.length > 0,
+            },
+          )}
+
+          {isKanban ? (
+            renderToolbarPopover(
+              'kanbanGroup',
+              <><AppstoreOutlined /> 分组依据{kanbanGroupFieldName ? ` ${kanbanGroupFieldName}` : ''}</>,
+              <KanbanGroupFieldPopover
+                columnDefs={columnDefs}
+                groupFieldId={kanbanGroupFieldId}
+                onSelect={fieldId => {
+                  onKanbanGroupFieldChange?.(fieldId);
+                  closePopover();
+                }}
+              />,
+              {
+                title: panelTitle('分组依据'),
+                width: 260,
+                active: activePopover === 'kanbanGroup' || !!kanbanGroupFieldId,
+              },
+            )
+          ) : (
+            renderToolbarPopover(
+              'group',
+              <><AppstoreOutlined /> 分组{countBadge(groupRules.length)}</>,
+              groupPanel,
+              {
+                title: panelTitle('分组设置', groupRules.length > 0 ? () => onGroupRulesChange?.([]) : undefined),
+                width: 492,
+                active: activePopover === 'group' || groupRules.length > 0,
+              },
+            )
+          )}
+
+          {renderToolbarPopover(
+            'sort',
+            <><SortAscendingOutlined /> 排序{countBadge(sortRules.length)}</>,
+            sortPanel,
+            {
+              title: (
+                <Flex justify="space-between" align="center" style={{ width: '100%', minHeight: 24, gap: 12 }}>
+                  <Typography.Text strong style={{ fontSize: 14 }}>设置排序条件</Typography.Text>
+                  <Space size={8} align="center">
+                    <Typography.Text type="secondary" style={{ fontSize: 13 }}>自动排序</Typography.Text>
+                    <Switch checked={autoSort} onChange={setAutoSort} />
+                  </Space>
+                </Flex>
+              ),
+              width: 472,
+              active: activePopover === 'sort' || sortRules.length > 0,
+            },
+          )}
+
+          {!isEmbed && !isKanban && (
+            <>
+              <Divider type="vertical" style={{ height: 20, margin: '0 4px' }} />
+              {renderToolbarPopover('rowHeight', <><ColumnHeightOutlined /> 行高</>, rowHeightPanel, { title: panelTitle('行高') })}
+              <Divider type="vertical" style={{ height: 20, margin: '0 4px' }} />
+              <Button type="text" size="small" icon={<FormOutlined />} onClick={onGenerateForm}>
+                生成表单
+              </Button>
+              {commentsEnabled && onToggleCommentPanel && (
+                <Button
+                  type="text"
+                  size="small"
+                  icon={<CommentOutlined />}
+                  style={commentPanelOpen ? baseToolbarBtnActiveStyle : undefined}
+                  onClick={onToggleCommentPanel}
+                >
+                  评论
+                </Button>
+              )}
+              <Divider type="vertical" style={{ height: 20, margin: '0 4px' }} />
+              <Button type="text" size="small" icon={<UndoOutlined />} onClick={() => { table.undo(); setStatusText('已撤销'); }}>
+                撤销
+              </Button>
+              <Button type="text" size="small" icon={<RedoOutlined />} onClick={() => { table.redo(); setStatusText('已重做'); }}>
+                重做
+              </Button>
+              <Divider type="vertical" style={{ height: 20, margin: '0 4px' }} />
+            </>
+          )}
+
+          {!isEmbed && isKanban && (
+            <>
+              <Divider type="vertical" style={{ height: 20, margin: '0 4px' }} />
+              <Button type="text" size="small" icon={<UndoOutlined />} onClick={() => { table.undo(); setStatusText('已撤销'); }}>
+                撤销
+              </Button>
+              <Button type="text" size="small" icon={<RedoOutlined />} onClick={() => { table.redo(); setStatusText('已重做'); }}>
+                重做
+              </Button>
+              <Divider type="vertical" style={{ height: 20, margin: '0 4px' }} />
+            </>
+          )}
         </>
       )}
 

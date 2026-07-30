@@ -26,6 +26,19 @@ interface ToolbarTooltipProps {
   twoLineTooltip?: boolean;
 }
 
+/**
+ * 工具提示
+ * @param label 标签
+ * @param shortcut 快捷键
+ * @param disabled 是否禁用
+ * @param active 是否激活
+ * @param children 子元素
+ * @param style 样式
+ * @param hideTooltip 不显示 tooltip，仅保留 hover 背景
+ * @param hoverBg 自定义 hover 背景色
+ * @param twoLineTooltip 双行 tooltip（名称 + 快捷键分行）
+ * @returns 工具提示组件
+ */
 export const ToolbarTooltip: React.FC<ToolbarTooltipProps> = ({
   label,
   shortcut,

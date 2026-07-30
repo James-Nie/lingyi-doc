@@ -43,6 +43,13 @@ export function isCollapsedDocSelection(sel: DocSelection | null): boolean {
   return isSameAnchor(sel.anchor, sel.focus);
 }
 
+/** 判断是否为块级选择（选择整个块，而非文本级选择） */
+export function isWholeBlockSelection(sel: DocSelection | null): boolean {
+  if (!sel) return false;
+  if (sel.anchor.kind !== 'block' || sel.focus.kind !== 'block') return false;
+  return sel.anchor.sub.kind === 'whole' && sel.focus.sub.kind === 'whole';
+}
+
 /** 将 anchor 映射为文档内有序位置（用于比较起止） */
 export function anchorToComparable(anchor: DocAnchor, blocks: DocBlock[]): number {
   if (anchor.kind === 'title') return -1 + anchor.offset * 1e-6;

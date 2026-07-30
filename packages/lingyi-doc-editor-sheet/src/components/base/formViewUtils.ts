@@ -186,6 +186,9 @@ export function createAndActivateBaseView(
   } else if (viewType === 'kanban') {
     view = createKanbanView(sheet);
     sheet.views.push(view);
+  } else if (viewType === 'calendar') {
+    view = createCalendarView(sheet);
+    sheet.views.push(view);
   } else if (viewType === 'grid') {
     view = createGridView(sheet);
     sheet.views.push(view);
@@ -262,6 +265,35 @@ export function createKanbanView(sheet: BaseSheetModel, groupFieldId?: string): 
     viewName: fieldName ? `${fieldName} + 看板` : '看板',
     viewType: 'kanban',
     config: fieldId ? { kanbanGroupFieldId: fieldId } : {},
+  };
+}
+
+/** 选择默认日期字段 */
+function pickDefaultDateFieldId(columnDefs: ColumnDef[]): string | undefined {
+  const dateField = columnDefs.find(c => c.type === 'date' || c.type === 'datetime');
+  return dateField?.id;
+}
+
+/** 创建日历视图（写入默认日期字段） */
+export function createCalendarView(sheet: BaseSheetModel, dateFieldId?: string): BaseView {
+  const fieldId = dateFieldId || pickDefaultDateFieldId(sheet.columnDefs);
+  const fieldName = fieldId
+    ? (sheet.columnDefs.find(c => c.id === fieldId)?.name || '')
+    : '';
+  return {
+    viewId: `view_calendar_${Date.now()}`,
+    viewName: fieldName ? `${fieldName} + 日历` : '日历',
+    viewType: 'calendar',
+    config: fieldId ? {
+      calendarDateFieldId: fieldId,
+      calendarViewType: 'month',
+      calendarMaxCardsPerCell: 3,
+      calendarShowNoDateSection: true,
+    } : {
+      calendarViewType: 'month',
+      calendarMaxCardsPerCell: 3,
+      calendarShowNoDateSection: true,
+    },
   };
 }
 

@@ -82,7 +82,7 @@ const DashboardIcon = (
   </svg>
 );
 
-const CREATABLE_VIEW_TYPES: BaseViewType[] = ['grid', 'kanban', 'form'];
+const CREATABLE_VIEW_TYPES: BaseViewType[] = ['grid', 'kanban', 'gantt', 'calendar', 'gallery', 'form'];
 
 export interface BaseViewSidebarProps {
   views: BaseView[];

@@ -1,3 +1,7 @@
+/**
+ * 混合逻辑时钟类
+ * @param nodeId 节点ID
+ */
 export class HybridLogicalClock {
   private physicalTime = 0;
   private logicalCounter = 0;

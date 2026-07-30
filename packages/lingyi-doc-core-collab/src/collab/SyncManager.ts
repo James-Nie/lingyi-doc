@@ -3,6 +3,9 @@ import { CollabClient, type CollabConnectionState, type OnlineUser, type ServerM
 import type { ActiveCellEditor, CellEditingPayload } from './cellEditing';
 import { normalizeCellEditors } from './blockEditing';
 
+/**
+ * 同步管理器选项
+ */
 export interface SyncManagerOptions {
   docId: string;
   getToken: () => string | null;
@@ -19,6 +22,9 @@ export interface SyncManagerOptions {
   onError?: (error: Error) => void;
 }
 
+/**
+ * 同步管理器类
+ */
 export class SyncManager {
   private client: CollabClient | null = null;
   private globalVersion = 0;
@@ -32,22 +38,32 @@ export class SyncManager {
     this.options = options;
   }
 
+  /** 获取全局版本号 */
   getGlobalVersion(): number {
     return this.globalVersion;
   }
 
+  /** 获取文档版本号 */
   getDocVersion(): number {
     return this.docVersion;
   }
 
+  /** 获取当前在线用户 */
   getOnlineUsers(): OnlineUser[] {
     return this.onlineUsers;
   }
 
+  /** 是否已成功连过 */
+  get hasConnected(): boolean {
+    return this.hasConnectedBefore;
+  }
+
+  /** 是否已连接 */
   isOnline(): boolean {
     return this.client?.getState() === 'connected';
   }
 
+  /** 连接协同编辑 */
   connect(): void {
     const token = this.options.getToken();
     if (!token) {
@@ -76,6 +92,7 @@ export class SyncManager {
     this.client.connect();
   }
 
+  /** 断开协同编辑 */
   disconnect(): void {
     this.client?.disconnect();
     this.client = null;
@@ -92,6 +109,7 @@ export class SyncManager {
     this.docVersion = 0;
   }
 
+  /** 发送单个操作 */
   sendOp(operation: CrdtOperation): void {
     if (!this.isOnline()) return;
     this.client?.sendOp(operation);
@@ -103,26 +121,31 @@ export class SyncManager {
     this.client?.sendOps(operations);
   }
 
+  /** 请求同步 */
   requestSync(): void {
     if (!this.isOnline()) return;
     this.client?.requestSync(this.globalVersion);
   }
 
+  /** 发送光标位置 */
   sendCursor(payload: Record<string, unknown>): void {
     if (!this.isOnline()) return;
     this.client?.sendCursor(payload);
   }
 
+  /** 发送选择位置 */
   sendSelection(payload: Record<string, unknown>): void {
     if (!this.isOnline()) return;
     this.client?.sendSelection(payload);
   }
 
+  /** 发送单元格编辑锁 */
   sendCellEditing(payload: CellEditingPayload): void {
     // 认证完成后即可发送；勿仅依赖 isOnline（与 ws open 时序可能短暂不一致）
     this.client?.sendCellEditing(payload);
   }
 
+  /** 处理服务器消息 */
   private handleMessage(message: ServerMessage): void {
     switch (message.type) {
       case 'connected': {
@@ -147,6 +170,7 @@ export class SyncManager {
         this.hasConnectedBefore = true;
         break;
       }
+      /** 处理 CRDT 操作 */
       case 'crdt_op':
         this.globalVersion = Math.max(this.globalVersion, message.globalVersion);
         this.options.onRemoteOp?.(message.operation, {
@@ -154,6 +178,7 @@ export class SyncManager {
           senderId: message.senderId,
         });
         break;
+      /** 处理同步响应 */
       case 'sync_response':
         this.globalVersion = Math.max(this.globalVersion, message.currentVersion);
         for (const op of message.operations) {
@@ -163,30 +188,37 @@ export class SyncManager {
           });
         }
         break;
+      /** 处理用户加入 */
       case 'user_joined':
         if (!this.onlineUsers.some((u) => u.userId === message.user.userId)) {
           this.onlineUsers = [...this.onlineUsers, message.user];
           this.options.onPresenceChange?.(this.onlineUsers);
         }
         break;
+      /** 处理用户离开 */
       case 'user_left':
         this.onlineUsers = this.onlineUsers.filter((u) => u.userId !== message.userId);
         this.options.onPresenceChange?.(this.onlineUsers);
         break;
+      /** 处理光标位置更新 */
       case 'cursor_update':
         this.options.onCursorUpdate?.(message.userId, message.payload);
         break;
+      /** 处理选择位置更新 */
       case 'selection_update':
         this.options.onSelectionUpdate?.(message.userId, message.payload);
         break;
+      /** 处理单元格编辑锁更新 */
       case 'cell_editing_update':
         this.options.onCellEditingChange?.(
           normalizeCellEditors(message.editors, message.editor),
         );
         break;
+      /** 处理评论更新 */
       case 'comment_update':
         this.options.onCommentUpdate?.(message.senderId, message.payload);
         break;
+      /** 处理错误 */
       case 'error':
         this.options.onError?.(new Error(`[${message.code}] ${message.message}`));
         break;

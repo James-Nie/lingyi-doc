@@ -34,7 +34,7 @@ export function resolveConnectorStartTipDirection(
   };
 }
 
-/** 画板连接锚点：图形走轮廓求交，其余元素走默认包围盒 */
+/** 获取元素锚点位置 */
 export function getBoardAnchorPoint(el: WhiteboardElement, anchor: AnchorId): WhiteboardPoint {
   if (el.type === 'shape') {
     return getShapeConnectorAnchorPoint(
@@ -49,6 +49,7 @@ export function getBoardAnchorPoint(el: WhiteboardElement, anchor: AnchorId): Wh
   return getAnchorPoint(el, anchor);
 }
 
+/** 获取连线端点位置 */
 export function getBoardConnectorEndpoints(
   conn: ConnectorElement,
   elements: WhiteboardElement[],
@@ -68,7 +69,8 @@ export function getBoardConnectorEndpoints(
   return [start, end];
 }
 
-function collectElbowObstacles(elements: WhiteboardElement[]): ElbowObstacle[] {
+/** 获取连线的障碍物（可连接元素的包围盒） */
+export function collectElbowObstacles(elements: WhiteboardElement[]): ElbowObstacle[] {
   const obstacles: ElbowObstacle[] = [];
   for (const el of elements) {
     if (!isConnectable(el)) continue;
@@ -78,7 +80,8 @@ function collectElbowObstacles(elements: WhiteboardElement[]): ElbowObstacle[] {
   return obstacles;
 }
 
-function elbowRouteOpts(conn: ConnectorElement, elements: WhiteboardElement[]): ResolveElbowRouteOpts {
+/** 获取连线的路由选项 */
+export function elbowRouteOpts(conn: ConnectorElement, elements: WhiteboardElement[]): ResolveElbowRouteOpts {
   const opts: ResolveElbowRouteOpts = {
     obstacles: collectElbowObstacles(elements),
   };
@@ -87,7 +90,7 @@ function elbowRouteOpts(conn: ConnectorElement, elements: WhiteboardElement[]): 
   return opts;
 }
 
-/** 工具栏锚点：根据连线在屏幕上的位置动态决定工具栏方向，避免遮挡线段 */
+/** 获取连线的工具栏锚点位置 */
 export function computeConnectorToolbarScreenAnchor(
   route: WhiteboardPoint[],
   viewport: { x: number; y: number; zoom: number },
@@ -126,7 +129,8 @@ export function computeConnectorToolbarScreenAnchor(
   };
 }
 
-function resolveBoardCurveRoute(
+/** 获取曲线的路由点位置 */
+export function resolveBoardCurveRoute(
   conn: ConnectorElement,
   start: WhiteboardPoint,
   end: WhiteboardPoint,
@@ -138,7 +142,8 @@ function resolveBoardCurveRoute(
   return pts;
 }
 
-function resolveBoardElbowRoute(
+/** 获取肘型的路由点位置 */
+export function resolveBoardElbowRoute(
   conn: ConnectorElement,
   start: WhiteboardPoint,
   end: WhiteboardPoint,
@@ -151,6 +156,7 @@ function resolveBoardElbowRoute(
   return resolveElbowRoute(conn.points, start, end, opts);
 }
 
+/** 获取连线的路由点位置 */
 export function getBoardConnectorRoute(
   conn: ConnectorElement,
   elements: WhiteboardElement[],
@@ -165,6 +171,7 @@ export function getBoardConnectorRoute(
   return [start, end];
 }
 
+/** 同步连线的路由点位置 */
 export function syncBoardConnectors(elements: WhiteboardElement[]): WhiteboardElement[] {
   return elements.map(el => {
     if (el.type !== 'connector') return el;
@@ -187,7 +194,7 @@ export function syncBoardConnectors(elements: WhiteboardElement[]): WhiteboardEl
   });
 }
 
-/** 切换连线样式并迁移路径点 */
+/** 转换连线样式并迁移路径点 */
 export function convertBoardConnectorStyle(
   conn: ConnectorElement,
   elements: WhiteboardElement[],
@@ -235,6 +242,7 @@ export function convertBoardConnectorStyle(
   return conn;
 }
 
+/** 获取连线的标签布局 */
 export function getBoardConnectorLabelLayout(
   conn: ConnectorElement,
   elements: WhiteboardElement[],
@@ -249,6 +257,7 @@ export function getBoardConnectorLabelLayout(
   };
 }
 
+/** 获取连线的标签边界框 */
 export function getBoardConnectorLabelBounds(
   conn: ConnectorElement,
   elements: WhiteboardElement[],

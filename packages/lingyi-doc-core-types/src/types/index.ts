@@ -746,7 +746,15 @@ export interface BaseViewConfig {
   ganttTimeUnit?: 'day' | 'week' | 'month' | 'quarter' | 'year';
   // 日历
   calendarDateFieldId?: string;
+  calendarEndDateFieldId?: string;
   calendarCardTitleFieldId?: string;
+  calendarCardColorFieldId?: string;
+  calendarDefaultColor?: string;
+  calendarMaxCardsPerCell?: number;
+  calendarViewType?: 'month' | 'week' | 'day';
+  calendarShowNoDateSection?: boolean;
+  calendarShowWeekend?: boolean;
+  calendarWeekStart?: 0 | 1;
   // 画廊
   galleryCoverFieldId?: string;
   galleryDisplayFields?: string[];
