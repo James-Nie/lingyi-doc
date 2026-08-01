@@ -137,7 +137,14 @@ export function hydrateSheetFromJSON(data: any): SheetModel {
       sheet.columnDefs = data.columnDefs;
     }
     if (Array.isArray(data.rows)) {
-      sheet.rows = data.rows;
+      // 主 JSON 不落历史（方案A：历史改存独立表）。剥离存量内嵌 _history，避免旧数据被重新上传
+      sheet.rows = data.rows.map((r: any) => {
+        if (r && r._history && Object.keys(r._history).length > 0) {
+          const { _history: _omit, ...rest } = r;
+          return rest;
+        }
+        return r;
+      });
     }
     if (Array.isArray(data.views)) {
       sheet.views = data.views;

@@ -14,6 +14,12 @@ export function getCollapsedCaretClientX(): number | null {
   return null;
 }
 
+/**
+ * 从客户端坐标获取光标范围。
+ * @param x 客户端 X 坐标
+ * @param y 客户端 Y 坐标
+ * @returns 光标范围
+ */
 function caretRangeFromPoint(x: number, y: number): Range | null {
   const doc = document as Document & {
     caretRangeFromPoint?: (x: number, y: number) => Range | null;

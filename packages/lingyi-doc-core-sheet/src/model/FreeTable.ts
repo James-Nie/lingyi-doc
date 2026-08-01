@@ -72,6 +72,13 @@ function yieldToMain(): Promise<void> {
   });
 }
 
+/** 序列化时剥离行级 _history（历史独立冷存储，不随主 JSON 落库/广播） */
+function stripRowHistory(row: RecordRow): RecordRow {
+  if (!row._history || row._history.length === 0) return row;
+  const { _history: _ignored, ...rest } = row;
+  return rest as RecordRow;
+}
+
 export class FreeTable {
   private _sheet: SheetModel;
   private _undo = new UndoManager();
@@ -1899,11 +1906,13 @@ export class FreeTable {
 
   // ==================== 序列化 ====================
 
-  /** 导出为可序列化的 JSON（Map → Object） */
-  toJSON(): object {
+  /** 导出为可序列化的 JSON（Map → Object）。默认剥离行级 _history（历史走独立冷存储） */
+  toJSON(options?: { includeHistory?: boolean }): object {
     if (isBaseSheet(this._sheet)) {
       this.syncColumnLayout();
     }
+
+    const includeHistory = options?.includeHistory === true;
 
     const base: Record<string, unknown> = {
       sheetId: this._sheet.sheetId,
@@ -1949,7 +1958,7 @@ export class FreeTable {
     return {
       ...base,
       columnDefs: this._sheet.columnDefs,
-      rows: this._sheet.rows,
+      rows: includeHistory ? this._sheet.rows : this._sheet.rows.map(stripRowHistory),
       views: this._sheet.views,
       activeViewId: persistActiveViewId,
       defaultRowHeight: this._sheet.defaultRowHeight,

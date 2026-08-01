@@ -1,5 +1,5 @@
 import React from 'react';
-import { Badge } from 'antd';
+import { Badge, Tooltip } from 'antd';
 
 interface CalendarViewHeaderProps {
   title: string;
@@ -145,14 +145,15 @@ export const CalendarViewHeader: React.FC<CalendarViewHeaderProps> = ({
 
       <div style={styles.rightSection}>
         <Badge count={noDateCount} offset={[-2, 2]}>
-          <button
-            style={styles.noDateButton}
-            onClick={onOpenNoDate}
-            title="无日期的记录"
-          >
-            <span>📋</span>
-            <span>无日期</span>
-          </button>
+          <Tooltip title="无日期的记录" placement="bottom">
+            <button
+              style={styles.noDateButton}
+              onClick={onOpenNoDate}
+            >
+              <span>📋</span>
+              <span>无日期</span>
+            </button>
+          </Tooltip>
         </Badge>
 
         <button style={styles.actionButton} onClick={onConfigClick}>

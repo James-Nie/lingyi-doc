@@ -19,6 +19,7 @@ interface RecordDetailDrawerProps {
   initialTab?: RecordDrawerTab;
   onClose: () => void;
   onNavigate: (rowIndex: number) => void;
+  onDataChange?: () => void;
 }
 
 export const RecordDetailDrawer: React.FC<RecordDetailDrawerProps> = ({
@@ -28,6 +29,7 @@ export const RecordDetailDrawer: React.FC<RecordDetailDrawerProps> = ({
   initialTab = 'detail',
   onClose,
   onNavigate,
+  onDataChange,
 }) => {
   const sheet = table.sheet;
   const [activeTab, setActiveTab] = useState<RecordDrawerTab>(initialTab);
@@ -115,7 +117,10 @@ export const RecordDetailDrawer: React.FC<RecordDetailDrawerProps> = ({
               table={table}
               rowIndex={rowIndex}
               resetKey={rowIndex}
-              onFieldChange={() => setFieldRevision(v => v + 1)}
+              onFieldChange={() => {
+                setFieldRevision(v => v + 1);
+                onDataChange?.();
+              }}
               style={{ padding: '16px 20px 20px' }}
             />
           ) : (

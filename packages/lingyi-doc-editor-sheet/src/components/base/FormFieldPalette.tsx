@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Tooltip } from 'antd';
 import type { BaseView, ColumnDef, ColumnType } from '@lingyi-doc/core-types';
 import { BASE_THEME, isSystemColumnType } from '@lingyi-doc/core-sheet';
 import { PlusOutlined } from '@ant-design/icons';
@@ -86,22 +87,23 @@ const OptionalFieldRow: React.FC<{
       }}>
         {columnDef.name}
       </span>
-      <button
-        type="button"
-        onClick={onAdd}
-        title="加入表单"
-        style={{
-          width: 22, height: 22, flexShrink: 0,
-          border: 'none', borderRadius: 4,
-          background: hovered ? '#E8EAED' : 'transparent',
-          color: BASE_THEME.secondaryTextColor,
-          cursor: 'pointer',
-          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 12, padding: 0,
-        }}
-      >
-        <PlusOutlined />
-      </button>
+      <Tooltip title="加入表单">
+        <button
+          type="button"
+          onClick={onAdd}
+          style={{
+            width: 22, height: 22, flexShrink: 0,
+            border: 'none', borderRadius: 4,
+            background: hovered ? '#E8EAED' : 'transparent',
+            color: BASE_THEME.secondaryTextColor,
+            cursor: 'pointer',
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 12, padding: 0,
+          }}
+        >
+          <PlusOutlined />
+        </button>
+      </Tooltip>
     </div>
   );
 };

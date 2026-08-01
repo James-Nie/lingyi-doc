@@ -1,6 +1,7 @@
-import type { CellValue, ColumnDef, RecordChangeEntry, RecordRow } from '@lingyi-doc/core-types';
-import { getCellText } from '@lingyi-doc/core-types';
+import type { BaseSheetModel, CellValue, ColumnDef, RecordChangeEntry, RecordHistoryPayloadEntry, RecordRow } from '@lingyi-doc/core-types';
+import { getCellText, isBaseSheet } from '@lingyi-doc/core-types';
 import { getCurrentRecordOperator } from './rowTree';
+import type { Workbook } from '../model';
 
 const EMPTY_VALUE: CellValue = { type: 'empty' };
 
@@ -67,6 +68,56 @@ export function appendRecordHistoryChange(
   record._history.push(entry);
   record._updatedAt = at;
   record._updatedBy = by;
+}
+
+/** 收集工作簿所有多维表记录行尚未落库的变更历史（只读，不清空） */
+export function collectRecordHistoryFromWorkbook(workbook: Workbook): RecordHistoryPayloadEntry[] {
+  const entries: RecordHistoryPayloadEntry[] = [];
+  for (const sheetInfo of workbook.sheets) {
+    const sheet = sheetInfo.table.sheet;
+    if (!isBaseSheet(sheet)) continue;
+    const rows = (sheet as BaseSheetModel).rows ?? [];
+    for (const row of rows) {
+      const history = row._history;
+      if (!history || history.length === 0) continue;
+      for (const entry of history) {
+        entries.push({
+          id: entry.id,
+          recordId: row._id,
+          sheetId: sheet.sheetId,
+          at: entry.at,
+          by: entry.by,
+          action: entry.action,
+          fieldId: entry.fieldId,
+          before: entry.before,
+          after: entry.after,
+        });
+      }
+    }
+  }
+  return entries;
+}
+
+/** 清空工作簿所有多维表记录行内存中的变更历史（保存成功落库后调用）。
+ * 传入 ids 时只清空这些条目（避免误删保存期间新产生的历史）。 */
+export function clearRecordHistoryFromWorkbook(workbook: Workbook, ids?: Set<string>): void {
+  for (const sheetInfo of workbook.sheets) {
+    const sheet = sheetInfo.table.sheet;
+    if (!isBaseSheet(sheet)) continue;
+    const rows = (sheet as BaseSheetModel).rows ?? [];
+    for (const row of rows) {
+      const history = row._history;
+      if (!history || history.length === 0) continue;
+      if (!ids) {
+        row._history = undefined;
+        continue;
+      }
+      const next = history.filter(e => !ids.has(e.id));
+      if (next.length !== history.length) {
+        row._history = next.length > 0 ? next : undefined;
+      }
+    }
+  }
 }
 
 export function formatRecordOperator(name: string): string {
@@ -139,7 +190,14 @@ export function buildRecordHistoryDisplayRows(
   if (entries.length === 0) {
     return [buildLegacyCreateRow(record)];
   }
+  return buildRecordHistoryDisplayRowsFromEntries(entries, columnDefs);
+}
 
+/** 将（接口分页拉取的）变更历史条目转为详情抽屉展示行 */
+export function buildRecordHistoryDisplayRowsFromEntries(
+  entries: RecordChangeEntry[],
+  columnDefs: ColumnDef[],
+): RecordHistoryDisplayRow[] {
   const rows: RecordHistoryDisplayRow[] = entries.map(entry => {
     const col = resolveColumnByFieldId(columnDefs, entry.fieldId);
     if (entry.action === 'create') {

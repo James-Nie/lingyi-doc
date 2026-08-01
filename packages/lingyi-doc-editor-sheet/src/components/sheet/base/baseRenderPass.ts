@@ -38,7 +38,7 @@ export function drawBaseBackgroundLayer(
     for (let r = visibleRange.startRow; r <= visibleRange.endRow; r++) {
       if (groupLayout.items[r]?.type !== 'group-gap') continue;
       const rowRect = viewport.getCellRect({ row: r, col: 0 }, sheet.columnWidths, ctx.activeRowHeights);
-      bgCtx.fillStyle = BASE_THEME.pageBg;
+      bgCtx.fillStyle = BASE_THEME.cardBg;
       bgCtx.fillRect(0, rowRect.y, baseGridBounds.right, rowRect.height);
     }
   }
@@ -211,7 +211,7 @@ export function drawBaseContentLayer(
     const rowRect = viewport.getCellRect({ row: displayRow, col: 0 }, sheet.columnWidths, ctx.activeRowHeights);
 
     if (layoutItem.type === 'group-gap') {
-      canvasCtx.fillStyle = BASE_THEME.pageBg;
+      canvasCtx.fillStyle = BASE_THEME.cardBg;
       canvasCtx.fillRect(0, rowRect.y, dataRight, rowRect.height);
       return;
     }
@@ -237,12 +237,14 @@ export function drawBaseContentLayer(
     }
     if (layoutItem.type === 'add-record') {
       const cardRect = resolveLevelCardRect(layoutItem.level);
+      const hovered = ctx.activeHoverRow === displayRow;
       groupHeaderRenderer.drawAddRecordRow(
         canvasCtx,
         { x: cardRect.x, y: rowRect.y, width: cardRect.width, height: rowRect.height },
         layoutItem.level,
         viewport.zoomLevel,
         metadataDividerX,
+        hovered,
       );
     }
   };

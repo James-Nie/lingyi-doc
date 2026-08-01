@@ -21,7 +21,7 @@ export const BASE_THEME = {
   selectionFill: 'rgba(51, 112, 255, 0.06)',
   selectionBorder: '#3370FF',
   selectionHeaderBg: '#E8F0FF',
-  rowHoverBg: '#F7F8FA',
+  rowHoverBg: '#e0e1e5ff',
   rowCheckedBg: '#F0F4FF',
   /** 查看行评论时的整行背景色 */
   rowCommentHighlightBg: '#FFF9E6',
@@ -112,6 +112,8 @@ export function computeBaseGridScreenBounds(
   canvasWidth: number,
   canvasHeight: number,
   getRowScreenTop: (row: number, rowHeights: Map<number, number>) => number,
+  /** 底部添加行栏是否计入下边界（分组视图无添加行栏，需排除，否则冻结首列竖线会超出最后分组下边框） */
+  includeAddRowBar = true,
 ): { right: number; bottom: number } {
   const contentRight = computeBaseGridWidth(headerWidth, colCount, columnWidths, defaultColumnWidth, zoom);
   const right = Math.min(Math.max(headerWidth, contentRight - scrollLeft), canvasWidth);
@@ -122,7 +124,9 @@ export function computeBaseGridScreenBounds(
     bottom = getRowScreenTop(lastRow, rowHeights)
       + (rowHeights.get(lastRow) !== undefined ? rowHeights.get(lastRow)! : defaultRowHeight) * zoom;
   }
-  bottom += (rowHeights.get(0) !== undefined ? rowHeights.get(0)! : defaultRowHeight) * zoom;
+  if (includeAddRowBar) {
+    bottom += (rowHeights.get(0) !== undefined ? rowHeights.get(0)! : defaultRowHeight) * zoom;
+  }
   bottom = Math.min(bottom, canvasHeight);
 
   return { right, bottom };

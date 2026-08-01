@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Dropdown, Input, Modal } from 'antd';
+import { Dropdown, Input, Modal, Tooltip } from 'antd';
 import type { MenuProps } from 'antd';
 import {
   CopyOutlined,
@@ -13,6 +13,19 @@ import type { BaseView, BaseViewType, DashboardModel } from '@lingyi-doc/core-ty
 import { BASE_THEME } from '@lingyi-doc/core-sheet';
 
 const SIDEBAR_WIDTH = 200;
+
+const SIDEBAR_HOVER_CSS = `
+  .base-view-sidebar-btn {
+    transition: background 0.15s, color 0.15s;
+  }
+  .base-view-sidebar-btn:hover {
+    background: ${BASE_THEME.rowHoverBg} !important;
+  }
+  .base-view-sidebar-btn:active {
+    background: ${BASE_THEME.selectionHeaderBg} !important;
+    color: ${BASE_THEME.primaryColor} !important;
+  }
+`;
 
 const VIEW_META: Record<BaseViewType, { icon: React.ReactNode; label: string }> = {
   grid: {
@@ -118,7 +131,7 @@ const iconBtnStyle: React.CSSProperties = {
   flexShrink: 0,
 };
 
-function listItemStyle(active: boolean): React.CSSProperties {
+function listItemStyle(active: boolean, hovered: boolean): React.CSSProperties {
   return {
     width: '100%',
     display: 'flex',
@@ -128,13 +141,18 @@ function listItemStyle(active: boolean): React.CSSProperties {
     border: 'none',
     borderRadius: 8,
     cursor: 'pointer',
-    background: active ? BASE_THEME.selectionHeaderBg : 'transparent',
+    background: active
+      ? BASE_THEME.selectionHeaderBg
+      : hovered
+        ? BASE_THEME.rowHoverBg
+        : 'transparent',
     color: active ? BASE_THEME.primaryColor : BASE_THEME.cellTextColor,
     fontSize: 13,
     lineHeight: 1.3,
     textAlign: 'left',
     minHeight: 36,
     boxSizing: 'border-box',
+    transition: 'background 0.15s',
   };
 }
 
@@ -303,32 +321,39 @@ export const BaseViewSidebar: React.FC<BaseViewSidebarProps> = ({
 
   if (collapsed) {
     return (
-      <div style={{
-        width: 28,
-        flexShrink: 0,
-        borderRight: `1px solid ${BASE_THEME.gridColor}`,
-        background: BASE_THEME.pageBg,
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        paddingTop: 10,
-      }}>
-        <button
-          type="button"
-          title="展开视图栏"
-          onClick={() => setCollapsed(false)}
-          style={iconBtnStyle}
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-            <polyline points="9 18 15 12 9 6" />
-          </svg>
-        </button>
-      </div>
+      <>
+        <style>{SIDEBAR_HOVER_CSS}</style>
+        <div style={{
+          width: 28,
+          flexShrink: 0,
+          borderRight: `1px solid ${BASE_THEME.gridColor}`,
+          background: BASE_THEME.pageBg,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          paddingTop: 10,
+        }}>
+          <Tooltip title="展开视图栏" placement="right">
+            <button
+              type="button"
+              className="base-view-sidebar-btn"
+              onClick={() => setCollapsed(false)}
+              style={iconBtnStyle}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
+            </button>
+          </Tooltip>
+        </div>
+      </>
     );
   }
 
   return (
-    <div style={{
+    <>
+      <style>{SIDEBAR_HOVER_CSS}</style>
+      <div style={{
       width: SIDEBAR_WIDTH,
       flexShrink: 0,
       borderRight: `1px solid ${BASE_THEME.gridColor}`,
@@ -355,18 +380,20 @@ export const BaseViewSidebar: React.FC<BaseViewSidebarProps> = ({
         }}>
           数据
         </span>
-        <button
-          type="button"
-          title="搜索"
-          onClick={() => setSearchOpen(v => !v)}
-          style={{
-            ...iconBtnStyle,
-            color: searchOpen ? BASE_THEME.primaryColor : BASE_THEME.headerTextColor,
-            background: searchOpen ? BASE_THEME.selectionHeaderBg : 'transparent',
-          }}
-        >
-          <SearchOutlined style={{ fontSize: 14 }} />
-        </button>
+        <Tooltip title="搜索" placement="bottom">
+          <button
+            type="button"
+            className="base-view-sidebar-btn"
+            onClick={() => setSearchOpen(v => !v)}
+            style={{
+              ...iconBtnStyle,
+              color: searchOpen ? BASE_THEME.primaryColor : BASE_THEME.headerTextColor,
+              background: searchOpen ? BASE_THEME.selectionHeaderBg : 'transparent',
+            }}
+          >
+            <SearchOutlined style={{ fontSize: 14 }} />
+          </button>
+        </Tooltip>
         {!readOnly && (onCreateView || onCreateDashboard) && (
           <Dropdown
             menu={{ items: createMenuItems, onClick: handleCreateMenuClick }}
@@ -377,22 +404,26 @@ export const BaseViewSidebar: React.FC<BaseViewSidebarProps> = ({
               if (open) onPrefetchDashboards?.();
             }}
           >
-            <button type="button" title="新建视图" style={iconBtnStyle}>
-              <PlusOutlined style={{ fontSize: 14 }} />
-            </button>
+            <Tooltip title="新建视图" placement="bottom">
+              <button type="button" className="base-view-sidebar-btn" style={iconBtnStyle}>
+                <PlusOutlined style={{ fontSize: 14 }} />
+              </button>
+            </Tooltip>
           </Dropdown>
         )}
-        <button
-          type="button"
-          title="收起"
-          onClick={() => setCollapsed(true)}
-          style={iconBtnStyle}
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-            <polyline points="15 18 9 12 15 6" />
-            <polyline points="21 18 15 12 21 6" />
-          </svg>
-        </button>
+        <Tooltip title="收起" placement="bottom">
+          <button
+            type="button"
+            className="base-view-sidebar-btn"
+            onClick={() => setCollapsed(true)}
+            style={iconBtnStyle}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <polyline points="15 18 9 12 15 6" />
+              <polyline points="21 18 15 12 21 6" />
+            </svg>
+          </button>
+        </Tooltip>
       </div>
 
       {searchOpen && (
@@ -432,27 +463,28 @@ export const BaseViewSidebar: React.FC<BaseViewSidebarProps> = ({
               onMouseLeave={() => setHoveredId(null)}
               style={{ position: 'relative' }}
             >
-              <button
-                type="button"
-                title={name}
-                onClick={() => onSelectView(view.viewId)}
-                style={listItemStyle(active)}
-              >
-                <span style={{ display: 'inline-flex', flexShrink: 0, opacity: active ? 1 : 0.75 }}>
-                  {meta.icon}
-                </span>
-                <span style={{
-                  flex: 1,
-                  minWidth: 0,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                  fontWeight: active ? 500 : 400,
-                  paddingRight: showMore ? 22 : 0,
-                }}>
-                  {name}
-                </span>
-              </button>
+              <Tooltip title={name} placement="right">
+                <button
+                  type="button"
+                  onClick={() => onSelectView(view.viewId)}
+                  style={listItemStyle(active, hoveredId === view.viewId)}
+                >
+                  <span style={{ display: 'inline-flex', flexShrink: 0, opacity: active ? 1 : 0.75 }}>
+                    {meta.icon}
+                  </span>
+                  <span style={{
+                    flex: 1,
+                    minWidth: 0,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    fontWeight: active ? 500 : 400,
+                    paddingRight: showMore ? 22 : 0,
+                  }}>
+                    {name}
+                  </span>
+                </button>
+              </Tooltip>
               {showMore && !readOnly && (
                 <Dropdown
                   menu={{
@@ -478,24 +510,26 @@ export const BaseViewSidebar: React.FC<BaseViewSidebarProps> = ({
                   trigger={['click']}
                   placement="bottomRight"
                 >
-                  <button
-                    type="button"
-                    title="更多"
-                    onClick={e => e.stopPropagation()}
-                    style={{
-                      ...iconBtnStyle,
-                      position: 'absolute',
-                      right: 4,
-                      top: '50%',
-                      transform: 'translateY(-50%)',
-                      width: 24,
-                      height: 24,
-                      color: active ? BASE_THEME.primaryColor : BASE_THEME.secondaryTextColor,
-                      background: active ? 'rgba(51,112,255,0.08)' : 'transparent',
-                    }}
-                  >
-                    <MoreOutlined />
-                  </button>
+                  <Tooltip title="更多" placement="bottom">
+                    <button
+                      type="button"
+                      className="base-view-sidebar-btn"
+                      onClick={e => e.stopPropagation()}
+                      style={{
+                        ...iconBtnStyle,
+                        position: 'absolute',
+                        right: 4,
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        width: 24,
+                        height: 24,
+                        color: active ? BASE_THEME.primaryColor : BASE_THEME.secondaryTextColor,
+                        background: active ? 'rgba(51,112,255,0.08)' : 'transparent',
+                      }}
+                    >
+                      <MoreOutlined />
+                    </button>
+                  </Tooltip>
                 </Dropdown>
               )}
             </div>
@@ -523,27 +557,28 @@ export const BaseViewSidebar: React.FC<BaseViewSidebarProps> = ({
                   onMouseLeave={() => setHoveredId(null)}
                   style={{ position: 'relative' }}
                 >
-                  <button
-                    type="button"
-                    title={fullName}
-                    onClick={() => onSelectDashboard?.(dash.id)}
-                    style={listItemStyle(active)}
-                  >
-                    <span style={{ display: 'inline-flex', flexShrink: 0, opacity: active ? 1 : 0.75 }}>
-                      {DashboardIcon}
-                    </span>
-                    <span style={{
-                      flex: 1,
-                      minWidth: 0,
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                      fontWeight: active ? 500 : 400,
-                      paddingRight: showMore ? 22 : 0,
-                    }}>
-                      {fullName}
-                    </span>
-                  </button>
+                  <Tooltip title={fullName} placement="right">
+                    <button
+                      type="button"
+                      onClick={() => onSelectDashboard?.(dash.id)}
+                      style={listItemStyle(active, hoveredId === dash.id)}
+                    >
+                      <span style={{ display: 'inline-flex', flexShrink: 0, opacity: active ? 1 : 0.75 }}>
+                        {DashboardIcon}
+                      </span>
+                      <span style={{
+                        flex: 1,
+                        minWidth: 0,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        fontWeight: active ? 500 : 400,
+                        paddingRight: showMore ? 22 : 0,
+                      }}>
+                        {fullName}
+                      </span>
+                    </button>
+                  </Tooltip>
                   {showMore && !readOnly && (
                     <Dropdown
                       menu={{
@@ -567,24 +602,26 @@ export const BaseViewSidebar: React.FC<BaseViewSidebarProps> = ({
                       trigger={['click']}
                       placement="bottomRight"
                     >
-                      <button
-                        type="button"
-                        title="更多"
-                        onClick={e => e.stopPropagation()}
-                        style={{
-                          ...iconBtnStyle,
-                          position: 'absolute',
-                          right: 4,
-                          top: '50%',
-                          transform: 'translateY(-50%)',
-                          width: 24,
-                          height: 24,
-                          color: active ? BASE_THEME.primaryColor : BASE_THEME.secondaryTextColor,
-                          background: active ? 'rgba(51,112,255,0.08)' : 'transparent',
-                        }}
-                      >
-                        <MoreOutlined />
-                      </button>
+                      <Tooltip title="更多" placement="bottom">
+                        <button
+                          type="button"
+                          className="base-view-sidebar-btn"
+                          onClick={e => e.stopPropagation()}
+                          style={{
+                            ...iconBtnStyle,
+                            position: 'absolute',
+                            right: 4,
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            width: 24,
+                            height: 24,
+                            color: active ? BASE_THEME.primaryColor : BASE_THEME.secondaryTextColor,
+                            background: active ? 'rgba(51,112,255,0.08)' : 'transparent',
+                          }}
+                        >
+                          <MoreOutlined />
+                        </button>
+                      </Tooltip>
                     </Dropdown>
                   )}
                 </div>
@@ -605,5 +642,6 @@ export const BaseViewSidebar: React.FC<BaseViewSidebarProps> = ({
         )}
       </div>
     </div>
+  </>
   );
 };

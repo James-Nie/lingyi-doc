@@ -87,6 +87,7 @@ export function buildRenderHelpers(ctx: SheetRenderPassContext): SheetRenderHelp
       containerSize.width,
       containerSize.height,
       (row, rh) => viewport.getRowScreenTop(row, rh),
+      !ctx.isGroupedView,
     )
     : null;
 

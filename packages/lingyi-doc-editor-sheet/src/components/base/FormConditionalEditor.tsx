@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { DatePicker } from 'antd';
+import { DatePicker, Tooltip } from 'antd';
 import dayjs, { type Dayjs } from 'dayjs';
 import type { ColumnDef, FormDisplayCondition } from '@lingyi-doc/core-types';
 import { BASE_THEME, getSelectTagColors } from '@lingyi-doc/core-sheet';
@@ -259,22 +259,23 @@ export const FormConditionalEditor: React.FC<FormConditionalEditorProps> = ({
               />
             </div>
             {conditions.length > 1 && (
-              <button
-                type="button"
-                title="删除条件"
-                onClick={() => onChange(conditions.filter(c => c.id !== cond.id))}
-                style={{
-                  border: 'none',
-                  background: 'transparent',
-                  color: '#86909c',
-                  cursor: 'pointer',
-                  fontSize: 16,
-                  padding: '4px 2px',
-                  flexShrink: 0,
-                }}
-              >
-                ×
-              </button>
+              <Tooltip title="删除条件">
+                <button
+                  type="button"
+                  onClick={() => onChange(conditions.filter(c => c.id !== cond.id))}
+                  style={{
+                    border: 'none',
+                    background: 'transparent',
+                    color: '#86909c',
+                    cursor: 'pointer',
+                    fontSize: 16,
+                    padding: '4px 2px',
+                    flexShrink: 0,
+                  }}
+                >
+                  ×
+                </button>
+              </Tooltip>
             )}
           </div>
         );

@@ -84,7 +84,7 @@ export function drawGridlinesLayer(
     isGroupedView ? ctx.skipGroupGridLine : undefined,
     isGroupedView ? ctx.isGroupDisplayRow : undefined,
     isGroupedView ? {
-      horizontalLineLeft: viewport.config.headerWidth,
+      horizontalLineLeft: 0,
       skipRightEdge: true,
       gridColor: BASE_THEME.groupedGridColor,
     } : undefined,

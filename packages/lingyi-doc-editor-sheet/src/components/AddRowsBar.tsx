@@ -15,6 +15,15 @@ function clampRowCount(value: number): number {
   return Math.max(MIN_ROWS, Math.min(MAX_ROWS, Math.floor(value) || MIN_ROWS));
 }
 
+/**
+ * 添加行工具栏
+ * 用于在表格末尾添加行
+ * @param top 工具栏距离顶部的距离
+ * @param headerWidth 行头列的宽度
+ * @param height 工具栏的高度
+ * @param onAddRows 添加行的回调函数
+ * @returns 添加行工具栏的 React 组件
+ */
 export const AddRowsBar: React.FC<AddRowsBarProps> = ({
   top,
   headerWidth,

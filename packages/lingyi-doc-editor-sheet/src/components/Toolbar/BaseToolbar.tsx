@@ -26,6 +26,7 @@ import {
   EyeOutlined,
   FilterOutlined,
   FormOutlined,
+  FundOutlined,
   MinusOutlined,
   ProfileOutlined,
   PlusOutlined,
@@ -80,8 +81,8 @@ interface BaseToolbarProps {
   mode?: 'full' | 'embed';
   /** embed 模式左侧标题，默认不展示「表格」文案 */
   embedTitle?: string;
-  /** grid=表格工具栏；kanban=看板工具栏；calendar=日历工具栏 */
-  variant?: 'grid' | 'kanban' | 'calendar';
+  /** grid=表格工具栏；kanban=看板工具栏；calendar=日历工具栏；gantt=甘特图工具栏 */
+  variant?: 'grid' | 'kanban' | 'calendar' | 'gantt';
   /** 看板：分组依据字段 */
   kanbanGroupFieldId?: string;
   onKanbanGroupFieldChange?: (fieldId: string) => void;
@@ -109,6 +110,19 @@ interface BaseToolbarProps {
   onCalendarViewTypeChange?: (type: 'month' | 'week' | 'day') => void;
   /** 日历：导航 */
   onCalendarNavigate?: (direction: 'prev' | 'next' | 'today') => void;
+  /** 甘特图：甘特图配置点击 */
+  onGanttConfigClick?: () => void;
+  /** 甘特图：配置弹层内容 */
+  ganttConfigContent?: React.ReactNode;
+  /** 甘特图：配置弹层标题 */
+  ganttConfigTitle?: string;
+  /** 甘特图：导航标题（如 2025年7月） */
+  ganttTitle?: string;
+  /** 甘特图：切换视图类型 */
+  ganttViewType?: 'week' | 'month' | 'quarter';
+  onGanttViewTypeChange?: (type: 'week' | 'month' | 'quarter') => void;
+  /** 甘特图：导航 */
+  onGanttNavigate?: (direction: 'prev' | 'next' | 'today') => void;
   /** 评论功能开关 */
   commentsEnabled?: boolean;
   /** 评论面板是否已打开 */
@@ -117,12 +131,14 @@ interface BaseToolbarProps {
   onToggleCommentPanel?: () => void;
 }
 
-type PopoverKey = 'field' | 'view' | 'filter' | 'group' | 'sort' | 'rowHeight' | 'cardConfig' | 'kanbanGroup' | 'calendarConfig';
+type PopoverKey = 'field' | 'view' | 'filter' | 'group' | 'sort' | 'rowHeight' | 'cardConfig' | 'kanbanGroup' | 'calendarConfig' | 'ganttConfig';
 
-const ROW_HEIGHTS = { compact: 28, standard: 40, loose: 56 } as const;
+const ROW_HEIGHTS = { compact: 28, standard: 40, loose: 56, 'extra-loose': 80 } as const;
+type RowHeightMode = 'compact' | 'standard' | 'loose' | 'extra-loose';
 
-function rowHeightToMode(height: number): 'compact' | 'standard' | 'loose' {
+function rowHeightToMode(height: number): RowHeightMode {
   if (height <= 30) return 'compact';
+  if (height >= 70) return 'extra-loose';
   if (height >= 50) return 'loose';
   return 'standard';
 }
@@ -335,7 +351,7 @@ const FindPanel: React.FC<FindPanelProps> = ({
         <div style={{ width: 280 }}>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <Input
-              size="small"
+              size="medium"
               placeholder="输入查找内容"
               value={findQuery}
               onChange={e => onFindQueryChange(e.target.value)}
@@ -417,6 +433,13 @@ export const BaseToolbar: React.FC<BaseToolbarProps> = ({
   calendarViewType,
   onCalendarViewTypeChange,
   onCalendarNavigate,
+  onGanttConfigClick,
+  ganttConfigContent,
+  ganttConfigTitle,
+  ganttTitle,
+  ganttViewType,
+  onGanttViewTypeChange,
+  onGanttNavigate,
   commentsEnabled = false,
   commentPanelOpen = false,
   onToggleCommentPanel,
@@ -424,6 +447,7 @@ export const BaseToolbar: React.FC<BaseToolbarProps> = ({
   const isEmbed = mode === 'embed';
   const isKanban = variant === 'kanban';
   const isCalendar = variant === 'calendar';
+  const isGantt = variant === 'gantt';
   const setStatusText = useSheetStore(s => s.setStatusText);
   const zoomLevel = useSheetStore(s => s.zoomLevel);
   const setZoomLevel = useSheetStore(s => s.setZoomLevel);
@@ -441,7 +465,7 @@ export const BaseToolbar: React.FC<BaseToolbarProps> = ({
   const [findMatches, setFindMatches] = useState<Array<{ row: number; col: number }>>([]);
   const [findIndex, setFindIndex] = useState(0);
   const [autoSort, setAutoSort] = useState(true);
-  const [rowHeightMode, setRowHeightMode] = useState<'compact' | 'standard' | 'loose'>(() =>
+  const [rowHeightMode, setRowHeightMode] = useState<RowHeightMode>(() =>
     rowHeightToMode(table.getDefaultRowHeight()),
   );
 
@@ -454,13 +478,19 @@ export const BaseToolbar: React.FC<BaseToolbarProps> = ({
     setActivePopover(null);
   }, []);
 
-  const handleRowHeight = useCallback((mode: 'compact' | 'standard' | 'loose') => {
+  const handleRowHeight = useCallback((mode: RowHeightMode) => {
     setRowHeightMode(mode);
     const height = ROW_HEIGHTS[mode];
     table.setDefaultRowHeight(height);
     table.notifyChange(null);
     closePopover();
-    setStatusText(`行高已设为${mode === 'compact' ? '紧凑' : mode === 'standard' ? '标准' : '宽松'} (${height}px)`);
+    const modeLabels: Record<RowHeightMode, string> = {
+      compact: '紧凑',
+      standard: '标准',
+      loose: '宽松',
+      'extra-loose': '超高',
+    };
+    setStatusText(`行高已设为${modeLabels[mode]} (${height}px)`);
   }, [table, setStatusText, closePopover]);
 
   const handleFind = useCallback(() => {
@@ -809,11 +839,12 @@ export const BaseToolbar: React.FC<BaseToolbarProps> = ({
     <Select
       {...baseSheetSelectProps}
       value={rowHeightMode}
-      onChange={value => handleRowHeight(value as 'compact' | 'standard' | 'loose')}
+      onChange={value => handleRowHeight(value as RowHeightMode)}
       options={[
-        { value: 'compact', label: '紧凑 (28px)' },
-        { value: 'standard', label: '标准 (40px)' },
-        { value: 'loose', label: '宽松 (56px)' },
+        { value: 'compact', label: '常规' },
+        { value: 'standard', label: '中等' },
+        { value: 'loose', label: '高' },
+        { value: 'extra-loose', label: '超高' },
       ]}
       style={{ width: 160 }}
     />
@@ -903,6 +934,72 @@ export const BaseToolbar: React.FC<BaseToolbarProps> = ({
     </>
   );
 
+  const renderGanttVariant = () => (
+    <>
+      <Space size={6} align="center" style={{ marginRight: 6, flexShrink: 0 }}>
+        <FundOutlined style={{ color: BASE_THEME.secondaryTextColor, fontSize: 14 }} />
+        <Typography.Text strong style={{ fontSize: 14 }}>甘特图</Typography.Text>
+      </Space>
+      <Divider type="vertical" style={{ height: 20, margin: '0 6px' }} />
+
+      {sheet && onToggleFieldVisibility && onReorderFields && onConfirmField && onDeleteField && renderToolbarPopover(
+        'field',
+        <><SettingOutlined /> 字段管理</>,
+        <FieldManagePopover
+          columnDefs={sheet.columnDefs}
+          onToggleFieldVisibility={onToggleFieldVisibility}
+          onReorderFields={onReorderFields}
+          onConfirmField={onConfirmField}
+          onDeleteField={onDeleteField}
+        />,
+        { width: 290, bodyPadding: 0 },
+      )}
+
+      {renderToolbarPopover(
+        'ganttConfig',
+        <><SettingOutlined /> 甘特图配置</>,
+        ganttConfigContent || (
+          <div style={{ padding: '12px 16px', minWidth: 280 }}>
+            <Typography.Text type="secondary">点击"甘特图配置"按钮可配置日期字段、任务名字段等</Typography.Text>
+          </div>
+        ),
+        { title: panelTitle(ganttConfigTitle || '甘特图配置'), width: 320 },
+      )}
+
+      <Divider type="vertical" style={{ height: 20, margin: '0 6px' }} />
+
+      {renderToolbarPopover(
+        'filter',
+        <><FilterOutlined /> 筛选{countBadge(filterConditions.length)}</>,
+        filterPanel,
+        {
+          title: panelTitle('筛选条件', filterConditions.length > 0 ? () => onFilterChange?.([]) : undefined),
+          width: 480,
+          active: activePopover === 'filter' || filterConditions.length > 0,
+        },
+      )}
+
+      {renderToolbarPopover(
+        'sort',
+        <><SortAscendingOutlined /> 排序{countBadge(sortRules.length)}</>,
+        sortPanel,
+        {
+          title: (
+            <Flex justify="space-between" align="center" style={{ width: '100%', minHeight: 24, gap: 12 }}>
+              <Typography.Text strong style={{ fontSize: 14 }}>设置排序条件</Typography.Text>
+              <Space size={8} align="center">
+                <Typography.Text type="secondary" style={{ fontSize: 13 }}>自动排序</Typography.Text>
+                <Switch checked={autoSort} onChange={setAutoSort} />
+              </Space>
+            </Flex>
+          ),
+          width: 472,
+          active: activePopover === 'sort' || sortRules.length > 0,
+        },
+      )}
+    </>
+  );
+
   return (
     <Flex
       data-sheet-keep-selection
@@ -919,7 +1016,7 @@ export const BaseToolbar: React.FC<BaseToolbarProps> = ({
         fontFamily: BASE_THEME.fontFamily,
       }}
     >
-      {isCalendar && !isEmbed ? renderCalendarVariant() : (
+      {(isCalendar || isGantt) && !isEmbed ? (isCalendar ? renderCalendarVariant() : renderGanttVariant()) : (
         <>
           {!isEmbed && (
             <>

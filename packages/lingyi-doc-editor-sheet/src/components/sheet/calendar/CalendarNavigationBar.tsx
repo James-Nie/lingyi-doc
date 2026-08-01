@@ -1,20 +1,36 @@
-import React from 'react';
-import { Button, Space, Typography } from 'antd';
+import React, { useState } from 'react';
+import { Button, DatePicker, Space, Typography } from 'antd';
+import type { Dayjs } from 'dayjs';
 import { BASE_THEME } from '@lingyi-doc/core-sheet';
 
 interface CalendarNavigationBarProps {
   title: string;
+  currentDate: Dayjs;
   viewType: 'month' | 'week' | 'day';
   onViewTypeChange: (type: 'month' | 'week' | 'day') => void;
   onNavigate: (direction: 'prev' | 'next' | 'today') => void;
+  onCurrentDateChange?: (date: Dayjs) => void;
 }
 
 export const CalendarNavigationBar: React.FC<CalendarNavigationBarProps> = ({
   title,
+  currentDate,
   viewType,
   onViewTypeChange,
   onNavigate,
+  onCurrentDateChange,
 }) => {
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
+
+  const pickerType = viewType === 'month' ? 'month' : viewType === 'week' ? 'week' : 'date';
+
+  const handleDateChange = (date: Dayjs | null) => {
+    if (date && onCurrentDateChange) {
+      onCurrentDateChange(date);
+    }
+    setDatePickerOpen(false);
+  };
+
   return (
     <div
       style={{
@@ -28,9 +44,26 @@ export const CalendarNavigationBar: React.FC<CalendarNavigationBarProps> = ({
       }}
     >
       <Space size={4} align="center">
-        <Typography.Text strong style={{ fontSize: 14, color: BASE_THEME.headerTextColor }}>
-          {title}
-        </Typography.Text>
+        <DatePicker
+          picker={pickerType}
+          value={currentDate}
+          onChange={handleDateChange}
+          open={datePickerOpen}
+          onOpenChange={setDatePickerOpen}
+          allowClear={false}
+          bordered={false}
+          suffixIcon={null}
+          style={{ padding: 0, width: 'auto' }}
+          inputReadOnly
+          getPopupContainer={trigger => trigger.parentElement || document.body}
+        >
+          <Typography.Text
+            strong
+            style={{ fontSize: 14, color: BASE_THEME.headerTextColor, cursor: 'pointer', userSelect: 'none' }}
+          >
+            {title} 232321
+          </Typography.Text>
+        </DatePicker>
         <Button type="text" size="small" onClick={() => onNavigate('prev')} style={{ padding: '0 4px', minWidth: 24 }}>
           ‹
         </Button>

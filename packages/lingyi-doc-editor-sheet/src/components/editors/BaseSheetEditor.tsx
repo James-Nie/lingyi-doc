@@ -7,6 +7,7 @@ import { FormViewEditor } from '../base/FormViewEditor';
 import { KanbanView } from '../base/kanban';
 import { SheetContainer } from '../SheetContainer';
 import { CalendarContainer } from '../sheet/calendar/CalendarContainer';
+import { GanttContainer } from '../sheet/gantt/GanttContainer';
 import { RecordDetailDrawer } from '../RecordDetailDrawer';
 import type { RecordDrawerTab } from '../RecordDetailDrawer';
 import { DashboardEditor } from '../../dashboard';
@@ -25,6 +26,7 @@ export const BaseSheetEditor: React.FC<BaseSheetEditorProps> = ({
   activeFormView,
   activeKanbanView,
   activeCalendarView,
+  activeGanttView,
   onSelectView,
   onCreateView,
   onRenameView,
@@ -33,6 +35,7 @@ export const BaseSheetEditor: React.FC<BaseSheetEditorProps> = ({
   onFormViewChange,
   onKanbanViewChange,
   onCalendarViewChange,
+  onGanttViewChange,
   calendarDataVersion,
   calendarCurrentDate,
   onCalendarCurrentDateChange,
@@ -41,6 +44,11 @@ export const BaseSheetEditor: React.FC<BaseSheetEditorProps> = ({
   calendarNoDateDrawerOpen,
   onCalendarNoDateDrawerOpenChange,
   onCalendarNoDateCountChange,
+  ganttDataVersion,
+  ganttCurrentDate,
+  onGanttCurrentDateChange,
+  ganttViewType,
+  onGanttViewTypeChangeExternal,
   toolbar,
   readOnly = false,
   renderFormSharePanel,
@@ -69,6 +77,9 @@ export const BaseSheetEditor: React.FC<BaseSheetEditorProps> = ({
 
   const showViewToolbar = Boolean(toolbar) && !activeDashboard && currentView !== 'form';
 
+  // 表格/甘特视图：数据渲染面板与左侧视图列表留 20px 间距（工具栏不移动）
+  const isGridOrGantt = currentView === 'grid' || currentView === 'gantt';
+
   const fieldIdToColIndex = useMemo(() => {
     const map = new Map<string, number>();
     sheet.columnDefs.forEach((col, index) => {
@@ -82,6 +93,17 @@ export const BaseSheetEditor: React.FC<BaseSheetEditorProps> = ({
     return sheet.rows.findIndex(r => r._id === recordId);
   }, [sheet]);
 
+  const toCellValue = useCallback((colId: string, val: unknown): CellValue => {
+    const colDef = sheet.columnDefs.find(c => c.id === colId);
+    if (colDef && (colDef.type === 'date' || colDef.type === 'datetime')) {
+      const num = typeof val === 'number' ? val : typeof val === 'string' ? Date.parse(val) : NaN;
+      if (!isNaN(num)) {
+        return { type: 'date', timestamp: num, format: { kind: colDef.type === 'datetime' ? 'datetime' : 'short' } };
+      }
+    }
+    return { type: 'text', text: String(val ?? '') };
+  }, [sheet]);
+
   const handleRecordUpdate = useCallback((recordId: string, updates: Partial<RecordRow>) => {
     const rowIndex = recordIdToRowIndex(recordId);
     if (rowIndex < 0) return;
@@ -90,13 +112,13 @@ export const BaseSheetEditor: React.FC<BaseSheetEditorProps> = ({
       if (val !== undefined) {
         const colIndex = fieldIdToColIndex.get(col.id);
         if (colIndex !== undefined) {
-          const cellValue: CellValue = { type: 'text', text: String(val) };
-          table.setCellValue(rowIndex, colIndex, cellValue);
+          table.setCellValue(rowIndex, colIndex, toCellValue(col.id, val));
         }
       }
     });
     onCalendarViewChange?.();
-  }, [table, sheet, recordIdToRowIndex, fieldIdToColIndex, onCalendarViewChange]);
+    onGanttViewChange?.();
+  }, [table, sheet, recordIdToRowIndex, fieldIdToColIndex, onCalendarViewChange, onGanttViewChange, toCellValue]);
 
   const handleRecordCreate = useCallback((data: Partial<RecordRow>) => {
     const newRow = sheet.rowCount;
@@ -106,31 +128,31 @@ export const BaseSheetEditor: React.FC<BaseSheetEditorProps> = ({
       if (val !== undefined) {
         const colIndex = fieldIdToColIndex.get(col.id);
         if (colIndex !== undefined) {
-          const cellValue: CellValue = { type: 'text', text: String(val) };
-          table.setCellValue(newRow, colIndex, cellValue);
+          table.setCellValue(newRow, colIndex, toCellValue(col.id, val));
         }
       }
     });
+    setDetailRowIndex(newRow);
     onCalendarViewChange?.();
-  }, [table, sheet, fieldIdToColIndex, onCalendarViewChange]);
+    onGanttViewChange?.();
+  }, [table, sheet, fieldIdToColIndex, onCalendarViewChange, onGanttViewChange, toCellValue]);
+
+  const [detailRowIndex, setDetailRowIndex] = useState<number | null>(null);
+  const [detailDrawerTab] = useState<RecordDrawerTab>('detail');
 
   const handleRecordDelete = useCallback((recordId: string) => {
     const rowIndex = recordIdToRowIndex(recordId);
     if (rowIndex < 0) return;
     table.deleteRows(rowIndex, 1);
     onCalendarViewChange?.();
-  }, [table, recordIdToRowIndex, onCalendarViewChange]);
-
-  const [detailRowIndex, setDetailRowIndex] = useState<number | null>(null);
-  const [detailDrawerTab] = useState<RecordDrawerTab>('detail');
+    onGanttViewChange?.();
+  }, [table, recordIdToRowIndex, onCalendarViewChange, onGanttViewChange]);
 
   const handleCardClick = useCallback((recordId: string) => {
     const rowIndex = recordIdToRowIndex(recordId);
     if (rowIndex < 0) return;
     setDetailRowIndex(rowIndex);
   }, [recordIdToRowIndex]);
-
-  const calendarTable = useMemo(() => ({ sheet }), [sheet]);
 
   return (
     <div style={{
@@ -186,6 +208,7 @@ export const BaseSheetEditor: React.FC<BaseSheetEditorProps> = ({
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
+          paddingLeft: isGridOrGantt ? 20 : 0,
         }}>
           {activeDashboard && onDashboardChange ? (
             <DashboardEditor
@@ -213,7 +236,7 @@ export const BaseSheetEditor: React.FC<BaseSheetEditorProps> = ({
             />
           ) : currentView === 'calendar' && activeCalendarView ? (
             <CalendarContainer
-              table={calendarTable}
+              table={table}
               view={activeCalendarView}
               dataVersion={calendarDataVersion}
               onRecordCreate={handleRecordCreate}
@@ -225,6 +248,18 @@ export const BaseSheetEditor: React.FC<BaseSheetEditorProps> = ({
               noDateDrawerOpen={calendarNoDateDrawerOpen}
               onNoDateDrawerOpenChange={onCalendarNoDateDrawerOpenChange}
               onNoDateCountChange={onCalendarNoDateCountChange}
+            />
+          ) : currentView === 'gantt' && activeGanttView ? (
+            <GanttContainer
+              table={table}
+              view={activeGanttView}
+              dataVersion={ganttDataVersion}
+              onRecordCreate={handleRecordCreate}
+              onCardClick={handleCardClick}
+              currentDate={ganttCurrentDate}
+              onCurrentDateChange={onGanttCurrentDateChange}
+              viewType={ganttViewType}
+              onViewTypeChange={onGanttViewTypeChangeExternal}
             />
           ) : (
             <SheetContainer
@@ -253,6 +288,10 @@ export const BaseSheetEditor: React.FC<BaseSheetEditorProps> = ({
         initialTab={detailDrawerTab}
         onClose={() => setDetailRowIndex(null)}
         onNavigate={(rowIndex) => setDetailRowIndex(rowIndex)}
+        onDataChange={() => {
+          onCalendarViewChange?.();
+          onGanttViewChange?.();
+        }}
       />
     </div>
   );

@@ -1,4 +1,5 @@
 import React from 'react';
+import { Tooltip } from 'antd';
 import { BASE_THEME } from '@lingyi-doc/core-sheet';
 
 /** 多维表：嵌入表格网格的「+」添加单元格（列头末尾 / 行头底部） */
@@ -36,31 +37,32 @@ export const BaseAxisAddCell: React.FC<{
       }}
       data-sheet-keep-selection
     >
-      <button
-        type="button"
-        title={title}
-        onClick={onClick}
-        onMouseDown={e => e.stopPropagation()}
-        style={{
-          width: '100%',
-          height: '100%',
-          border: 'none',
-          background: 'transparent',
-          color: BASE_THEME.addCellColor,
-          cursor: 'pointer',
-          fontSize: 18,
-          fontWeight: 300,
-          lineHeight: 1,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: 0,
-        }}
-        onMouseEnter={e => { e.currentTarget.parentElement!.style.background = BASE_THEME.rowHoverBg; }}
-        onMouseLeave={e => { e.currentTarget.parentElement!.style.background = BASE_THEME.addCellBg; }}
-      >
-        +
-      </button>
+      <Tooltip title={title} placement="bottom">
+        <button
+          type="button"
+          onClick={onClick}
+          onMouseDown={e => e.stopPropagation()}
+          style={{
+            width: '100%',
+            height: '100%',
+            border: 'none',
+            background: 'transparent',
+            color: BASE_THEME.addCellColor,
+            cursor: 'pointer',
+            fontSize: 18,
+            fontWeight: 300,
+            lineHeight: 1,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 0,
+          }}
+          onMouseEnter={e => { e.currentTarget.parentElement!.style.background = BASE_THEME.rowHoverBg; }}
+          onMouseLeave={e => { e.currentTarget.parentElement!.style.background = BASE_THEME.addCellBg; }}
+        >
+          +
+        </button>
+      </Tooltip>
     </div>
   );
 };

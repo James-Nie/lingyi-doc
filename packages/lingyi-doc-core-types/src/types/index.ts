@@ -824,6 +824,19 @@ export interface RecordChangeEntry {
   after?: CellValue;
 }
 
+/** 随保存请求携带的行级变更历史条目（服务端抽取入库，主 JSON 不再内嵌 _history） */
+export interface RecordHistoryPayloadEntry {
+  id: string;
+  recordId: string;
+  sheetId?: string;
+  at: number;
+  by: string;
+  action: RecordChangeAction;
+  fieldId?: string;
+  before?: CellValue;
+  after?: CellValue;
+}
+
 export interface RecordRow {
   _id: string;
   _createdAt: number;

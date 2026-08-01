@@ -173,6 +173,15 @@ export function createGridView(sheet: BaseSheetModel, name?: string): BaseView {
   };
 }
 
+const DEFAULT_VIEW_NAMES: Record<BaseViewType, string> = {
+  grid: '表格',
+  kanban: '看板',
+  gantt: '甘特',
+  calendar: '日历',
+  gallery: '画廊',
+  form: '表单',
+};
+
 /** 按类型新建并激活视图（form 复用已有表单视图逻辑） */
 export function createAndActivateBaseView(
   sheet: BaseSheetModel,
@@ -189,13 +198,16 @@ export function createAndActivateBaseView(
   } else if (viewType === 'calendar') {
     view = createCalendarView(sheet);
     sheet.views.push(view);
+  } else if (viewType === 'gantt') {
+    view = createGanttView(sheet);
+    sheet.views.push(view);
   } else if (viewType === 'grid') {
     view = createGridView(sheet);
     sheet.views.push(view);
   } else {
     view = {
       viewId: `view_${viewType}_${Date.now()}`,
-      viewName: viewType,
+      viewName: DEFAULT_VIEW_NAMES[viewType] || viewType,
       viewType,
       config: {},
     };
@@ -262,7 +274,7 @@ export function createKanbanView(sheet: BaseSheetModel, groupFieldId?: string): 
     : '';
   return {
     viewId: `view_kanban_${Date.now()}`,
-    viewName: fieldName ? `${fieldName} + 看板` : '看板',
+    viewName: '看板',
     viewType: 'kanban',
     config: fieldId ? { kanbanGroupFieldId: fieldId } : {},
   };
@@ -282,7 +294,7 @@ export function createCalendarView(sheet: BaseSheetModel, dateFieldId?: string):
     : '';
   return {
     viewId: `view_calendar_${Date.now()}`,
-    viewName: fieldName ? `${fieldName} + 日历` : '日历',
+    viewName: '日历',
     viewType: 'calendar',
     config: fieldId ? {
       calendarDateFieldId: fieldId,
@@ -293,6 +305,25 @@ export function createCalendarView(sheet: BaseSheetModel, dateFieldId?: string):
       calendarViewType: 'month',
       calendarMaxCardsPerCell: 3,
       calendarShowNoDateSection: true,
+    },
+  };
+}
+
+/** 创建甘特图视图（写入默认日期字段） */
+export function createGanttView(sheet: BaseSheetModel, startDateFieldId?: string): BaseView {
+  const fieldId = startDateFieldId || pickDefaultDateFieldId(sheet.columnDefs);
+  const fieldName = fieldId
+    ? (sheet.columnDefs.find(c => c.id === fieldId)?.name || '')
+    : '';
+  return {
+    viewId: `view_gantt_${Date.now()}`,
+    viewName: '甘特',
+    viewType: 'gantt',
+    config: fieldId ? {
+      ganttStartDateFieldId: fieldId,
+      ganttTimeUnit: 'week',
+    } : {
+      ganttTimeUnit: 'week',
     },
   };
 }

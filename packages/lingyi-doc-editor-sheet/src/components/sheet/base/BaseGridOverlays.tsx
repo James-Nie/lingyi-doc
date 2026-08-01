@@ -1,5 +1,6 @@
 import React from 'react';
-import { BASE_THEME, getTreeContentRect, isRowVisible, isSystemColumnType, type FreeTable, type RecordTreeColumnMeta } from '@lingyi-doc/core-sheet';
+import { Tooltip } from 'antd';
+import { BASE_THEME, GROUP_CHEVRON_OFFSET, GROUP_INDENT_STEP, getTreeContentRect, isRowVisible, isSystemColumnType, resolveGroupedCardLeft, type FreeTable, type GroupedLayoutResult, type RecordTreeColumnMeta } from '@lingyi-doc/core-sheet';
 import { getEditText, type BaseSheetModel, type CellCoord, type ColumnDef, type RecordRow } from '@lingyi-doc/core-types';
 import type { ViewportManager } from '@lingyi-doc/core-sheet';
 import { getActiveBaseView, isFieldGrouped } from '../../base/formViewUtils';
@@ -30,6 +31,7 @@ export interface BaseGridOverlaysProps {
   addRowsBarHeight: number;
   gridRowCount: number;
   isGroupedView: boolean;
+  groupLayout: GroupedLayoutResult | null;
   resolveActiveRowHeights: () => Map<number, number>;
   mapCoordToRecord: (coord: CellCoord) => CellCoord | null;
   scheduleRender: () => void;
@@ -103,6 +105,7 @@ export const BaseGridOverlays: React.FC<BaseGridOverlaysProps> = ({
   addRowsBarHeight,
   gridRowCount,
   isGroupedView,
+  groupLayout,
   resolveActiveRowHeights,
   mapCoordToRecord,
   scheduleRender,
@@ -406,6 +409,40 @@ export const BaseGridOverlays: React.FC<BaseGridOverlaysProps> = ({
           showViewDetail={showViewDetail}
           showAddChild={showAddChild}
         />
+      );
+    })()}
+
+    {isGroupedView && groupLayout && activeHoverRow !== null && (() => {
+      const item = groupLayout.items[activeHoverRow];
+      if (item?.type !== 'add-record') return null;
+      const zoom = viewportRef.current?.zoomLevel ?? zoomLevel;
+      const rowRect = viewportRef.current!.getCellRect(
+        { row: activeHoverRow, col: 0 },
+        sheetColumnWidths,
+        displayRowHeights,
+      );
+      if (rowRect.y + rowRect.height < 0 || rowRect.y > containerSize.height) return null;
+      const btnX = resolveGroupedCardLeft() + (item.level * GROUP_INDENT_STEP + GROUP_CHEVRON_OFFSET) * zoom;
+      const btnY = rowRect.y + rowRect.height / 2;
+      return (
+        <div
+          style={{
+            position: 'absolute',
+            left: btnX + 16 * zoom,
+            top: btnY,
+            transform: 'translateY(-50%)',
+            zIndex: 130,
+            pointerEvents: 'none',
+            background: '#1D2129',
+            color: '#fff',
+            fontSize: 12,
+            padding: '4px 8px',
+            borderRadius: 4,
+            whiteSpace: 'nowrap',
+          }}
+        >
+          添加记录
+        </div>
       );
     })()}
 

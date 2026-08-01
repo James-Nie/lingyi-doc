@@ -648,6 +648,7 @@ export const BaseGridView: React.FC<BaseGridViewProps> = ({
         addRowsBarHeight={addRowsBarHeight}
         gridRowCount={gridRowCount}
         isGroupedView={isGroupedView}
+        groupLayout={groupLayout}
         resolveActiveRowHeights={resolveActiveRowHeights}
         mapCoordToRecord={mapCoordToRecord}
         scheduleRender={scheduleRender}

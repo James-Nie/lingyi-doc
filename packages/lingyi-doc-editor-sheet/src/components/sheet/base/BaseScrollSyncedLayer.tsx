@@ -1,5 +1,5 @@
 import React from 'react';
-import type { FreeTable, RecordTreeColumnMeta, ViewportManager } from '@lingyi-doc/core-sheet';
+import type { FreeTable, GroupedLayoutResult, RecordTreeColumnMeta, ViewportManager } from '@lingyi-doc/core-sheet';
 import type { BaseSheetModel, CellCoord, ColumnDef, RecordRow } from '@lingyi-doc/core-types';
 import type { CellRange } from '@lingyi-doc/core-types';
 import { useSheetStore } from '../../../store/sheetStore';
@@ -27,6 +27,7 @@ export interface BaseScrollSyncedLayerProps {
   addRowsBarHeight: number;
   gridRowCount: number;
   isGroupedView: boolean;
+  groupLayout: GroupedLayoutResult | null;
   resolveActiveRowHeights: () => Map<number, number>;
   mapCoordToRecord: (coord: CellCoord) => CellCoord | null;
   scheduleRender: () => void;
@@ -116,6 +117,7 @@ export const BaseScrollSyncedLayer: React.FC<BaseScrollSyncedLayerProps> = (prop
     extraScrollBottom,
     applyScroll,
     canvasContainerRef,
+    groupLayout,
     ...overlayProps
   } = props;
 
@@ -124,6 +126,7 @@ export const BaseScrollSyncedLayer: React.FC<BaseScrollSyncedLayerProps> = (prop
       {!isPreview && (
         <BaseGridOverlays
           {...overlayProps}
+          groupLayout={groupLayout}
           scrollLeft={scrollLeft}
           scrollTop={scrollTop}
         />

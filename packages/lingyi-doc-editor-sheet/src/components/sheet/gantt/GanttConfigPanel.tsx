@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Select, Tooltip } from 'antd';
 import type { BaseViewConfig, ColumnDef } from '@lingyi-doc/core-types';
-import { CALENDAR_COLORS, CalendarColorKey } from './calendarUtils';
+import { CALENDAR_COLORS, CalendarColorKey } from '../calendar/calendarUtils';
 
 const DROPDOWN_Z_INDEX = 10080;
 
@@ -16,7 +16,7 @@ const COLOR_LABELS: Record<CalendarColorKey, string> = {
   gray: '灰色',
 };
 
-interface CalendarConfigPanelProps {
+interface GanttConfigPanelProps {
   config: BaseViewConfig;
   columns: ColumnDef[];
   onClose?: () => void;
@@ -73,7 +73,7 @@ const styles = {
 
 type ColorMode = 'custom' | 'field';
 
-export const CalendarConfigPanel: React.FC<CalendarConfigPanelProps> = ({
+export const GanttConfigPanel: React.FC<GanttConfigPanelProps> = ({
   config,
   columns,
   onConfigChange,
@@ -114,8 +114,8 @@ export const CalendarConfigPanel: React.FC<CalendarConfigPanelProps> = ({
               style={{ width: 160 }}
               dropdownStyle={{ zIndex: DROPDOWN_Z_INDEX }}
               placeholder="选择开始日期字段"
-              value={localConfig.calendarDateFieldId}
-              onChange={(value) => handleChange('calendarDateFieldId', value)}
+              value={localConfig.ganttStartDateFieldId}
+              onChange={(value) => handleChange('ganttStartDateFieldId', value)}
               options={[
                 { value: '', label: '未选择' },
                 ...dateFields.map(f => ({ value: f.id, label: f.name })),
@@ -128,8 +128,8 @@ export const CalendarConfigPanel: React.FC<CalendarConfigPanelProps> = ({
               style={{ width: 160 }}
               dropdownStyle={{ zIndex: DROPDOWN_Z_INDEX }}
               placeholder="选择结束日期字段"
-              value={localConfig.calendarEndDateFieldId}
-              onChange={(value) => handleChange('calendarEndDateFieldId', value)}
+              value={localConfig.ganttEndDateFieldId}
+              onChange={(value) => handleChange('ganttEndDateFieldId', value)}
               options={[
                 { value: '', label: '未选择' },
                 ...dateFields.map(f => ({ value: f.id, label: f.name })),
@@ -146,9 +146,9 @@ export const CalendarConfigPanel: React.FC<CalendarConfigPanelProps> = ({
             <Select
               style={{ width: 160 }}
               dropdownStyle={{ zIndex: DROPDOWN_Z_INDEX }}
-              placeholder="选择标题字段"
-              value={localConfig.calendarCardTitleFieldId}
-              onChange={(value) => handleChange('calendarCardTitleFieldId', value)}
+              placeholder="选择任务名字段"
+              value={localConfig.ganttTaskNameFieldId}
+              onChange={(value) => handleChange('ganttTaskNameFieldId', value)}
               options={[
                 { value: '', label: '自动选择' },
                 ...selectableFields.map(f => ({ value: f.id, label: f.name })),
@@ -206,11 +206,11 @@ export const CalendarConfigPanel: React.FC<CalendarConfigPanelProps> = ({
                       boxShadow: selected ? '0 0 0 1px #3370ff' : 'none',
                     }}
                   >
-                  {selected && (
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="20 6 9 17 4 12" />
-                    </svg>
-                  )}
+                    {selected && (
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    )}
                   </div>
                 </Tooltip>
               );

@@ -1,4 +1,5 @@
 import React from 'react';
+import { Tooltip } from 'antd';
 import type { FreeTable } from '@lingyi-doc/core-sheet';
 import type { CellCoord, CellRange, CellValue, ColumnDef } from '@lingyi-doc/core-types';
 import type { ViewportManager } from '@lingyi-doc/core-sheet';
@@ -176,31 +177,31 @@ export const FreeformGridOverlays: React.FC<FreeformGridOverlaysProps> = ({
 
         const clampedX = Math.min(Math.max(btnX, config.headerWidth), containerSize.width - addColWidth);
         return (
-          <button
-            key="add-col-btn"
-            onClick={handleAddColumn}
-            style={{
-              position: 'absolute',
-              top: 2,
-              left: clampedX,
-              zIndex: 60,
-              width: addColWidth,
-              height: config.headerHeight - 4,
-              border: '1px dashed #ccc',
-              borderRadius: 3,
-              background: '#fafafa',
-              color: '#999',
-              cursor: 'pointer',
-              fontSize: 16,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: 0,
-            }}
-            title="添加列"
-          >
-            +
-          </button>
+          <Tooltip title="添加列" placement="bottom">
+            <button
+              onClick={handleAddColumn}
+              style={{
+                position: 'absolute',
+                top: 2,
+                left: clampedX,
+                zIndex: 60,
+                width: addColWidth,
+                height: config.headerHeight - 4,
+                border: '1px dashed #ccc',
+                borderRadius: 3,
+                background: '#fafafa',
+                color: '#999',
+                cursor: 'pointer',
+                fontSize: 16,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: 0,
+              }}
+            >
+              +
+            </button>
+          </Tooltip>
         );
       })()}
 

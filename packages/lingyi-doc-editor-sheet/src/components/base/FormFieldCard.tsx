@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Tooltip } from 'antd';
 import type { BaseFormFieldItem, CellValue, ColumnDef } from '@lingyi-doc/core-types';
 import { BASE_THEME, getRatingConfig } from '@lingyi-doc/core-sheet';
 import { RatingInput } from '../editors/RatingInput';
@@ -60,32 +61,6 @@ const ToggleSwitch: React.FC<{ checked: boolean; onChange: (v: boolean) => void;
   </label>
 );
 
-const Tooltip: React.FC<{ text: string; children: React.ReactNode }> = ({ text, children }) => {
-  const [show, setShow] = useState(false);
-  return (
-    <span
-      style={{ position: 'relative', display: 'inline-flex' }}
-      onMouseEnter={() => setShow(true)}
-      onMouseLeave={() => setShow(false)}
-    >
-      {children}
-      {show && (
-        <span style={{
-          position: 'absolute', bottom: 'calc(100% + 6px)', left: '50%', transform: 'translateX(-50%)',
-          padding: '6px 10px', background: '#1f2329', color: '#fff', fontSize: 12,
-          borderRadius: 6, whiteSpace: 'nowrap', zIndex: 20, pointerEvents: 'none',
-        }}>
-          {text}
-          <span style={{
-            position: 'absolute', top: '100%', left: '50%', marginLeft: -5,
-            border: '5px solid transparent', borderTopColor: '#1f2329',
-          }} />
-        </span>
-      )}
-    </span>
-  );
-};
-
 const FieldActions: React.FC<{
   item: BaseFormFieldItem;
   isLocked?: boolean;
@@ -103,7 +78,7 @@ const FieldActions: React.FC<{
       <ToggleSwitch checked={!!item.required} onChange={v => onUpdate({ required: v })} />
       必填
     </span>
-    <Tooltip text="仅从表单视图移除，表格字段保留">
+    <Tooltip title="仅从表单视图移除，表格字段保留">
       <button type="button" onClick={onRemove} style={{
         border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 13,
         color: BASE_THEME.headerTextColor, display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 0',
@@ -117,7 +92,7 @@ const FieldActions: React.FC<{
     </Tooltip>
     <span style={{ width: 1, height: 16, background: BASE_THEME.gridColor, flexShrink: 0 }} />
     {isLocked ? (
-      <Tooltip text="索引列不能被删除">
+      <Tooltip title="索引列不能被删除">
         <button type="button" disabled style={{
           border: 'none', background: 'transparent', cursor: 'not-allowed', color: '#dee0e3', fontSize: 16, padding: 2,
         }}>
@@ -125,7 +100,7 @@ const FieldActions: React.FC<{
         </button>
       </Tooltip>
     ) : (
-      <Tooltip text="删除字段（同时删除表格列）">
+      <Tooltip title="删除字段（同时删除表格列）">
         <button type="button" onClick={onDeleteField} style={{
           border: 'none', background: 'transparent', cursor: 'pointer', color: '#8f959e', fontSize: 16, padding: 2,
         }}>
@@ -230,12 +205,18 @@ export const FormFieldCard: React.FC<FormFieldCardProps> = ({
           display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px',
           borderBottom: `1px solid ${BASE_THEME.gridColor}`, background: '#F5F6F7',
         }}>
-          <span {...dragHandleProps} style={{ cursor: isDragging ? 'grabbing' : 'grab', color: '#bbb', fontSize: 14, userSelect: 'none' }} title="拖动排序">⋮⋮</span>
+          <Tooltip title="拖动排序">
+            <span {...dragHandleProps} style={{ cursor: isDragging ? 'grabbing' : 'grab', color: '#bbb', fontSize: 14, userSelect: 'none' }}>⋮⋮</span>
+          </Tooltip>
           <span style={{
             display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, color: BASE_THEME.headerTextColor, padding: '2px 4px',
           }}>
             <FieldTypeIcon type={columnDef.type} size={16} /><span>{meta.name}</span>
-            {isLocked && <span title="锁定字段">🔒</span>}
+            {isLocked && (
+              <Tooltip title="锁定字段">
+                <span>🔒</span>
+              </Tooltip>
+            )}
           </span>
           <div style={{ marginLeft: 'auto' }}>
             <FieldActions
@@ -331,19 +312,24 @@ export const FormFieldCard: React.FC<FormFieldCardProps> = ({
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-        <span
-          {...dragHandleProps}
-          onClick={e => e.stopPropagation()}
-          style={{ cursor: isDragging ? 'grabbing' : 'grab', color: '#bbb', userSelect: 'none', fontSize: 14, letterSpacing: 1 }}
-          title="拖动排序"
-        >
-          ⋮⋮
-        </span>
+        <Tooltip title="拖动排序">
+          <span
+            {...dragHandleProps}
+            onClick={e => e.stopPropagation()}
+            style={{ cursor: isDragging ? 'grabbing' : 'grab', color: '#bbb', userSelect: 'none', fontSize: 14, letterSpacing: 1 }}
+          >
+            ⋮⋮
+          </span>
+        </Tooltip>
         <span style={{ fontSize: 14, fontWeight: 500, color: BASE_THEME.cellTextColor }}>
           {item.required && <span style={{ color: '#F54A45', marginRight: 2 }}>*</span>}
           {questionDisplay}
         </span>
-        {isLocked && <span style={{ fontSize: 16 }} title="锁定">🔒</span>}
+        {isLocked && (
+          <Tooltip title="锁定">
+            <span style={{ fontSize: 16 }}>🔒</span>
+          </Tooltip>
+        )}
         <div style={{ marginLeft: 'auto' }}>
           <FieldActions
             item={item}

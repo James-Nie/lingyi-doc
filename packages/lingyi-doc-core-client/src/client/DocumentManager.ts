@@ -9,7 +9,7 @@ import {
 import type { PatchRequest, PatchResult } from '@lingyi-doc/core-io';
 import { DocumentPatchConflictError, requireDocumentHandler } from '@lingyi-doc/core-io';
 import { deriveWorkbookDocType } from '@lingyi-doc/core-sheet';
-import type { ActiveSheetType } from '@lingyi-doc/core-types';
+import type { ActiveSheetType, RecordHistoryPayloadEntry } from '@lingyi-doc/core-types';
 
 /** 避免 pathname 已是 percent-encoding 时二次 encode 导致 404 */
 function encodePathSegment(segment: string): string {
@@ -423,7 +423,7 @@ export class DocumentManager {
     docId: string,
     title: string,
     workbook: Workbook,
-    opts?: { keepalive?: boolean },
+    opts?: { keepalive?: boolean; recordHistory?: RecordHistoryPayloadEntry[] },
   ): Promise<{ version: number }> {
     workbook.prepareForSave();
     const docType = deriveWorkbookDocType(workbook.sheets.map(s => s.type));
@@ -431,7 +431,12 @@ export class DocumentManager {
     const result = await request<{ version?: number }>(`/docs/${docId}`, {
       method: 'PUT',
       keepalive: opts?.keepalive,
-      body: JSON.stringify({ title, docType, data: handler.toJSON(workbook) }),
+      body: JSON.stringify({
+        title,
+        docType,
+        data: handler.toJSON(workbook),
+        recordHistory: opts?.recordHistory,
+      }),
     });
     return { version: result.version ?? 0 };
   }
@@ -442,6 +447,16 @@ export class DocumentManager {
     opts?: { keepalive?: boolean },
   ): Promise<PatchResult> {
     return patchRequest(`/docs/${docId}/patch`, input, false, opts);
+  }
+
+  /** 分页读取某条多维表记录的行级变更历史（详情抽屉「历史」页） */
+  static async listRecordHistory(
+    docId: string,
+    recordId: string,
+    page = 1,
+    pageSize = 50,
+  ): Promise<{ items: RecordHistoryPayloadEntry[]; total: number; hasMore: boolean }> {
+    return request(`/docs/${docId}/records/${encodePathSegment(recordId)}/history?page=${page}&pageSize=${pageSize}`);
   }
 
   static async load(

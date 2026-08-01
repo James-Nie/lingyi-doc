@@ -29,6 +29,7 @@ export interface BaseSheetEditorProps extends SheetEditorProps {
   activeFormView: BaseView | null;
   activeKanbanView?: BaseView | null;
   activeCalendarView?: BaseView | null;
+  activeGanttView?: BaseView | null;
   onSelectView: (viewId: string) => void;
   onCreateView?: (viewType: BaseViewType) => void;
   onRenameView?: (viewId: string, name: string) => void;
@@ -37,6 +38,7 @@ export interface BaseSheetEditorProps extends SheetEditorProps {
   onFormViewChange: () => void;
   onKanbanViewChange?: () => void;
   onCalendarViewChange?: () => void;
+  onGanttViewChange?: () => void;
   /** 日历视图数据版本号，用于触发数据刷新 */
   calendarDataVersion?: number;
   /** 日历视图：当前日期 */
@@ -50,6 +52,14 @@ export interface BaseSheetEditorProps extends SheetEditorProps {
   onCalendarNoDateDrawerOpenChange?: (open: boolean) => void;
   /** 日历视图：无日期记录数量变化 */
   onCalendarNoDateCountChange?: (count: number) => void;
+  /** 甘特图视图数据版本号，用于触发数据刷新 */
+  ganttDataVersion?: number;
+  /** 甘特图视图：当前日期 */
+  ganttCurrentDate?: Dayjs;
+  onGanttCurrentDateChange?: (date: Dayjs) => void;
+  /** 甘特图视图：视图类型 */
+  ganttViewType?: 'week' | 'month' | 'quarter';
+  onGanttViewTypeChangeExternal?: (type: 'week' | 'month' | 'quarter') => void;
   /** 当前视图顶部工具栏（与内容区同列，不含左侧视图切换） */
   toolbar?: React.ReactNode;
   readOnly?: boolean;

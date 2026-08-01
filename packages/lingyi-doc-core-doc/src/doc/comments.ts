@@ -76,6 +76,19 @@ export function getWhiteboardCommentPin(anchor: DocCommentAnchor): { x: number; 
   return { x: anchor.start, y: anchor.end };
 }
 
+/**
+ * 创建画板评论锚点。
+ * @param input 输入参数
+ * @param input.docId 画板 ID
+ * @param input.elementId 元素 ID
+ * @param input.mindNodeId 思维节点 ID
+ * @param input.pinX pin 坐标 X
+ * @param input.pinY pin 坐标 Y
+ * @param input.quote 评论内容
+ * @param input.pinOffsetX 典对绑定图形原点的偏移 X
+ * @param input.pinOffsetY 典对绑定图形原点的偏移 Y
+ * @returns 画板评论锚点
+ */
 export function buildWhiteboardCommentAnchor(input: {
   docId: string;
   elementId?: string;
@@ -107,6 +120,12 @@ export function buildWhiteboardCommentAnchor(input: {
   };
 }
 
+/**
+ * 过滤出指定画板 ID 的评论线程。
+ * @param threads 评论线程
+ * @param docId 画板 ID
+ * @returns 过滤后的评论线程
+ */
 export function filterCommentThreadsForWhiteboard(
   threads: DocCommentThread[],
   docId: string,
@@ -117,6 +136,14 @@ export function filterCommentThreadsForWhiteboard(
   ));
 }
 
+/**
+ * 更新评论线程 pin 坐标。
+ * @param threads 评论线程
+ * @param threadId 评论线程 ID
+ * @param pinX 新的 pin 坐标 X
+ * @param pinY 新的 pin 坐标 Y
+ * @returns 更新后的评论线程
+ */
 export function updateCommentThreadPin(
   threads: DocCommentThread[],
   threadId: string,
@@ -136,6 +163,13 @@ export function updateCommentThreadPin(
   });
 }
 
+/**
+ * 更新评论线程锚点。
+ * @param threads 评论线程
+ * @param threadId 评论线程 ID
+ * @param anchor 新的锚点
+ * @returns 更新后的评论线程
+ */
 export function updateCommentThreadAnchor(
   threads: DocCommentThread[],
   threadId: string,
@@ -162,6 +196,16 @@ export function buildFreeformCommentAnchor(input: {
   };
 }
 
+/**
+ * 创建表格评论锚点。
+ * @param input 输入参数
+ * @param input.sheetId 表格 ID
+ * @param input.recordId 记录 ID
+ * @param input.quote 评论内容
+ * @param input.fieldId 表格 ID
+ * @param input.viewId 视图 ID
+ * @returns 表格评论锚点
+ */
 export function buildSheetCommentAnchor(input: {
   sheetId: string;
   recordId: string;
@@ -182,6 +226,12 @@ export function buildSheetCommentAnchor(input: {
   };
 }
 
+/**
+ * 过滤出指定表格 ID 的评论线程。
+ * @param threads 评论线程
+ * @param sheetId 表格 ID
+ * @returns 过滤后的评论线程
+ */
 export function filterCommentThreadsForSheet(
   threads: DocCommentThread[],
   sheetId: string,
@@ -226,6 +276,13 @@ export function resolveCommentAnchorToCell(
   return { row, col: col >= 0 ? col : 0 };
 }
 
+/**
+ * 解析表格评论锚点为网格 row/col。
+ * @param threads 评论线程
+ * @param sheetId 表格 ID
+ * @param options 解析选项
+ * @returns 评论单元格引用
+ */
 export function resolveSheetCommentCells(
   threads: DocCommentThread[],
   sheetId: string,
@@ -280,6 +337,12 @@ export function resolveSheetCommentCells(
   return [...rowComments, ...cellComments];
 }
 
+/**
+ * 判断评论单元格是否被选中。
+ * @param cell 评论单元格
+ * @param selectedCommentId 选中的评论线程 ID
+ * @returns 是否被选中
+ */
 export function isSheetCommentCellSelected(
   cell: SheetCommentCellRef,
   selectedCommentId?: string | null,
@@ -289,6 +352,11 @@ export function isSheetCommentCellSelected(
   return cell.threadId === selectedCommentId;
 }
 
+/**
+ * 格式化评论时间。
+ * @param ts 时间戳
+ * @returns 格式化后的时间字符串
+ */
 export function formatCommentTime(ts: number): string {
   const diff = Date.now() - ts;
   if (diff < 60_000) return '刚刚';
@@ -302,6 +370,11 @@ export function formatCommentTime(ts: number): string {
   return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
 }
 
+/**
+ * 创建空评论线程。
+ * @param anchor 评论锚点
+ * @returns 空评论线程
+ */
 export function createEmptyCommentThread(anchor: DocCommentAnchor): DocCommentThread {
   return {
     id: genCommentId(),
@@ -312,6 +385,12 @@ export function createEmptyCommentThread(anchor: DocCommentAnchor): DocCommentTh
   };
 }
 
+/**
+ * 创建评论线程。
+ * @param anchor 评论锚点
+ * @param reply 评论回复
+ * @returns 评论线程
+ */
 export function createCommentThread(
   anchor: DocCommentAnchor,
   reply: Omit<DocCommentReply, 'id' | 'createdAt'>,
@@ -326,6 +405,14 @@ export function createCommentThread(
   };
 }
 
+/**
+ * 应用评论标记到块。
+ * @param block 块
+ * @param start 开始位置
+ * @param end 结束位置
+ * @param threadId 评论线程 ID
+ * @returns 更新后的块
+ */
 export function applyCommentMarkToBlock(
   block: DocBlock,
   start: number,
@@ -355,6 +442,12 @@ export function removeCommentMarksFromBlocks(
   });
 }
 
+/**
+ * 评论标记样式。
+ * @param threadId 评论线程 ID
+ * @param selectedCommentId 选中的评论线程 ID
+ * @returns 评论标记样式
+ */
 export function commentMarkStyle(threadId: string, selectedCommentId?: string | null): string {
   const selected = selectedCommentId === threadId;
   if (selected) {
@@ -363,6 +456,13 @@ export function commentMarkStyle(threadId: string, selectedCommentId?: string | 
   return `background:${DOC_COMMENT_HIGHLIGHT_IDLE_BG};border-bottom:1px solid ${DOC_COMMENT_HIGHLIGHT_IDLE_BORDER};cursor:pointer;`;
 }
 
+/**
+ * 从文本选择切片应用评论标记。
+ * @param blocks 块
+ * @param slice 文本选择切片
+ * @param threadId 评论线程 ID
+ * @returns 更新后的块和锚点
+ */
 export function applyCommentMarkFromSlice(
   blocks: DocBlock[],
   slice: TextSelectionSlice,
@@ -408,6 +508,13 @@ export function applyCommentMarkFromSlice(
   };
 }
 
+/**
+ * 追加评论回复。
+ * @param threads 评论线程
+ * @param threadId 评论线程 ID
+ * @param reply 评论回复
+ * @returns 更新后的评论线程
+ */
 export function appendCommentReply(
   threads: DocCommentThread[],
   threadId: string,
@@ -441,6 +548,13 @@ export function updateCommentReply(
   });
 }
 
+/**
+ * 删除评论回复。
+ * @param threads 评论线程
+ * @param threadId 评论线程 ID
+ * @param replyId 评论回复 ID
+ * @returns 更新后的评论线程
+ */
 export function deleteCommentReply(
   threads: DocCommentThread[],
   threadId: string,
@@ -461,6 +575,15 @@ export function deleteCommentThread(
   return threads.filter(thread => thread.id !== threadId);
 }
 
+/**
+ * 切换评论回复点赞状态。
+ * @param threads 评论线程
+ * @param threadId 评论线程 ID
+ * @param replyId 评论回复 ID
+ * @param liked 是否点赞
+ * @param likeCount 点赞数
+ * @returns 更新后的评论线程
+ */
 export function toggleCommentReplyLike(
   threads: DocCommentThread[],
   threadId: string,
@@ -509,6 +632,12 @@ export interface CommentUpdatePayload {
   anchor?: DocCommentAnchor;
 }
 
+/**
+ * 从评论线程应用评论标记。
+ * @param blocks 块
+ * @param threads 评论线程
+ * @returns 更新后的块
+ */
 export function applyCommentMarksFromThreads(
   blocks: DocBlock[],
   threads: DocCommentThread[],
@@ -528,6 +657,13 @@ export function applyCommentMarksFromThreads(
   return next;
 }
 
+/**
+ * 应用远程评论更新。
+ * @param threads 评论线程
+ * @param blocks 块
+ * @param payload 更新有效载荷
+ * @returns 更新后的评论线程和块
+ */
 export function applyRemoteCommentUpdate(
   threads: DocCommentThread[],
   blocks: DocBlock[],

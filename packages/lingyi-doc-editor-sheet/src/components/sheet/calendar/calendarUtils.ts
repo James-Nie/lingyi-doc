@@ -12,6 +12,8 @@ export interface CalendarCardData {
   endDate: Dayjs | null;
   color: string;
   fields: Record<string, unknown>;
+  spanDays: number;
+  isContinuation: boolean;
 }
 
 export interface CalendarCellData {
@@ -21,15 +23,17 @@ export interface CalendarCellData {
   isToday: boolean;
 }
 
-export type CalendarColorKey = 'blue' | 'green' | 'yellow' | 'red' | 'purple' | 'gray';
+export type CalendarColorKey = 'red' | 'orange' | 'yellow' | 'green' | 'cyan' | 'blue' | 'purple' | 'gray';
 
 export const CALENDAR_COLORS: Record<CalendarColorKey, { bg: string; border: string; text: string }> = {
-  blue:   { bg: '#E8F0FE', border: '#1A73E8', text: '#1967D2' },
-  green:  { bg: '#E6F4EA', border: '#34A853', text: '#1E8E3E' },
-  yellow: { bg: '#FEF7E0', border: '#F9AB00', text: '#B06000' },
-  red:    { bg: '#FCE8E6', border: '#EA4335', text: '#D93025' },
-  purple: { bg: '#F3E8FD', border: '#A142F4', text: '#8430CE' },
-  gray:   { bg: '#F1F3F4', border: '#9AA0A6', text: '#5F6368' },
+  red:    { bg: '#FCE8E6', border: '#F05A4E', text: '#D93025' },
+  orange: { bg: '#FFF3E0', border: '#FFAD4A', text: '#D96C00' },
+  yellow: { bg: '#FEF7E0', border: '#FFE455', text: '#B06000' },
+  green:  { bg: '#E6F4EA', border: '#4CAF50', text: '#1E8E3E' },
+  cyan:   { bg: '#E0F7FA', border: '#4EC9B0', text: '#00838F' },
+  blue:   { bg: '#E8F0FE', border: '#5B8FF9', text: '#1967D2' },
+  purple: { bg: '#F3E8FD', border: '#9F7AEA', text: '#8430CE' },
+  gray:   { bg: '#F1F3F4', border: '#9CA3AF', text: '#5F6368' },
 };
 
 export function formatDateKey(date: Dayjs): string {
@@ -106,6 +110,8 @@ export function createCardData(
     endDate: endDate || startDate,
     color,
     fields: record,
+    spanDays: 1,
+    isContinuation: false,
   };
 }
 
@@ -123,7 +129,6 @@ export function groupRecordsByDate(
 
   for (const record of records) {
     const cardData = createCardData(record, columns, dateFieldId, endDateFieldId, titleFieldId, colorFieldId, defaultColor);
-    
     if (!cardData.startDate) {
       noDateRecords.push(cardData);
       continue;
@@ -135,18 +140,25 @@ export function groupRecordsByDate(
     if (end.isBefore(start, 'day')) {
       end = start;
     }
-    
+
     const current = start.startOf('day');
     const endDay = end.startOf('day');
+    const spanDays = endDay.diff(current, 'day') + 1;
 
     let day = current;
+    let dayIndex = 0;
     while (day.isBefore(endDay) || day.isSame(endDay)) {
       const key = formatDateKey(day);
       if (!dateMap.has(key)) {
         dateMap.set(key, []);
       }
-      dateMap.get(key)!.push({ ...cardData });
+      dateMap.get(key)!.push({
+        ...cardData,
+        spanDays,
+        isContinuation: dayIndex > 0,
+      });
       day = day.add(1, 'day');
+      dayIndex++;
     }
   }
 
@@ -230,6 +242,58 @@ export function getCellRecords(
     showMore,
     totalCount,
   };
+}
+
+export interface SpanLayout {
+  card: CalendarCardData;
+  startCol: number;
+  colSpan: number;
+  isContinuation: boolean;
+}
+
+export function buildWeekSpanLayout(
+  weekDates: Dayjs[],
+  dateMap: Map<string, CalendarCardData[]>,
+): SpanLayout[] {
+  const spans: SpanLayout[] = [];
+  const processed = new Set<string>();
+
+  const weekKeys = weekDates.map(d => formatDateKey(d));
+
+  for (let colIdx = 0; colIdx < weekKeys.length; colIdx++) {
+    const key = weekKeys[colIdx];
+    const date = weekDates[colIdx];
+    const cards = dateMap.get(key) || [];
+
+    for (const card of cards) {
+      if (card.spanDays <= 1) continue;
+      const dedupKey = `${card.recordId}`;
+      if (processed.has(dedupKey)) continue;
+      processed.add(dedupKey);
+
+      const startDateKey = card.startDate ? formatDateKey(card.startDate) : '';
+      const startColIdx = weekKeys.indexOf(startDateKey);
+
+      if (startColIdx < 0) {
+        if (card.isContinuation && card.endDate) {
+          const endKey = formatDateKey(card.endDate);
+          const endColIdx = weekKeys.indexOf(endKey);
+          const colSpan = endColIdx >= 0 ? endColIdx + 1 : weekKeys.length;
+          spans.push({ card, startCol: 1, colSpan, isContinuation: true });
+        }
+        continue;
+      }
+
+      const colSpan = Math.min(card.spanDays, weekKeys.length - startColIdx);
+      spans.push({ card, startCol: startColIdx + 1, colSpan, isContinuation: false });
+    }
+  }
+
+  return spans;
+}
+
+export function isContinuationOnly(card: CalendarCardData): boolean {
+  return card.isContinuation && card.spanDays > 1;
 }
 
 export function getWeekDays(weekStart: 0 | 1 = 1): string[] {

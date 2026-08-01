@@ -97,6 +97,7 @@ export class CellRenderer {
         canvasCssWidth,
         canvasCssHeight,
         (row, rh) => this._viewportManager.getRowScreenTop(row, rh),
+        !skipLayoutRow,
       )
       : null;
     const gridLineRight = config.isBaseMode && baseBounds

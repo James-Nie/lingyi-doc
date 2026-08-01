@@ -3,9 +3,10 @@ import type { BaseView, RecordRow } from '@lingyi-doc/core-types';
 import type { FreeTable } from '@lingyi-doc/core-sheet';
 import { applyBaseFilter, applyBaseSort } from '@lingyi-doc/core-sheet';
 import type { Dayjs } from 'dayjs';
-import { CalendarView } from './CalendarView';
+import { GanttView } from './GanttView';
+import { GanttViewType } from './ganttUtils';
 
-interface CalendarContainerProps {
+interface GanttContainerProps {
   table: FreeTable;
   view: BaseView;
   dataVersion?: number;
@@ -13,14 +14,11 @@ interface CalendarContainerProps {
   onCardClick?: (recordId: string) => void;
   currentDate?: Dayjs;
   onCurrentDateChange?: (date: Dayjs) => void;
-  viewType?: 'month' | 'week' | 'day';
-  onViewTypeChange?: (type: 'month' | 'week' | 'day') => void;
-  noDateDrawerOpen?: boolean;
-  onNoDateDrawerOpenChange?: (open: boolean) => void;
-  onNoDateCountChange?: (count: number) => void;
+  viewType?: GanttViewType;
+  onViewTypeChange?: (type: GanttViewType) => void;
 }
 
-export const CalendarContainer: React.FC<CalendarContainerProps> = ({
+export const GanttContainer: React.FC<GanttContainerProps> = ({
   table,
   view,
   dataVersion,
@@ -30,9 +28,6 @@ export const CalendarContainer: React.FC<CalendarContainerProps> = ({
   onCurrentDateChange,
   viewType,
   onViewTypeChange,
-  noDateDrawerOpen,
-  onNoDateDrawerOpenChange,
-  onNoDateCountChange,
 }) => {
   const [, forceUpdate] = useState(0);
 
@@ -55,13 +50,12 @@ export const CalendarContainer: React.FC<CalendarContainerProps> = ({
     };
 
     let indices = Array.from({ length: rows.length }, (_, i) => i);
-
     indices = applyBaseFilter(indices, view.filter, getFieldValue, columnDefs, view.filterConjunction ?? 'and');
-
     indices = applyBaseSort(indices, view.sort, columnDefs, getFieldValue);
 
     return indices.map(rowIndex => {
       const assembled: RecordRow = { ...rows[rowIndex] };
+      (assembled as any)._rowIndex = rowIndex;
       columnDefs.forEach((col, colIdx) => {
         const cell = table.getCell(rowIndex, colIdx);
         if (cell?.value != null) {
@@ -87,7 +81,8 @@ export const CalendarContainer: React.FC<CalendarContainerProps> = ({
   );
 
   return (
-    <CalendarView
+    <GanttView
+      table={table}
       view={view}
       records={records}
       columns={columns}
@@ -98,9 +93,6 @@ export const CalendarContainer: React.FC<CalendarContainerProps> = ({
       onCurrentDateChange={onCurrentDateChange}
       viewType={viewType}
       onViewTypeChange={onViewTypeChange}
-      noDateDrawerOpen={noDateDrawerOpen}
-      onNoDateDrawerOpenChange={onNoDateDrawerOpenChange}
-      onNoDateCountChange={onNoDateCountChange}
     />
   );
 };

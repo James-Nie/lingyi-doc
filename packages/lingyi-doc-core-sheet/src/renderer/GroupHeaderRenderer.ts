@@ -156,6 +156,7 @@ export class GroupHeaderRenderer {
     level: number,
     zoom: number,
     metadataDividerX?: number,
+    hovered?: boolean,
   ): void {
     const { x, y, width, height } = rect;
     const plusCx = x + GROUP_CHEVRON_OFFSET * zoom;
@@ -165,7 +166,22 @@ export class GroupHeaderRenderer {
     ctx.fillStyle = '#FFFFFF';
     ctx.fillRect(x, y, width, height);
 
-    ctx.strokeStyle = '#C9CDD4';
+    if (hovered) {
+      const btnW = 24 * zoom;
+      const btnH = 20 * zoom;
+      const btnX = plusCx - btnW / 2;
+      const btnY = cy - btnH / 2;
+      ctx.beginPath();
+      if (typeof ctx.roundRect === 'function') {
+        ctx.roundRect(btnX, btnY, btnW, btnH, 6 * zoom);
+      } else {
+        ctx.rect(btnX, btnY, btnW, btnH);
+      }
+      ctx.fillStyle = '#EBEDF0';
+      ctx.fill();
+    }
+
+    ctx.strokeStyle = hovered ? '#646A73' : '#C9CDD4';
     ctx.lineWidth = 1.5 * zoom;
     ctx.lineCap = 'round';
     const s = 5 * zoom;

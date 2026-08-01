@@ -165,7 +165,7 @@ export class Workbook {
     };
   }
 
-  toJSON(): object {
+  toJSON(options?: { includeHistory?: boolean }): object {
     this.prepareForSave();
     const uniqueOrder = Workbook._dedupeIds(this._sheetOrder.filter(id => this._sheets.has(id)));
     return {
@@ -173,7 +173,7 @@ export class Workbook {
       sheetOrder: uniqueOrder,
       sheets: uniqueOrder.map(id => ({
         id,
-        data: this._sheets.get(id)!.toJSON(),
+        data: this._sheets.get(id)!.toJSON(options),
       })),
       // 仪表盘独立接口存储，不写入文档 JSON（打开文档不拉仪表盘，切换时再请求）
       dashboards: [],

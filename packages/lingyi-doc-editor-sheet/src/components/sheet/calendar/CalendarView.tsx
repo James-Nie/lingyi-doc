@@ -1,5 +1,5 @@
 import React, { useMemo, useCallback, useEffect } from 'react';
-import { Drawer } from 'antd';
+import { Drawer, Modal, List, Typography } from 'antd';
 import type { Dayjs } from 'dayjs';
 import dayjs from 'dayjs';
 import type { BaseView, RecordRow, ColumnDef } from '@lingyi-doc/core-types';
@@ -8,7 +8,7 @@ import {
   groupRecordsByDate,
   formatCalendarTitle,
 } from './calendarUtils';
-import { CalendarGrid } from './CalendarGrid';
+import { CalendarCanvasView } from './CalendarCanvasView';
 import { CalendarNavigationBar } from './CalendarNavigationBar';
 import { CalendarNoDateSection } from './CalendarNoDateSection';
 
@@ -50,6 +50,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     config.calendarViewType || 'month',
   );
   const [internalNoDateOpen, setInternalNoDateOpen] = React.useState<boolean>(false);
+  const [showMoreModal, setShowMoreModal] = React.useState<{ open: boolean; date: Dayjs | null; cards: CalendarCardData[] }>({ open: false, date: null, cards: [] });
 
   const currentDate = currentDateProp ?? internalDate;
   const onCurrentDateChange = onCurrentDateChangeProp ?? setInternalDate;
@@ -68,10 +69,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const defaultColor = config.calendarDefaultColor;
   const maxCards = config.calendarMaxCardsPerCell || 3;
 
-  const { dateMap, noDateRecords } = useMemo(() => {
+const { dateMap, noDateRecords } = useMemo(() => {
     if (!dateFieldId) {
       return { dateMap: new Map<string, CalendarCardData[]>(), noDateRecords: [] };
     }
+    console.log('[CalendarView] records.length:', records.length);
     return groupRecordsByDate(
       records,
       columns,
@@ -127,10 +129,19 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
   const handleShowMore = useCallback(
     (date: Dayjs) => {
-      onCurrentDateChange(date);
-      onViewTypeChange('day');
+      const dateKey = date.format('YYYY-MM-DD');
+      const cards = dateMap.get(dateKey) || [];
+      setShowMoreModal({ open: true, date, cards });
     },
-    [onCurrentDateChange, onViewTypeChange],
+    [dateMap],
+  );
+
+  const handleShowMoreItemClick = useCallback(
+    (card: CalendarCardData) => {
+      setShowMoreModal(prev => ({ ...prev, open: false }));
+      onCardClick?.(card.recordId);
+    },
+    [onCardClick],
   );
 
   const isEmpty = !dateFieldId;
@@ -139,12 +150,14 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#fff' }}>
       <CalendarNavigationBar
         title={formatCalendarTitle(currentDate, viewType, weekStart)}
+        currentDate={currentDate}
         viewType={viewType}
         onViewTypeChange={onViewTypeChange}
         onNavigate={handleNavigate}
+        onCurrentDateChange={onCurrentDateChange}
       />
 
-      <div style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         {isEmpty ? (
           <div
             style={{
@@ -158,7 +171,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             </div>
           </div>
         ) : (
-          <CalendarGrid
+          <CalendarCanvasView
             viewType={viewType}
             currentDate={currentDate}
             dateMap={dateMap}
@@ -176,11 +189,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         <Drawer
           title={`无日期的记录 (${noDateRecords.length})`}
           placement="right"
+          width={360}
           open={noDateDrawerOpen}
           onClose={() => onNoDateDrawerOpenChange(false)}
           styles={{
             body: { padding: '8px 16px' },
-            root: { width: 360 },
           }}
         >
           <CalendarNoDateSection
@@ -189,6 +202,44 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           />
         </Drawer>
       )}
+
+      {/* 超出记录弹窗 */}
+      <Modal
+        title={showMoreModal.date ? `${showMoreModal.date.format('M月D日')} ${['周日', '周一', '周二', '周三', '周四', '周五', '周六'][showMoreModal.date.day()]}` : ''}
+        open={showMoreModal.open}
+        onCancel={() => setShowMoreModal(prev => ({ ...prev, open: false }))}
+        footer={null}
+        width={400}
+      >
+        <List
+          dataSource={showMoreModal.cards}
+          renderItem={(card) => (
+            <List.Item
+              style={{ cursor: 'pointer', padding: '12px 16px', borderBottom: '1px solid #f0f1f2' }}
+              onClick={() => handleShowMoreItemClick(card)}
+            >
+              <List.Item.Meta
+                avatar={
+                  <div
+                    style={{
+                      width: 8,
+                      height: 20,
+                      borderRadius: 2,
+                      background: card.color || '#3370ff',
+                    }}
+                  />
+                }
+                title={<Typography.Text>{card.title}</Typography.Text>}
+                description={
+                  card.startDate
+                    ? dayjs(card.startDate).format('HH:mm') + (card.endDate ? ` - ${dayjs(card.endDate).format('HH:mm')}` : '')
+                    : '全天'
+                }
+              />
+            </List.Item>
+          )}
+        />
+      </Modal>
     </div>
   );
 };

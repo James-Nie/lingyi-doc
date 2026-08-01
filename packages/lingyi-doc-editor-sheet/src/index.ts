@@ -1,4 +1,6 @@
 export { useSheetStore } from './store/sheetStore';
+export { configureRecordHistoryApi, getRecordHistoryFetcher } from './utils/recordHistoryApi';
+export type { RecordHistoryFetcher, RecordHistoryPageResult } from './utils/recordHistoryApi';
 export { SheetAntdProvider } from './components/editors/EditorAntdProvider';
 export { SheetContainer } from './components/SheetContainer';
 export type { SheetContainerProps } from './components/SheetContainer';
@@ -69,6 +71,8 @@ export type { DashboardEditorProps } from './dashboard';
 export { CalendarConfigPanel } from './components/sheet/calendar/CalendarConfigPanel';
 export { CalendarNavigationBar } from './components/sheet/calendar/CalendarNavigationBar';
 export { formatCalendarTitle } from './components/sheet/calendar/calendarUtils';
+export { GanttConfigPanel } from './components/sheet/gantt/GanttConfigPanel';
+export { GanttNavigationBar } from './components/sheet/gantt/GanttNavigationBar';
 export {
   registerWidgetConfigPanel,
   resolveWidgetConfigPanel,

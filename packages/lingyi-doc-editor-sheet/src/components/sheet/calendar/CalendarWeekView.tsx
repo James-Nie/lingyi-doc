@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { Tooltip } from 'antd';
 import type { Dayjs } from 'dayjs';
 import {
   CalendarCardData,
@@ -155,16 +156,17 @@ export const CalendarWeekView: React.FC<CalendarWeekViewProps> = ({
             >
               <div style={styles.cellHeader}>
                 <span style={styles.dateText}>{date.format('M月D日')}</span>
-                <button
-                  style={styles.addButton}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onCreateRecord(date);
-                  }}
-                  title="添加记录"
-                >
-                  +
-                </button>
+                <Tooltip title="添加记录" placement="top">
+                  <button
+                    style={styles.addButton}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onCreateRecord(date);
+                    }}
+                  >
+                    +
+                  </button>
+                </Tooltip>
               </div>
 
               <div style={styles.cardsContainer}>

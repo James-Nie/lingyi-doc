@@ -13,6 +13,18 @@ export interface AxisResizeGuideProps {
   containerHeight: number;
 }
 
+/**
+ * 轴调整引导线
+ * 用于在表格中调整列或行的宽度或高度时显示的引导线
+ * @param type 轴类型，'col' 表示列，'row' 表示行
+ * @param linePos 虚线位置（相对 canvas 容器）
+ * @param linePosSecondary 行调整时的上边界虚线
+ * @param tooltipX 尺寸提示位置（相对 canvas 容器）
+ * @param tooltipY 尺寸提示位置（相对 canvas 容器）
+ * @param size 轴调整后的大小
+ * @param containerHeight 容器高度
+ * @returns 轴调整引导线的 React 组件
+ */
 export const AxisResizeGuide: React.FC<AxisResizeGuideProps> = ({
   type,
   linePos,

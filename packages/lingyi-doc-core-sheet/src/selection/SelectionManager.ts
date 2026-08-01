@@ -1,6 +1,12 @@
 import type { CellCoord, CellRange } from '@lingyi-doc/core-types';
 import { coordToKey } from '@lingyi-doc/core-types';
 
+/**
+ * 选择管理器
+ * 负责管理用户在表格中的选择操作，包括单选、多选、离散多选等。
+ * 提供选择范围的计算和管理。
+ * 提供离散多选的管理。
+ */
 export class SelectionManager {
   private _anchorCell: CellCoord | null = null;
   private _activeCell: CellCoord | null = null;

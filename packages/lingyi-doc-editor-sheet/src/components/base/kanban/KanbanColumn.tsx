@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Tooltip } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import { BASE_THEME, GROUP_EMPTY_KEY } from '@lingyi-doc/core-sheet';
 import type { FreeTable } from '@lingyi-doc/core-sheet';
@@ -99,24 +100,25 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({
           {column.recordIndices.length}
         </span>
         {!readOnly && (
-          <button
-            type="button"
-            title="添加记录"
-            onClick={() => onAddRecord(column.key)}
-            style={{
-              marginLeft: 'auto',
-              border: 'none',
-              background: 'transparent',
-              cursor: 'pointer',
-              color: BASE_THEME.secondaryTextColor,
-              padding: 4,
-              borderRadius: 4,
-              display: 'inline-flex',
-              alignItems: 'center',
-            }}
-          >
-            <PlusOutlined />
-          </button>
+          <Tooltip title="添加记录">
+            <button
+              type="button"
+              onClick={() => onAddRecord(column.key)}
+              style={{
+                marginLeft: 'auto',
+                border: 'none',
+                background: 'transparent',
+                cursor: 'pointer',
+                color: BASE_THEME.secondaryTextColor,
+                padding: 4,
+                borderRadius: 4,
+                display: 'inline-flex',
+                alignItems: 'center',
+              }}
+            >
+              <PlusOutlined />
+            </button>
+          </Tooltip>
         )}
       </div>
 
