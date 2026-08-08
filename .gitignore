@@ -2,6 +2,7 @@
 
 .idea
 .claude
+.workbuddy
 
 # dependencies
 /node_modules
@@ -40,7 +41,6 @@ docs
 
 /deploy
 
-packages/lingyi-doc-server/
 packages/lingyi-doc-admin/
 packages/lingyi-doc-ai-ui/
 packages/lingyi-doc-editor/

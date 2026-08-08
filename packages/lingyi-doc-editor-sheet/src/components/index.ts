@@ -21,7 +21,7 @@ export { ChartInsertDialog } from './chart/ChartInsertDialog';
 export { ChartOverlay } from './chart/ChartOverlay';
 export { ChartRenderer } from './chart/ChartRenderer';
 export { ChartEditor } from './chart/ChartEditor';
-export { BaseViewSidebar, FormViewEditor, PublicFormFillView, KanbanView } from './base/index';
+export { BaseViewSidebar, FormViewEditor, PublicFormFillView, KanbanView, WorkflowView } from './base/index';
 export { FreeformSheetEditor } from './editors/FreeformSheetEditor';
 export { BaseSheetEditor } from './editors/BaseSheetEditor';
 export type { SheetEditorProps, BaseSheetEditorProps } from './editors/types';

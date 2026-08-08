@@ -86,6 +86,20 @@ const VIEW_META: Record<BaseViewType, { icon: React.ReactNode; label: string }> 
       </svg>
     ),
   },
+  workflow: {
+    label: '工作流',
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+        <path d="M4 7h4a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1z" />
+        <path d="M4 16h4a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-1a1 1 0 0 1 1-1z" />
+        <path d="M14 11.5h6a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1h-6a1 1 0 0 1-1-1v-1a1 1 0 0 1 1-1z" />
+        <path d="M9 10v4" />
+        <path d="M13 10v4" />
+        <path d="M11 7v10" />
+        <path d="M16 14.5c0 1.5 1.5 2.5 3 2.5" />
+      </svg>
+    ),
+  },
 };
 
 const DashboardIcon = (
@@ -95,7 +109,7 @@ const DashboardIcon = (
   </svg>
 );
 
-const CREATABLE_VIEW_TYPES: BaseViewType[] = ['grid', 'kanban', 'gantt', 'calendar', 'gallery', 'form'];
+const CREATABLE_VIEW_TYPES: BaseViewType[] = ['grid', 'kanban', 'gantt', 'calendar', 'gallery', 'form', 'workflow'];
 
 export interface BaseViewSidebarProps {
   views: BaseView[];
@@ -404,7 +418,7 @@ export const BaseViewSidebar: React.FC<BaseViewSidebarProps> = ({
               if (open) onPrefetchDashboards?.();
             }}
           >
-            <Tooltip title="新建视图" placement="bottom">
+            <Tooltip title="新建视图1" placement="bottom">
               <button type="button" className="base-view-sidebar-btn" style={iconBtnStyle}>
                 <PlusOutlined style={{ fontSize: 14 }} />
               </button>

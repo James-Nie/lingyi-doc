@@ -30,6 +30,7 @@ export {
   FormViewEditor,
   PublicFormFillView,
   KanbanView,
+  WorkflowView,
   FreeformSheetEditor,
   BaseSheetEditor,
   ensureFormView,
@@ -66,6 +67,8 @@ export type {
   RecordDrawerTab,
 } from './components/index';
 export type { PublicFormSchemaField } from './components/base/PublicFormFillView';
+export { WorkflowTopBar, NodeLibrary, WorkflowCanvas, NodeConfigPanel, RunHistoryDrawer, WorkflowEditorContainer } from './components/base/workflow';
+export type { CanvasNode, CanvasEdge, CanvasTransform, FieldOption, TableOption, WorkflowEditorContainerProps } from './components/base/workflow';
 export { DashboardEditor, ensureDashboardForSheet } from './dashboard';
 export type { DashboardEditorProps } from './dashboard';
 export { CalendarConfigPanel } from './components/sheet/calendar/CalendarConfigPanel';

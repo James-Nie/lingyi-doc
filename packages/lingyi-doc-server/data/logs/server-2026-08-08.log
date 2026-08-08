@@ -1,0 +1,10 @@
+[2026-08-08T08:29:56.077Z] [LOG] [HTTP] POST /api/v1/c/docs 201 56ms | requestId=13ce7746-992d-4db3-a764-40da2ab4b173 ip=::ffff:127.0.0.1 userAgent=curl/7.86.0 statusCode=201 durationMs=56
+[2026-08-08T08:30:11.173Z] [LOG] [HTTP] GET /api/v1/c/tenants/invitations 200 32ms | requestId=352fc5f3-f7c6-4d94-aa56-491076ee9d94 ip=::1 userAgent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 statusCode=200 durationMs=32
+[2026-08-08T08:30:12.669Z] [LOG] [HTTP] POST /api/v1/c/docs/doc_9c3909e4/patch 201 76ms | requestId=f0e92999-c220-473f-af0f-b352dc33f469 ip=::1 userAgent=node statusCode=201 durationMs=76
+[2026-08-08T08:30:12.695Z] [LOG] [HTTP] POST /api/v1/c/base/tables/sheet_001/workflows 201 8ms | requestId=4aa1b607-8860-499f-9e9c-2c654129c5df ip=::1 userAgent=node statusCode=201 durationMs=8
+[2026-08-08T08:30:12.716Z] [LOG] [HTTP] POST /api/v1/c/base/workflows/7df3ad85-7bb1-40a8-80ba-04482afc2eef/publish 201 5ms | requestId=36ecee56-66f1-4407-b609-314a5bb65908 ip=::1 userAgent=node statusCode=201 durationMs=5
+[2026-08-08T08:30:12.757Z] [LOG] [HTTP] POST /api/v1/c/docs/doc_9c3909e4/patch 201 35ms | requestId=f26f23ba-3b6f-4b01-8c86-ef99e885ec85 ip=::1 userAgent=node statusCode=201 durationMs=35
+[2026-08-08T08:30:12.807Z] [LOG] [WorkflowTriggerDispatcher] dispatched 1 workflow(s) for table=sheet_001 action=added | requestId=f26f23ba-3b6f-4b01-8c86-ef99e885ec85
+[2026-08-08T08:30:14.278Z] [LOG] [HTTP] GET /api/v1/c/base/workflows/7df3ad85-7bb1-40a8-80ba-04482afc2eef/runs 200 9ms | requestId=692cfffd-818b-4235-a47d-e61557708d00 ip=::1 userAgent=node statusCode=200 durationMs=9
+[2026-08-08T08:30:22.915Z] [LOG] [HTTP] GET /api/v1/c/base/workflows/7df3ad85-7bb1-40a8-80ba-04482afc2eef/runs 200 5ms | requestId=e0eaed22-b8c7-4c72-ae27-8ce349a8a932 ip=::ffff:127.0.0.1 userAgent=curl/7.86.0 statusCode=200 durationMs=5
+[2026-08-08T08:30:22.966Z] [LOG] [HTTP] GET /api/v1/c/base/workflows/runs/d4b0669f-bb41-4db3-bdbb-4ed390472583 200 13ms | requestId=4f10773e-bfc0-447a-9f90-73a281a17636 ip=::ffff:127.0.0.1 userAgent=curl/7.86.0 statusCode=200 durationMs=13

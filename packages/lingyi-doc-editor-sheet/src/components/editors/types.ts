@@ -74,4 +74,6 @@ export interface BaseSheetEditorProps extends SheetEditorProps {
   onRenameDashboard?: (dashboardId: string, name: string) => void;
   onDeleteDashboard?: (dashboardId: string) => void;
   onDashboardChange?: (dashboard: DashboardModel) => void;
+  /** 工作流视图渲染函数 */
+  renderWorkflowView?: () => React.ReactNode;
 }

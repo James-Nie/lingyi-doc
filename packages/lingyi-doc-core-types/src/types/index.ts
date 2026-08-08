@@ -705,7 +705,7 @@ export interface ColumnFilterCondition {
 
 // ==================== 多维表视图 ====================
 
-export type BaseViewType = 'grid' | 'kanban' | 'gantt' | 'calendar' | 'gallery' | 'form';
+export type BaseViewType = 'grid' | 'kanban' | 'gantt' | 'calendar' | 'gallery' | 'form' | 'workflow';
 
 export interface BaseView {
   viewId: string;
@@ -773,6 +773,9 @@ export interface BaseViewConfig {
   formShareLinkScope?: 'internet' | 'organization' | 'collaborators';
   /** 折叠的分组路径 key 列表 */
   collapsedGroupKeys?: string[];
+  // 工作流
+  /** 工作流视图绑定的工作流 ID（保存后写入，重新进入视图时恢复） */
+  workflowId?: string;
 }
 
 /** 表单视图中单个字段的配置 */

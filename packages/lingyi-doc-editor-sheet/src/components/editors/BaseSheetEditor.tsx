@@ -11,6 +11,7 @@ import { GanttContainer } from '../sheet/gantt/GanttContainer';
 import { RecordDetailDrawer } from '../RecordDetailDrawer';
 import type { RecordDrawerTab } from '../RecordDetailDrawer';
 import { DashboardEditor } from '../../dashboard';
+import { WorkflowView } from '../base/WorkflowView';
 import type { BaseSheetEditorProps } from './types';
 
 export const BaseSheetEditor: React.FC<BaseSheetEditorProps> = ({
@@ -65,6 +66,7 @@ export const BaseSheetEditor: React.FC<BaseSheetEditorProps> = ({
   onRenameDashboard,
   onDeleteDashboard,
   onDashboardChange,
+  renderWorkflowView,
 }) => {
   if (!isBaseSheet(table.sheet)) {
     return null;
@@ -77,8 +79,8 @@ export const BaseSheetEditor: React.FC<BaseSheetEditorProps> = ({
 
   const showViewToolbar = Boolean(toolbar) && !activeDashboard && currentView !== 'form';
 
-  // 表格/甘特视图：数据渲染面板与左侧视图列表留 20px 间距（工具栏不移动）
-  const isGridOrGantt = currentView === 'grid' || currentView === 'gantt';
+  // 表格/甘特/工作流视图：数据渲染面板与左侧视图列表留 20px 间距（工具栏不移动）
+  const isGridOrGantt = currentView === 'grid' || currentView === 'gantt' || currentView === 'workflow';
 
   const fieldIdToColIndex = useMemo(() => {
     const map = new Map<string, number>();
@@ -261,6 +263,10 @@ export const BaseSheetEditor: React.FC<BaseSheetEditorProps> = ({
               viewType={ganttViewType}
               onViewTypeChange={onGanttViewTypeChangeExternal}
             />
+          ) : currentView === 'workflow' && renderWorkflowView ? (
+            renderWorkflowView()
+          ) : currentView === 'workflow' ? (
+            <WorkflowView workflows={[]} />
           ) : (
             <SheetContainer
               key={containerKey}

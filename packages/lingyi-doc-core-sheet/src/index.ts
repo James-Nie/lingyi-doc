@@ -45,3 +45,4 @@ export * from './utils/sheetImageExport';
 export * from './utils/freezeUtils';
 export * from './utils/sheetType';
 export * from './utils/findReplace';
+export * from './workflow/index';

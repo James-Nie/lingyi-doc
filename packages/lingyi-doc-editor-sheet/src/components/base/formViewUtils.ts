@@ -180,6 +180,7 @@ const DEFAULT_VIEW_NAMES: Record<BaseViewType, string> = {
   calendar: '日历',
   gallery: '画廊',
   form: '表单',
+  workflow: '工作流',
 };
 
 /** 按类型新建并激活视图（form 复用已有表单视图逻辑） */
