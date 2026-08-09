@@ -67,7 +67,7 @@ export class StorageService implements OnModuleInit {
     docId: string,
     data: DocumentRecord | Record<string, unknown>,
     ctx: DocumentAccessContext,
-  ): Promise<{ version: number }> {
+  ): Promise<{ version: number } | { conflict: true; currentVersion: number }> {
     this.ensureReady();
     const raw = data as Record<string, unknown>;
     const patch = {
@@ -75,10 +75,14 @@ export class StorageService implements OnModuleInit {
       docType: (raw.docType ?? raw.doc_type) as string | undefined,
       data: raw.data,
       recordHistory: raw.recordHistory as RecordHistoryPayloadEntry[] | undefined,
+      baseVersion: typeof raw.baseVersion === 'number' ? raw.baseVersion : undefined,
     };
     const saved = await this.documentRepository.save(docId, patch, ctx);
     if (!saved) {
       throw new Error(`Document not found: ${docId}`);
+    }
+    if ('conflict' in saved) {
+      return saved;
     }
     return { version: saved.version };
   }

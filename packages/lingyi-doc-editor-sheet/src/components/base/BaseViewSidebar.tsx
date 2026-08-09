@@ -109,11 +109,13 @@ const DashboardIcon = (
   </svg>
 );
 
-const CREATABLE_VIEW_TYPES: BaseViewType[] = ['grid', 'kanban', 'gantt', 'calendar', 'gallery', 'form', 'workflow'];
+
 
 export interface BaseViewSidebarProps {
   views: BaseView[];
   activeViewId?: string;
+  /** 当前数据表名称（资源级，非视图级） */
+  tableName?: string;
   onSelectView: (viewId: string) => void;
   onCreateView?: (viewType: BaseViewType) => void;
   onRenameView?: (viewId: string, name: string) => void;
@@ -178,6 +180,7 @@ function viewDisplayName(view: BaseView): string {
 export const BaseViewSidebar: React.FC<BaseViewSidebarProps> = ({
   views,
   activeViewId,
+  tableName,
   onSelectView,
   onCreateView,
   onRenameView,
@@ -199,35 +202,45 @@ export const BaseViewSidebar: React.FC<BaseViewSidebarProps> = ({
   const dashboardMode = Boolean(activeDashboardId);
 
   const createMenuItems: MenuProps['items'] = useMemo(() => {
-    const viewItems: MenuProps['items'] = CREATABLE_VIEW_TYPES.map(type => ({
-      key: type,
-      label: (
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10, padding: '2px 0' }}>
-          <span style={{ display: 'inline-flex', color: BASE_THEME.headerIconColor }}>
-            {VIEW_META[type].icon}
-          </span>
-          <span style={{ color: BASE_THEME.cellTextColor }}>{VIEW_META[type].label}</span>
-        </span>
-      ),
-    }));
-    if (onCreateDashboard) {
-      return [
-        ...viewItems,
-        { type: 'divider' as const },
-        {
-          key: 'dashboard',
-          label: (
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10, padding: '2px 0' }}>
-              <span style={{ display: 'inline-flex', color: BASE_THEME.headerIconColor }}>
-                {DashboardIcon}
-              </span>
-              <span style={{ color: BASE_THEME.cellTextColor }}>仪表盘</span>
+    const items: MenuProps['items'] = [
+      {
+        key: 'grid',
+        label: (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10, padding: '2px 0' }}>
+            <span style={{ display: 'inline-flex', color: BASE_THEME.headerIconColor }}>
+              {VIEW_META.grid.icon}
             </span>
-          ),
-        },
-      ];
+            <span style={{ color: BASE_THEME.cellTextColor }}>数据表</span>
+          </span>
+        ),
+      },
+      {
+        key: 'workflow',
+        label: (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10, padding: '2px 0' }}>
+            <span style={{ display: 'inline-flex', color: BASE_THEME.headerIconColor }}>
+              {VIEW_META.workflow.icon}
+            </span>
+            <span style={{ color: BASE_THEME.cellTextColor }}>工作流</span>
+          </span>
+        ),
+      },
+    ];
+    if (onCreateDashboard) {
+      items.push({ type: 'divider' as const });
+      items.push({
+        key: 'dashboard',
+        label: (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10, padding: '2px 0' }}>
+            <span style={{ display: 'inline-flex', color: BASE_THEME.headerIconColor }}>
+              {DashboardIcon}
+            </span>
+            <span style={{ color: BASE_THEME.cellTextColor }}>仪表盘</span>
+          </span>
+        ),
+      });
     }
-    return viewItems;
+    return items;
   }, [onCreateDashboard]);
 
   const filteredViews = useMemo(() => {
@@ -241,6 +254,16 @@ export const BaseViewSidebar: React.FC<BaseViewSidebarProps> = ({
     if (!q) return dashboards;
     return dashboards.filter(d => (d.name || '仪表盘').toLowerCase().includes(q));
   }, [dashboards, query]);
+
+  const { dataViews, workflowViews } = useMemo(() => {
+    const data: BaseView[] = [];
+    const wf: BaseView[] = [];
+    for (const v of filteredViews) {
+      if (v.viewType === 'workflow') wf.push(v);
+      else data.push(v);
+    }
+    return { dataViews: data, workflowViews: wf };
+  }, [filteredViews]);
 
   const handleCreateMenuClick: MenuProps['onClick'] = ({ key }) => {
     if (key === 'dashboard') {
@@ -418,7 +441,7 @@ export const BaseViewSidebar: React.FC<BaseViewSidebarProps> = ({
               if (open) onPrefetchDashboards?.();
             }}
           >
-            <Tooltip title="新建视图1" placement="bottom">
+            <Tooltip title="新建" placement="bottom">
               <button type="button" className="base-view-sidebar-btn" style={iconBtnStyle}>
                 <PlusOutlined style={{ fontSize: 14 }} />
               </button>
@@ -465,101 +488,53 @@ export const BaseViewSidebar: React.FC<BaseViewSidebarProps> = ({
         flexDirection: 'column',
         gap: 2,
       }}>
-        {filteredViews.map(view => {
-          const meta = VIEW_META[view.viewType] || { label: view.viewName, icon: '?' };
-          const active = !dashboardMode && view.viewId === activeViewId;
-          const showMore = active || hoveredId === view.viewId;
-          const name = viewDisplayName(view);
-          return (
-            <div
-              key={view.viewId}
-              onMouseEnter={() => setHoveredId(view.viewId)}
-              onMouseLeave={() => setHoveredId(null)}
-              style={{ position: 'relative' }}
+        {/* 数据表 分区标题 */}
+        <div style={{
+          fontSize: 11,
+          fontWeight: 600,
+          color: BASE_THEME.secondaryTextColor,
+          padding: '4px 6px 2px',
+          textTransform: 'uppercase',
+          letterSpacing: '0.5px',
+        }}>
+          数据表
+        </div>
+        {/* 当前数据表资源项（视图切换通过顶部 ViewTabs） */}
+        <div
+          onMouseEnter={() => setHoveredId('__table__')}
+          onMouseLeave={() => setHoveredId(null)}
+          style={{ position: 'relative' }}
+        >
+          <Tooltip title={tableName || '数据表'} placement="right">
+            <button
+              type="button"
+              onClick={() => {
+                const gridView = dataViews.find(v => v.viewType === 'grid');
+                if (gridView) onSelectView(gridView.viewId);
+                else if (dataViews.length > 0) onSelectView(dataViews[0].viewId);
+              }}
+              style={listItemStyle(true, hoveredId === '__table__')}
             >
-              <Tooltip title={name} placement="right">
-                <button
-                  type="button"
-                  onClick={() => onSelectView(view.viewId)}
-                  style={listItemStyle(active, hoveredId === view.viewId)}
-                >
-                  <span style={{ display: 'inline-flex', flexShrink: 0, opacity: active ? 1 : 0.75 }}>
-                    {meta.icon}
-                  </span>
-                  <span style={{
-                    flex: 1,
-                    minWidth: 0,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                    fontWeight: active ? 500 : 400,
-                    paddingRight: showMore ? 22 : 0,
-                  }}>
-                    {name}
-                  </span>
-                </button>
-              </Tooltip>
-              {showMore && !readOnly && (
-                <Dropdown
-                  menu={{
-                    items: viewMoreItems(view),
-                    onClick: ({ key, domEvent }) => {
-                      domEvent.stopPropagation();
-                      if (key === 'rename') {
-                        promptRename('重命名视图', name, n => onRenameView?.(view.viewId, n));
-                      } else if (key === 'duplicate') {
-                        onDuplicateView?.(view.viewId);
-                      } else if (key === 'delete') {
-                        Modal.confirm({
-                          title: '删除视图',
-                          content: `确定删除「${name}」？`,
-                          okText: '删除',
-                          okButtonProps: { danger: true },
-                          cancelText: '取消',
-                          onOk: () => onDeleteView?.(view.viewId),
-                        });
-                      }
-                    },
-                  }}
-                  trigger={['click']}
-                  placement="bottomRight"
-                >
-                  <Tooltip title="更多" placement="bottom">
-                    <button
-                      type="button"
-                      className="base-view-sidebar-btn"
-                      onClick={e => e.stopPropagation()}
-                      style={{
-                        ...iconBtnStyle,
-                        position: 'absolute',
-                        right: 4,
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        width: 24,
-                        height: 24,
-                        color: active ? BASE_THEME.primaryColor : BASE_THEME.secondaryTextColor,
-                        background: active ? 'rgba(51,112,255,0.08)' : 'transparent',
-                      }}
-                    >
-                      <MoreOutlined />
-                    </button>
-                  </Tooltip>
-                </Dropdown>
-              )}
-            </div>
-          );
-        })}
+              <span style={{ display: 'inline-flex', flexShrink: 0 }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <ellipse cx="12" cy="6" rx="7" ry="3" />
+                  <path d="M5 6v6c0 1.7 3.1 3 7 3s7-1.3 7-3V6" />
+                  <path d="M5 12v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6" />
+                </svg>
+              </span>
+              <span style={{
+                flex: 1, minWidth: 0, overflow: 'hidden',
+                textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                fontWeight: 500, fontSize: 13,
+              }}>
+                {tableName || '数据表'}
+              </span>
+            </button>
+          </Tooltip>
+        </div>
 
         {filteredDashboards.length > 0 && (
           <>
-            {filteredViews.length > 0 && (
-              <div style={{
-                height: 1,
-                background: BASE_THEME.gridColor,
-                margin: '8px 4px',
-                flexShrink: 0,
-              }} />
-            )}
             {filteredDashboards.map(dash => {
               const active = dash.id === activeDashboardId;
               const fullName = dash.name || '仪表盘';
@@ -644,16 +619,95 @@ export const BaseViewSidebar: React.FC<BaseViewSidebarProps> = ({
           </>
         )}
 
-        {filteredViews.length === 0 && filteredDashboards.length === 0 && (
-          <div style={{
-            padding: '24px 8px',
-            textAlign: 'center',
-            color: BASE_THEME.secondaryTextColor,
-            fontSize: 12,
-          }}>
-            无匹配视图
-          </div>
+        {workflowViews.length > 0 && (
+          <>
+            {workflowViews.map(view => {
+              const meta = VIEW_META[view.viewType] || { label: view.viewName, icon: '?' };
+              const active = !dashboardMode && view.viewId === activeViewId;
+              const showMore = active || hoveredId === view.viewId;
+              const name = viewDisplayName(view);
+              return (
+                <div
+                  key={view.viewId}
+                  onMouseEnter={() => setHoveredId(view.viewId)}
+                  onMouseLeave={() => setHoveredId(null)}
+                  style={{ position: 'relative' }}
+                >
+                  <Tooltip title={name} placement="right">
+                    <button
+                      type="button"
+                      onClick={() => onSelectView(view.viewId)}
+                      style={listItemStyle(active, hoveredId === view.viewId)}
+                    >
+                      <span style={{ display: 'inline-flex', flexShrink: 0, opacity: active ? 1 : 0.75 }}>
+                        {meta.icon}
+                      </span>
+                      <span style={{
+                        flex: 1,
+                        minWidth: 0,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        fontWeight: active ? 500 : 400,
+                        paddingRight: showMore ? 22 : 0,
+                      }}>
+                        {name}
+                      </span>
+                    </button>
+                  </Tooltip>
+                  {showMore && !readOnly && (
+                    <Dropdown
+                      menu={{
+                        items: viewMoreItems(view),
+                        onClick: ({ key, domEvent }) => {
+                          domEvent.stopPropagation();
+                          if (key === 'rename') {
+                            promptRename('重命名工作流', name, n => onRenameView?.(view.viewId, n));
+                          } else if (key === 'duplicate') {
+                            onDuplicateView?.(view.viewId);
+                          } else if (key === 'delete') {
+                            Modal.confirm({
+                              title: '删除工作流',
+                              content: `确定删除「${name}」？`,
+                              okText: '删除',
+                              okButtonProps: { danger: true },
+                              cancelText: '取消',
+                              onOk: () => onDeleteView?.(view.viewId),
+                            });
+                          }
+                        },
+                      }}
+                      trigger={['click']}
+                      placement="bottomRight"
+                    >
+                      <Tooltip title="更多" placement="bottom">
+                        <button
+                          type="button"
+                          className="base-view-sidebar-btn"
+                          onClick={e => e.stopPropagation()}
+                          style={{
+                            ...iconBtnStyle,
+                            position: 'absolute',
+                            right: 4,
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            width: 24,
+                            height: 24,
+                            color: active ? BASE_THEME.primaryColor : BASE_THEME.secondaryTextColor,
+                            background: active ? 'rgba(51,112,255,0.08)' : 'transparent',
+                          }}
+                        >
+                          <MoreOutlined />
+                        </button>
+                      </Tooltip>
+                    </Dropdown>
+                  )}
+                </div>
+              );
+            })}
+          </>
         )}
+
       </div>
     </div>
   </>

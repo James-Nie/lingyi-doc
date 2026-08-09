@@ -45,7 +45,7 @@ export const NODE_TYPE_CATALOG: NodeTypeMeta[] = [
     color: '#ff7a45',
     description: '数据表中记录被修改时触发',
     triggerGroup: 'table',
-    defaultConfig: { conditions: { op: 'and', conditions: [] } },
+    defaultConfig: { tableId: '', watchFields: [], filter: { op: 'and', conditions: [] } },
   },
   {
     type: 'trigger.record_match',
@@ -55,7 +55,7 @@ export const NODE_TYPE_CATALOG: NodeTypeMeta[] = [
     color: '#ff7a45',
     description: '记录变更且满足筛选条件时触发',
     triggerGroup: 'table',
-    defaultConfig: { conditions: { op: 'and', conditions: [] } },
+    defaultConfig: { tableId: '', watchFields: [], filter: { op: 'and', conditions: [] } },
   },
   {
     type: 'trigger.record_deleted',

@@ -97,7 +97,7 @@ function renderConfigByType(node: WorkflowNode, fields: FieldOption[], tables: T
     case 'trigger.record_added':
       return <RecordAddedTriggerConfigSection config={node.config as Record<string, unknown>} fields={fields} tables={tables} onChange={(cfg) => onUpdate(node.id, { config: cfg })} />;
     case 'trigger.record_updated': case 'trigger.record_match':
-      return <ConditionConfigSection config={node.config as Record<string, unknown>} fields={fields} onChange={(cfg) => onUpdate(node.id, { config: cfg })} />;
+      return <RecordChangedTriggerConfigSection config={node.config as Record<string, unknown>} fields={fields} tables={tables} onChange={(cfg) => onUpdate(node.id, { config: cfg })} />;
     case 'trigger.manual':
       return <div className="bwf-config__section"><label className="bwf-config__label">说明</label><div className="bwf-config__hint">手动触发可在「运行日志」面板中通过"测试运行"按钮启动。测试时需要传入一条样例 record（字段为 key/value 结构）。</div></div>;
     case 'trigger.form_submitted':
@@ -231,31 +231,105 @@ const RecordAddedTriggerConfigSection: React.FC<{
   );
 };
 
-/* ========== 条件配置 ========== */
+/* ========== 触发器：记录变更时（配置 / 输出 两个标签页） ========== */
 interface ConditionSectionProps { config: Record<string, unknown>; fields: FieldOption[]; onChange: (cfg: Record<string, unknown>) => void; }
-const ConditionConfigSection: React.FC<ConditionSectionProps> = ({ config, fields, onChange }) => {
+interface RecordChangedTriggerSectionProps {
+  config: Record<string, unknown>;
+  fields: FieldOption[];
+  tables: TableOption[];
+  onChange: (cfg: Record<string, unknown>) => void;
+}
+const RecordChangedTriggerConfigSection: React.FC<RecordChangedTriggerSectionProps> = ({ config, fields, tables, onChange }) => {
+  const tableId = (config.tableId as string) || '';
+  const watchFields = ((config.watchFields as string[] | undefined) ?? []);
   const group: ConditionGroup = useMemo(() => {
-    const g = config.conditions as ConditionGroup | undefined;
+    const g = config.filter as ConditionGroup | undefined;
     return g ?? { op: 'and', conditions: [] };
-  }, [config.conditions]);
-  const updateGroup = (next: ConditionGroup) => onChange({ ...config, conditions: next });
-  return (<>
-    <div className="bwf-config__section">
-      <label className="bwf-config__label">触发条件（可为空 = 总是触发）</label>
-      <Radio.Group value={group.op} onChange={(e) => updateGroup({ ...group, op: e.target.value })} size="small" className="bwf-config__op-switch">
-        <Radio.Button value="and">并且</Radio.Button><Radio.Button value="or">或者</Radio.Button>
-      </Radio.Group>
-      {group.conditions.map((c, i) => (
-        <ConditionRow key={i} condition={c} fields={fields}
-          onChange={(next) => { const arr = [...group.conditions]; arr[i] = next; updateGroup({ ...group, conditions: arr }); }}
-          onRemove={() => { const arr = group.conditions.filter((_, idx) => idx !== i); updateGroup({ ...group, conditions: arr }); }} />
-      ))}
-      <div className="bwf-config__add" onClick={() => updateGroup({ ...group, conditions: [...group.conditions, { field: '', operator: 'eq' as const, value: '' }] })}>
-        <PlusOutlined /> 添加条件
-      </div>
-      <div className="bwf-config__hint">可用 <code>{'{{record.fieldName}}'}</code> 引用触发记录；可对单行文本/数字/日期/单选项生效。</div>
-    </div>
-  </>);
+  }, [config.filter]);
+  const updateGroup = (next: ConditionGroup) => onChange({ ...config, filter: next });
+
+  const tableOptions = tables.length > 0 ? tables : [{ id: tableId, name: tableId || '当前数据表' }];
+  const selectedTableId = tableOptions.some((t) => t.id === tableId) ? tableId : (tableOptions[0]?.id ?? '');
+
+  const outputItems = [
+    { key: 'record', desc: '触发记录（本次发生变更的记录）' },
+  ];
+
+  return (
+    <Tabs
+      size="small"
+      defaultActiveKey="config"
+      items={[
+        {
+          key: 'config',
+          label: '配置',
+          children: (
+            <>
+              <div className="bwf-config__section">
+                <label className="bwf-config__label">选择数据表 <span className="bwf-config__required">*</span></label>
+                <Select
+                  showSearch optionFilterProp="label" placeholder="选择数据表" style={{ width: '100%' }}
+                  value={selectedTableId || undefined}
+                  options={tableOptions.map((t) => ({ value: t.id, label: t.name }))}
+                  onChange={(v) => onChange({ ...config, tableId: v })}
+                />
+              </div>
+              <div className="bwf-config__section">
+                <label className="bwf-config__label">监听指定字段 <span className="bwf-config__required">*</span></label>
+                <Select
+                  mode="multiple" showSearch optionFilterProp="label" placeholder="选择要监听的字段" style={{ width: '100%' }}
+                  value={watchFields}
+                  options={fields.map((f) => ({ value: f.id, label: f.name }))}
+                  onChange={(v) => onChange({ ...config, watchFields: v })}
+                />
+                <div className="bwf-config__hint">可点击「+ 选择字段」继续增加监听字段。</div>
+                <div className="bwf-config__logic">💡 触发逻辑：只有被监听的字段发生修改，才会触发该流程；其他字段变更不会触发。</div>
+              </div>
+              <div className="bwf-config__section">
+                <label className="bwf-config__label">筛选条件</label>
+                <div style={{ marginBottom: 8 }}>
+                  <Select
+                    value={group.op} style={{ width: '100%' }}
+                    options={[
+                      { value: 'and', label: '满足所有条件（AND，全部条件成立）' },
+                      { value: 'or', label: '满足任一条条件（OR，任意一条成立）' },
+                    ]}
+                    onChange={(v) => updateGroup({ ...group, op: v })}
+                  />
+                </div>
+                {group.conditions.map((c, i) => (
+                  <ConditionRow key={i} condition={c} fields={fields}
+                    onChange={(next) => { const arr = [...group.conditions]; arr[i] = next; updateGroup({ ...group, conditions: arr }); }}
+                    onRemove={() => { const arr = group.conditions.filter((_, idx) => idx !== i); updateGroup({ ...group, conditions: arr }); }} />
+                ))}
+                <div className="bwf-config__add" onClick={() => updateGroup({ ...group, conditions: [...group.conditions, { field: '', operator: 'eq' as const, value: '' }] })}>
+                  <PlusOutlined /> 添加筛选
+                </div>
+                <div className="bwf-config__hint">配置后，只有字段变更并且满足筛选条件，流程才会执行。</div>
+              </div>
+            </>
+          ),
+        },
+        {
+          key: 'output',
+          label: '输出',
+          children: (
+            <div className="bwf-config__section">
+              <label className="bwf-config__label">触发时输出</label>
+              {outputItems.map((item) => (
+                <div key={item.key} className="bwf-config__map" style={{ alignItems: 'flex-start' }}>
+                  <code style={{ flexShrink: 0, fontSize: 12 }}>{'{{' + item.key + '}}'}</code>
+                  <span className="bwf-config__map-arrow">{'\u2190'}</span>
+                  <span style={{ fontSize: 13, color: '#4e5969' }}>{item.desc}</span>
+                </div>
+              ))}
+              <div className="bwf-config__hint">后续节点可通过 {'{{record.字段名}}'} 引用该记录中的字段值。</div>
+            </div>
+          ),
+        },
+      ]}
+    />
+  );
 };
 
 const ConditionRow: React.FC<{ condition: Condition; fields: FieldOption[]; onChange: (c: Condition) => void; onRemove: () => void }> = ({ condition, fields, onChange, onRemove }) => {

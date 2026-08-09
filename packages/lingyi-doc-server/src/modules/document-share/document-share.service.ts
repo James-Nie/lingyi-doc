@@ -1,4 +1,4 @@
-import { HttpStatus, Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import bcrypt from 'bcryptjs';
 import { BusinessException } from '../../common/exceptions/business.exception';
 import type { AuthUser } from '../../auth/decorators/current-user.decorator';
@@ -111,6 +111,8 @@ function shareLevelToAccess(level: DocSharePermissionLevel): {
 
 @Injectable()
 export class DocumentShareService {
+  private readonly logger = new Logger(DocumentShareService.name);
+
   constructor(
     private readonly shareRepository: DocumentShareRepository,
     private readonly documentRepository: DocumentRepository,
@@ -1528,17 +1530,39 @@ export class DocumentShareService {
         || '填写者';
     }
 
-    const nextData = appendBaseFormRecord(access.docData, {
-      sheetId: body.sheetId,
-      viewId: body.viewId,
-      fieldValues: body.fieldValues as Record<string, Record<string, unknown> & { type: string }>,
-      submitterName,
-    });
-
-    const saved = await this.documentRepository.saveContentInternal(access.docId, nextData);
+    const saved = await this.documentRepository.appendFormRecord(
+      access.docId,
+      (currentContent) =>
+        appendBaseFormRecord(currentContent, {
+          sheetId: body.sheetId,
+          viewId: body.viewId,
+          fieldValues: body.fieldValues as Record<string, Record<string, unknown> & { type: string }>,
+          submitterName,
+        }),
+      {
+        createdBy: auth?.userId ?? null,
+        buildRecordHistory: (newRecordId) =>
+          Object.entries(body.fieldValues ?? {}).map(
+            ([fieldId, cell]) =>
+              ({
+                id: `${newRecordId}-${fieldId}`,
+                recordId: newRecordId,
+                sheetId: body.sheetId,
+                at: Date.now(),
+                by: submitterName,
+                action: 'create',
+                fieldId,
+                after: cell,
+              }) as const,
+          ),
+      },
+    );
     if (!saved) {
       throw new BusinessException(100005, '保存失败', HttpStatus.INTERNAL_SERVER_ERROR);
     }
+
+    const newRecordId = saved.newRecordId;
+    // 工作流触发已通过 appendFormRecord 内部事务写入 outbox，不再直接分发
 
     await this.shareRepository.appendVisitLog({
       docId: access.docId,

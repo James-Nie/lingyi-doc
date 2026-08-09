@@ -53,6 +53,49 @@ import {
 import { matchTriggerFilter } from './node-registry';
 import { InjectDataSource } from '@nestjs/typeorm';
 
+interface CellJson {
+  type?: string;
+  text?: string;
+  value?: unknown;
+  timestamp?: number;
+  format?: unknown;
+  formula?: string;
+  cached?: CellJson | null;
+  error?: unknown;
+  segments?: Array<{ text?: string }>;
+  url?: string;
+  images?: unknown[];
+}
+
+function cellToPlainValue(value: unknown): unknown {
+  if (value == null) return '';
+  if (typeof value !== 'object') return value;
+  const v = value as CellJson;
+  switch (v.type) {
+    case 'empty':
+      return '';
+    case 'text':
+      return v.text ?? '';
+    case 'number':
+    case 'boolean':
+      return v.value;
+    case 'date':
+      return v.timestamp;
+    case 'formula':
+      return v.cached ? cellToPlainValue(v.cached) : '#CALC!';
+    case 'error':
+      return v.error ?? '';
+    case 'richtext':
+      return (v.segments ?? []).map((s) => s.text ?? '').join('');
+    case 'link':
+      return v.text || v.url || '';
+    case 'image':
+      return (v.images ?? []).length > 0 ? `[${(v.images ?? []).length}张图片]` : '';
+    default:
+      return String(value);
+  }
+}
+
 @Injectable()
 export class WorkflowEngine {
   private readonly logger = new Logger(WorkflowEngine.name);
@@ -145,22 +188,56 @@ export class WorkflowEngine {
     docId: string;
     tableId: string;
     record: Record<string, unknown>;
+    changedFields?: string[];
     userId: string;
     tenantId?: string;
   }): Promise<AIWorkflowInstanceEntity[]> {
     const repo = this.dataSource.getRepository(AIWorkflowEntity);
+    // 按 docId 或 tableId 兜底获取候选；trigger 节点「选择数据表」可能覆盖工作流级 tableId
     const workflows = await repo.find({
       where: [
         { tableId: payload.tableId, status: 'published', triggerType: 'record_added' as string },
         { tableId: payload.tableId, status: 'published', triggerType: 'record_updated' as string },
         { tableId: payload.tableId, status: 'published', triggerType: 'record_match' as string },
+        { tableId: payload.tableId, status: 'published', triggerType: 'record_deleted' as string },
+        { docId: payload.docId, status: 'published', triggerType: 'record_added' as string },
+        { docId: payload.docId, status: 'published', triggerType: 'record_updated' as string },
+        { docId: payload.docId, status: 'published', triggerType: 'record_match' as string },
+        { docId: payload.docId, status: 'published', triggerType: 'record_deleted' as string },
       ],
     });
     const matched: AIWorkflowInstanceEntity[] = [];
     for (const w of workflows) {
+      // trigger 节点「选择数据表」可能覆盖工作流级 tableId
+      const triggerNode = (w.nodes ?? []).find(
+        (n) => n.type?.startsWith('trigger.'),
+      );
+      const triggerTableId =
+        typeof triggerNode?.config?.tableId === 'string' && triggerNode.config.tableId
+          ? triggerNode.config.tableId
+          : w.tableId;
+      if (triggerTableId !== payload.tableId) continue;
       if (payload.action === 'added' && w.triggerType !== 'record_added' && w.triggerType !== 'record_match') continue;
       if (payload.action === 'updated' && w.triggerType !== 'record_updated' && w.triggerType !== 'record_match') continue;
-      if (!matchTriggerFilter(w.triggerFilter, payload.record)) continue;
+      if (payload.action === 'deleted' && w.triggerType !== 'record_deleted') continue;
+      // 监听指定字段：仅当本次被修改字段与监听字段有交集时触发
+      if (payload.action === 'updated') {
+        const watchFields = Array.isArray(triggerNode?.config?.watchFields)
+          ? (triggerNode.config.watchFields as string[])
+          : [];
+        if (watchFields.length > 0) {
+          const changed = (payload.changedFields ?? []).filter((f) => watchFields.includes(f));
+          if (changed.length === 0) continue;
+        }
+      }
+      // 筛选条件匹配前，从 content_json 重读记录全量字段，
+      // 避免只改字段 A 而 filter 条件在字段 B 时误判不触发
+      let matchRecord = payload.record;
+      if (payload.action === 'updated') {
+        const full = await this.loadFullRecord(payload.docId, payload.tableId, String(payload.record._id ?? ''));
+        if (full) matchRecord = full;
+      }
+      if (!matchTriggerFilter(w.triggerFilter, matchRecord)) continue;
 
       const user = { userId: payload.userId, currentTenantId: payload.tenantId ?? null } as AuthUser;
       const instance = await this.runAsync(
@@ -171,6 +248,56 @@ export class WorkflowEngine {
       matched.push(instance);
     }
     return matched;
+  }
+
+  /**
+   * 从 content_json 读取记录的完整字段（含未被本次变更的字段），
+   * 用于 filter 匹配时不再只依赖 changedFields。
+   */
+  async loadFullRecord(
+    docId: string,
+    tableId: string,
+    recordId: string,
+  ): Promise<Record<string, unknown> | null> {
+    try {
+      const rows = await this.dataSource.query(
+        `SELECT dc.content_json FROM document_contents dc WHERE dc.doc_id = $1`,
+        [docId],
+      );
+      if (!rows?.[0]?.content_json) return null;
+
+      const content = typeof rows[0].content_json === 'string'
+        ? JSON.parse(rows[0].content_json)
+        : rows[0].content_json;
+      const sheets = Array.isArray(content?.sheets) ? content.sheets : [];
+      const sheet = sheets.find((s: any) => s.id === tableId);
+      if (!sheet?.data) return null;
+
+      const sheetData = sheet.data;
+      const rowArr = Array.isArray(sheetData.rows) ? sheetData.rows : [];
+      const rowIdx = rowArr.findIndex((r: any) => r?._id === recordId);
+      if (rowIdx < 0) return null;
+
+      const columnDefs = Array.isArray(sheetData.columnDefs)
+        ? (sheetData.columnDefs as Array<{ id: string; name: string; type?: string }>)
+        : [];
+      const cells = (sheetData.cells ?? {}) as Record<string, unknown>;
+
+      const record: Record<string, unknown> = { _id: recordId };
+      for (let ci = 0; ci < columnDefs.length; ci++) {
+        const col = columnDefs[ci];
+        const cellEntry = cells[`R${rowIdx}C${ci}`] as { value?: unknown } | undefined;
+        const cellValue = cellEntry?.value;
+        const plain = cellToPlainValue(cellValue);
+        record[col.id] = plain;
+        record[col.name] = plain;
+      }
+
+      return record;
+    } catch (err) {
+      this.logger.warn(`loadFullRecord failed: ${(err as Error).message}`);
+      return null;
+    }
   }
 
   private async reload(id: string): Promise<AIWorkflowInstanceEntity> {

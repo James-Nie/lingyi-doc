@@ -73,9 +73,16 @@ export function evaluateCondition(cond: Condition, value: unknown): boolean {
   const v = value;
   switch (cond.operator) {
     case 'eq':
-      return v === cond.value;
+      if (v === cond.value) return true;
+      if (typeof v === 'number' && typeof cond.value === 'string') return v === Number(cond.value);
+      if (typeof v === 'string' && typeof cond.value === 'number') return Number(v) === cond.value;
+      if (typeof v === 'number' && typeof cond.value === 'number') return v === cond.value;
+      return false;
     case 'neq':
-      return v !== cond.value;
+      if (v !== cond.value) return true;
+      if (typeof v === 'number' && typeof cond.value === 'string') return v !== Number(cond.value);
+      if (typeof v === 'string' && typeof cond.value === 'number') return Number(v) !== cond.value;
+      return false;
     case 'gt':
       return typeof v === 'number' && typeof cond.value === 'number' && v > cond.value;
     case 'gte':
@@ -106,7 +113,7 @@ export function evaluateConditionGroup(
   group: ConditionGroup | null | undefined,
   record: Record<string, unknown> | undefined,
 ): boolean {
-  if (!group || !group.conditions || group.conditions.length === 0) return true;
+  if (!group || !Array.isArray(group.conditions) || group.conditions.length === 0) return true;
   if (!record) return false;
   const fn = (cond: Condition) => evaluateCondition(cond, record[cond.field]);
   return group.op === 'or'
@@ -114,10 +121,38 @@ export function evaluateConditionGroup(
     : group.conditions.every(fn);
 }
 
+/**
+ * 归一化前端可能写入的 triggerFilter 形态为标准 ConditionGroup：
+ * - 标准形态 { op, conditions[] }（trigger.record_updated / record_match）
+ * - 触发节点整个 config：{ conditions: {op, conditions[]}, requiredFields, tableId, ... }
+ * - { filter: {op, conditions[]} }（record_added 早期形态）
+ * 归一化失败（结构未知）时按「无条件」放行，避免 dispatch 抛错被吞。
+ */
+function normalizeTriggerFilter(filter: unknown): ConditionGroup | null {
+  if (!filter || typeof filter !== 'object') return null;
+  const f = filter as Record<string, unknown>;
+  if (Array.isArray(f.conditions) && (f.op === 'and' || f.op === 'or')) {
+    return { op: f.op, conditions: f.conditions as Condition[] };
+  }
+  if (f.conditions && typeof f.conditions === 'object') {
+    const inner = f.conditions as Record<string, unknown>;
+    if (Array.isArray(inner.conditions) && (inner.op === 'and' || inner.op === 'or')) {
+      return { op: inner.op, conditions: inner.conditions as Condition[] };
+    }
+  }
+  if (f.filter && typeof f.filter === 'object') {
+    const inner = f.filter as Record<string, unknown>;
+    if (Array.isArray(inner.conditions) && (inner.op === 'and' || inner.op === 'or')) {
+      return { op: inner.op, conditions: inner.conditions as Condition[] };
+    }
+  }
+  return null;
+}
+
 /** 评估触发器 filter（语法同节点 condition） */
 export function matchTriggerFilter(
   filter: WorkflowTriggerFilter | null | undefined,
   record: Record<string, unknown> | undefined,
 ): boolean {
-  return evaluateConditionGroup(filter ?? null, record);
+  return evaluateConditionGroup(normalizeTriggerFilter(filter), record);
 }

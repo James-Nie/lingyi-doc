@@ -20,7 +20,7 @@ export function ensureActiveBaseView(sheet: BaseSheetModel): BaseView {
     viewType: 'grid',
     config: {},
   };
-  sheet.views.push(view);
+  sheet.views = [...sheet.views, view];
   sheet.activeViewId = view.viewId;
   return view;
 }
@@ -58,7 +58,7 @@ export function ensureFormView(sheet: BaseSheetModel): BaseView {
   }
   const formView = createFormViewFromSheet(sheet);
   if (!sheet.views) sheet.views = [];
-  sheet.views.push(formView);
+  sheet.views = [...sheet.views, formView];
   return formView;
 }
 
@@ -193,18 +193,15 @@ export function createAndActivateBaseView(
   let view: BaseView;
   if (viewType === 'form') {
     view = ensureFormView(sheet);
+    return view; // ensureFormView 内部已 push 并可能复用已有视图
   } else if (viewType === 'kanban') {
     view = createKanbanView(sheet);
-    sheet.views.push(view);
   } else if (viewType === 'calendar') {
     view = createCalendarView(sheet);
-    sheet.views.push(view);
   } else if (viewType === 'gantt') {
     view = createGanttView(sheet);
-    sheet.views.push(view);
   } else if (viewType === 'grid') {
     view = createGridView(sheet);
-    sheet.views.push(view);
   } else {
     view = {
       viewId: `view_${viewType}_${Date.now()}`,
@@ -212,8 +209,8 @@ export function createAndActivateBaseView(
       viewType,
       config: {},
     };
-    sheet.views.push(view);
   }
+  sheet.views = [...sheet.views, view];
 
   sheet.activeViewId = view.viewId;
   if (view.viewType === 'kanban') {
@@ -245,7 +242,7 @@ export function duplicateBaseView(sheet: BaseSheetModel, viewId: string): BaseVi
     hiddenFields: source.hiddenFields ? [...source.hiddenFields] : undefined,
     frozenCols: source.frozenCols,
   };
-  sheet.views.push(copy);
+  sheet.views = [...sheet.views, copy];
   sheet.activeViewId = copy.viewId;
   return copy;
 }
@@ -254,7 +251,8 @@ export function deleteBaseView(sheet: BaseSheetModel, viewId: string): BaseView 
   if (!sheet.views?.length || sheet.views.length <= 1) return null;
   const idx = sheet.views.findIndex(v => v.viewId === viewId);
   if (idx < 0) return null;
-  sheet.views.splice(idx, 1);
+  const removed = sheet.views[idx];
+  sheet.views = [...sheet.views.slice(0, idx), ...sheet.views.slice(idx + 1)];
   const next = sheet.views[Math.min(idx, sheet.views.length - 1)];
   sheet.activeViewId = next.viewId;
   return next;

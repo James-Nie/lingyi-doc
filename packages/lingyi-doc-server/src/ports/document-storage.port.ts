@@ -27,7 +27,7 @@ export interface DocumentStoragePort {
     docId: string,
     body: unknown,
     ctx: DocumentAccessContext,
-  ): Promise<{ version: number }>;
+  ): Promise<{ version: number } | { conflict: true; currentVersion: number }>;
   deleteDocument(docId: string, ctx: DocumentAccessContext): Promise<boolean>;
   restoreDocument(docId: string, ctx: DocumentAccessContext): Promise<boolean>;
   permanentDeleteDocument(docId: string, ctx: DocumentAccessContext): Promise<boolean>;

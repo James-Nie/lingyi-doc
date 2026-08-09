@@ -30,7 +30,6 @@ import { MembershipService } from '../membership/membership.service';
 import { estimateJsonBytes, estimatePatchDelta, estimateSaveDelta } from '../membership/membership.utils';
 import { shouldEnforceUniqueTitle } from '../../utils/documentTitle';
 import { sendDocumentLoadHttpResult } from '../../utils/documentRecordJson';
-import { WorkflowTriggerDispatcher, type RecordHistoryDispatchEntry } from '../ai/ai-workflow/workflow-trigger.dispatcher';
 
 @Controller(['api/v1/c/docs', 'api/v1/docs'])
 @UseGuards(JwtAuthGuard, TenantContextGuard)
@@ -43,7 +42,6 @@ export class DocumentController {
     private readonly documentRepository: DocumentRepository,
     private readonly documentShareService: DocumentShareService,
     private readonly membershipService: MembershipService,
-    private readonly workflowTriggerDispatcher: WorkflowTriggerDispatcher,
   ) {}
 
   @Post()
@@ -376,11 +374,8 @@ export class DocumentController {
         );
       }
 
-      await this.workflowTriggerDispatcher.dispatchRecordChanges(
-        docId,
-        recordHistory as RecordHistoryDispatchEntry[] | undefined,
-        { userId: user.userId, tenantId: user.currentTenantId },
-      );
+      // 工作流触发已通过 outbox 事务内写入（wf_trigger_outbox 与内容同事务）
+      // 不再直接 fire-and-forget 分发，避免进程崩溃丢触发
 
       return result;
     } catch (err) {
@@ -475,9 +470,22 @@ export class DocumentController {
         estimateSaveDelta(body, writeMeta.storageSize),
       );
 
-      return await this.storageService.saveDocument(docId, body, ctx);
+      const result = await this.storageService.saveDocument(docId, body, ctx);
+
+      if ('conflict' in result && result.conflict) {
+        throw new HttpException(
+          {
+            code: 200010,
+            message: '版本冲突',
+            data: { currentVersion: result.currentVersion },
+          },
+          HttpStatus.CONFLICT,
+        );
+      }
+
+      return result;
     } catch (err) {
-      if (err instanceof BusinessException) throw err;
+      if (err instanceof BusinessException || err instanceof HttpException) throw err;
       this.logger.error('save failed', err);
       throw new BusinessException(100005, '保存文档失败', HttpStatus.INTERNAL_SERVER_ERROR);
     }

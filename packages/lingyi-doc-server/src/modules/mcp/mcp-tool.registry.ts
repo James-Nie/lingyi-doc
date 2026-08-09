@@ -316,6 +316,7 @@ export class McpToolRegistry {
             docType: 'freeform',
             data: written.data,
           }, ctx);
+          if ('conflict' in saved) throw new Error('save conflict');
           return {
             success: true,
             version: saved.version,
@@ -396,6 +397,7 @@ export class McpToolRegistry {
             docType: 'base',
             data: written.data,
           }, ctx);
+          if ('conflict' in saved) throw new Error('save conflict');
           return {
             success: true,
             version: saved.version,

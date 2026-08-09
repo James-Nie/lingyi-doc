@@ -135,6 +135,11 @@ async function requestOnce<T>(path: string, options?: RequestInit, retried = fal
     throw new Error(`请求失败 (${res.status})`);
   }
 
+  if (json.code === 200010) {
+    const conflictData = (json as { data?: { currentVersion?: number } }).data;
+    throw new DocumentPatchConflictError(conflictData?.currentVersion ?? 0);
+  }
+
   if ((!res.ok || json.code !== 0) && !retried && refreshAccessToken && AUTH_ERROR_CODES.has(json.code ?? 0)) {
     const refreshed = await refreshAccessToken();
     if (refreshed) return requestOnce<T>(path, options, true);
@@ -287,13 +292,13 @@ export class DocumentManager {
     }
   }
 
-  static async saveRichText(docId: string, title: string, document: RichDocument): Promise<{ version: number }> {
+  static async saveRichText(docId: string, title: string, document: RichDocument, opts?: { baseVersion?: number }): Promise<{ version: number }> {
     document.documentId = docId;
     document.title = title;
     const handler = requireDocumentHandler('richtext');
     const result = await request<{ version?: number }>(`/docs/${docId}`, {
       method: 'PUT',
-      body: JSON.stringify({ title, docType: 'richtext', data: handler.toJSON(document) }),
+      body: JSON.stringify({ title, docType: 'richtext', data: handler.toJSON(document), baseVersion: opts?.baseVersion }),
     });
     return { version: result.version ?? 0 };
   }
@@ -333,13 +338,13 @@ export class DocumentManager {
     }
   }
 
-  static async saveMindNote(docId: string, title: string, document: MindNoteDocument): Promise<{ version: number }> {
+  static async saveMindNote(docId: string, title: string, document: MindNoteDocument, opts?: { baseVersion?: number }): Promise<{ version: number }> {
     document.documentId = docId;
     document.title = title;
     const handler = requireDocumentHandler('mindnote');
     const result = await request<{ version?: number }>(`/docs/${docId}`, {
       method: 'PUT',
-      body: JSON.stringify({ title, docType: 'mindnote', data: handler.toJSON(document) }),
+      body: JSON.stringify({ title, docType: 'mindnote', data: handler.toJSON(document), baseVersion: opts?.baseVersion }),
     });
     return { version: result.version ?? 0 };
   }
@@ -379,13 +384,13 @@ export class DocumentManager {
     }
   }
 
-  static async saveWhiteboard(docId: string, title: string, document: WhiteboardDocument): Promise<{ version: number }> {
+  static async saveWhiteboard(docId: string, title: string, document: WhiteboardDocument, opts?: { baseVersion?: number }): Promise<{ version: number }> {
     document.documentId = docId;
     document.title = title;
     const handler = requireDocumentHandler('whiteboard');
     const result = await request<{ version?: number }>(`/docs/${docId}`, {
       method: 'PUT',
-      body: JSON.stringify({ title, docType: 'whiteboard', data: handler.toJSON(document) }),
+      body: JSON.stringify({ title, docType: 'whiteboard', data: handler.toJSON(document), baseVersion: opts?.baseVersion }),
     });
     return { version: result.version ?? 0 };
   }
@@ -423,7 +428,7 @@ export class DocumentManager {
     docId: string,
     title: string,
     workbook: Workbook,
-    opts?: { keepalive?: boolean; recordHistory?: RecordHistoryPayloadEntry[] },
+    opts?: { keepalive?: boolean; recordHistory?: RecordHistoryPayloadEntry[]; baseVersion?: number },
   ): Promise<{ version: number }> {
     workbook.prepareForSave();
     const docType = deriveWorkbookDocType(workbook.sheets.map(s => s.type));
@@ -436,6 +441,7 @@ export class DocumentManager {
         docType,
         data: handler.toJSON(workbook),
         recordHistory: opts?.recordHistory,
+        baseVersion: opts?.baseVersion,
       }),
     });
     return { version: result.version ?? 0 };

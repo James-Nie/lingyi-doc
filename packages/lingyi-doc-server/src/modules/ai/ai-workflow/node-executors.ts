@@ -402,10 +402,10 @@ export class StartLegacyExecutor implements NodeExecutor {
   }
 }
 
-/** 简单模板替换：`{{record.fieldName}}` */
+/** 简单模板替换：`{{record.fieldName}}`（支持中文等 unicode 字段名） */
 function resolveTemplate(template: unknown, scope: Record<string, unknown>): unknown {
   if (typeof template !== 'string') return template;
-  return template.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_m, path: string) => {
+  return template.replace(/\{\{\s*([^}]+?)\s*\}\}/g, (_m, path: string) => {
     const parts = path.split('.');
     let cur: unknown = scope;
     for (const p of parts) {

@@ -8,6 +8,7 @@ import { DocumentEntity } from '../database/entities/document.entity';
 import { DocumentContentEntity } from '../database/entities/document-content.entity';
 import { DocumentSnapshotEntity } from '../database/entities/document-snapshot.entity';
 import { RecordChangeHistoryEntity } from '../database/entities/record-change-history.entity';
+import { WfTriggerOutboxEntity } from '../database/entities/wf-trigger-outbox.entity';
 import { UserEntity } from '../database/entities/user.entity';
 import { TenantEntity } from '../database/entities/tenant.entity';
 import { applyDocumentPatch, docTypeToPatchKind, type DocumentPatchOp } from '../patch/applyDocumentPatch';
@@ -734,9 +735,13 @@ export class DocumentRepository {
 
   async save(
     docId: string,
-    patch: Partial<DocumentRecord> & { recordHistory?: RecordHistoryPayloadEntry[] },
+    patch: Partial<DocumentRecord> & {
+      recordHistory?: RecordHistoryPayloadEntry[];
+      /** 客户端传入期望版本：服务端比对后写入；不传则保持兼容旧行为 */
+      baseVersion?: number;
+    },
     ctx: DocumentAccessContext,
-  ): Promise<DocumentRecord | null> {
+  ): Promise<DocumentRecord | { conflict: true; currentVersion: number } | null> {
     if (!(await this.hasWriteAccess(docId, ctx))) return null;
 
     const result = await this.dataSource.transaction(async (manager) => {
@@ -755,6 +760,10 @@ export class DocumentRepository {
         .setLock('pessimistic_write')
         .getOne();
       if (!locked) return null;
+
+      if (typeof patch.baseVersion === 'number' && locked.currentVersion !== patch.baseVersion) {
+        return { conflict: true, currentVersion: locked.currentVersion };
+      }
 
       // 从 document_contents 表读取内容
       const contentEntity = await manager.findOne(DocumentContentEntity, {
@@ -824,6 +833,9 @@ export class DocumentRepository {
     });
 
     if (!result) return null;
+    if (typeof result === 'object' && 'conflict' in result) {
+      return result as { conflict: true; currentVersion: number };
+    }
     return this.findById(docId);
   }
 
@@ -907,7 +919,11 @@ export class DocumentRepository {
     docId: string,
     data: unknown,
     createdBy?: string | null,
-    options?: { docType?: string },
+    options?: {
+      docType?: string;
+      /** 传入则做乐观锁校验；不传保持兼容旧调用 */
+      baseVersion?: number;
+    },
   ): Promise<{ version: number } | null> {
     return this.dataSource.transaction(async (manager) => {
       const locked = await manager
@@ -924,6 +940,13 @@ export class DocumentRepository {
         .setLock('pessimistic_write')
         .getOne();
       if (!locked) return null;
+
+      if (
+        typeof options?.baseVersion === 'number' &&
+        locked.currentVersion !== options.baseVersion
+      ) {
+        return null;
+      }
 
       const nextVersion = (locked.currentVersion || 0) + 1;
       const contentStr = data != null ? JSON.stringify(data) : null;
@@ -981,6 +1004,110 @@ export class DocumentRepository {
       }
 
       return { version: nextVersion };
+    });
+  }
+
+  /**
+   * 表单公开提交追加记录：在悲观锁内重读最新内容并执行 append，消除「锁前读 → 锁内写」竞态，
+   * 保证并发提交不会互相覆盖（P0-1）。行级变更历史与内容同事务落库。
+   *
+   * @param buildNext 基于锁内最新内容构造追加结果（返回追加后的 data 与新记录 ID）
+   * @param buildRecordHistory 基于新记录 ID 构造行级历史条目（与内容同事务入库）
+   */
+  async appendFormRecord(
+    docId: string,
+    buildNext: (currentContent: unknown) => { data: unknown; newRecordId: string },
+    opts: {
+      createdBy?: string | null;
+      buildRecordHistory?: (newRecordId: string) => RecordHistoryPayloadEntry[];
+    } = {},
+  ): Promise<
+    | { version: number; newRecordId: string; recordHistory: RecordHistoryPayloadEntry[] }
+    | null
+  > {
+    return this.dataSource.transaction(async (manager) => {
+      const locked = await manager
+        .createQueryBuilder(DocumentEntity, 'd')
+        .select([
+          'd.id',
+          'd.docType',
+          'd.currentVersion',
+          'd.lastSnapshotVersion',
+          'd.lastSnapshotAt',
+        ])
+        .where('d.id = :docId', { docId })
+        .andWhere('d.isDeleted = false')
+        .setLock('pessimistic_write')
+        .getOne();
+      if (!locked) return null;
+
+      // 锁内重读最新内容，保证 append 基于并发方已提交的最新版本
+      const contentEntity = await manager.findOne(DocumentContentEntity, {
+        where: { docId },
+      });
+      const baseContent = (parseJsonContent(contentEntity?.contentJson) ?? {}) as Record<string, unknown>;
+
+      const { data, newRecordId } = buildNext(baseContent);
+      const recordHistory = opts.buildRecordHistory?.(newRecordId) ?? [];
+
+      const nextVersion = (locked.currentVersion || 0) + 1;
+      const contentStr = data != null ? JSON.stringify(data) : null;
+      const storageSize = contentStr ? Buffer.byteLength(contentStr, 'utf8') : 0;
+      const writeSnapshot = shouldWriteAutoSnapshot(
+        locked.lastSnapshotAt,
+        locked.lastSnapshotVersion ?? 0,
+        nextVersion,
+      );
+
+      const updateSet: Partial<DocumentEntity> = {
+        currentVersion: nextVersion,
+        contentVersion: nextVersion,
+      };
+      if (writeSnapshot) {
+        updateSet.lastSnapshotVersion = nextVersion;
+        updateSet.lastSnapshotAt = new Date();
+      }
+
+      await manager
+        .createQueryBuilder()
+        .update(DocumentEntity)
+        .set(updateSet)
+        .where('id = :docId', { docId })
+        .andWhere('isDeleted = false')
+        .execute();
+
+      // 行级变更历史：表单提交也入库（修复表单历史缺失）
+      await this.extractRecordHistory(manager, docId, recordHistory);
+
+      // 工作流触发 outbox：表单提交也写 outbox
+      if (recordHistory.length) {
+        await this.enqueueWorkflowOutbox(manager, docId, recordHistory, opts.createdBy ?? '', null);
+      }
+
+      if (contentEntity) {
+        contentEntity.contentJson = data;
+        contentEntity.storageSize = String(storageSize);
+        await manager.save(contentEntity);
+      } else {
+        const newContent = new DocumentContentEntity();
+        newContent.docId = docId;
+        newContent.contentJson = data;
+        newContent.storageSize = String(storageSize);
+        await manager.save(newContent);
+      }
+
+      if (writeSnapshot) {
+        await this.insertSnapshot(manager, {
+          docId,
+          version: nextVersion,
+          snapshotType: 'auto',
+          actionType: 'auto',
+          snapshotData: data,
+          createdBy: opts.createdBy ?? null,
+        });
+      }
+
+      return { version: nextVersion, newRecordId, recordHistory };
     });
   }
 
@@ -1065,6 +1192,11 @@ export class DocumentRepository {
 
       // 多维表行级变更历史：独立表冷存储（与主 JSON 冷热分离）
       await this.extractRecordHistory(manager, docId, input.recordHistory);
+
+      // 工作流触发 outbox：与内容同事务，保证触发 at-least-once
+      if (input.recordHistory?.length) {
+        await this.enqueueWorkflowOutbox(manager, docId, input.recordHistory, ctx.userId, ctx.tenantId);
+      }
 
       // 更新或插入 document_contents 表
       if (contentEntity) {
@@ -1598,5 +1730,26 @@ export class DocumentRepository {
       created: toDayMap(createdRows),
       deleted: toDayMap(deletedRows),
     };
+  }
+
+  private async enqueueWorkflowOutbox(
+    manager: EntityManager,
+    docId: string,
+    entries: RecordHistoryPayloadEntry[],
+    userId: string,
+    tenantId: string | null,
+  ): Promise<void> {
+    await manager
+      .createQueryBuilder()
+      .insert()
+      .into(WfTriggerOutboxEntity)
+      .values({
+        docId,
+        status: 'pending',
+        entries: entries as any,
+        userId: userId || null,
+        tenantId: tenantId || null,
+      })
+      .execute();
   }
 }

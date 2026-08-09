@@ -3,6 +3,7 @@ import { BASE_THEME } from '@lingyi-doc/core-sheet';
 import { isBaseSheet, type RecordRow } from '@lingyi-doc/core-types';
 import type { DashboardModel, BaseSheetModel, CellValue } from '@lingyi-doc/core-types';
 import { BaseViewSidebar } from '../base/BaseViewSidebar';
+import { ViewTabs } from '../base/ViewTabs';
 import { FormViewEditor } from '../base/FormViewEditor';
 import { KanbanView } from '../base/kanban';
 import { SheetContainer } from '../SheetContainer';
@@ -172,6 +173,7 @@ export const BaseSheetEditor: React.FC<BaseSheetEditorProps> = ({
       <BaseViewSidebar
         views={sheet.views || []}
         activeViewId={sheet.activeViewId}
+        tableName={typeof (sheet as any).name === 'string' ? (sheet as any).name : undefined}
         onSelectView={onSelectView}
         onCreateView={readOnly ? undefined : onCreateView}
         onRenameView={readOnly ? undefined : onRenameView}
@@ -187,7 +189,7 @@ export const BaseSheetEditor: React.FC<BaseSheetEditorProps> = ({
         readOnly={readOnly}
       />
 
-      {/* 右侧：工具栏 + 视图内容 */}
+      {/* 右侧：视图Tab + 工具栏 + 视图内容 */}
       <div style={{
         flex: 1,
         minWidth: 0,
@@ -197,6 +199,20 @@ export const BaseSheetEditor: React.FC<BaseSheetEditorProps> = ({
         overflow: 'hidden',
         background: BASE_THEME.cardBg,
       }}>
+        {/* 顶部视图切换 Tab */}
+        {!activeDashboard && (
+          <ViewTabs
+            views={sheet.views || []}
+            activeViewId={sheet.activeViewId}
+            onSelectView={onSelectView}
+            onCreateView={readOnly ? undefined : onCreateView}
+            onRenameView={readOnly ? undefined : onRenameView}
+            onDuplicateView={readOnly ? undefined : onDuplicateView}
+            onDeleteView={readOnly ? undefined : onDeleteView}
+            readOnly={readOnly}
+          />
+        )}
+
         {showViewToolbar && (
           <div style={{ flexShrink: 0 }}>
             {toolbar}

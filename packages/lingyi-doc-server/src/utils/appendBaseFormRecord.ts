@@ -150,6 +150,13 @@ function writeSystemFieldCells(
   }
 }
 
+export interface AppendFormRecordResult {
+  /** 追加记录后的完整 workbook JSON */
+  data: unknown;
+  /** 新记录的行 ID（recordId） */
+  newRecordId: string;
+}
+
 /** 在 workbook JSON 中追加一条表单填写记录 */
 export function appendBaseFormRecord(
   workbookData: unknown,
@@ -160,7 +167,7 @@ export function appendBaseFormRecord(
     /** 提交者在系统中的显示名；未登录时回落为「填写者」 */
     submitterName?: string;
   },
-): unknown {
+): AppendFormRecordResult {
   const wb = workbookData as WorkbookJson;
   const sheetEntry = wb.sheets?.find(s => s.id === params.sheetId);
   if (!sheetEntry) {
@@ -245,5 +252,5 @@ export function appendBaseFormRecord(
     writeSystemFieldCells(cells, columnDefs, newRowIndex, record);
   }
 
-  return wb;
+  return { data: wb, newRecordId: typeof record?._id === 'string' ? record._id : '' };
 }

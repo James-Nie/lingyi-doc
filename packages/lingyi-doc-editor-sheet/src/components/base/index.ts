@@ -1,4 +1,6 @@
 export { BaseViewSidebar } from './BaseViewSidebar';
+export { ViewTabs } from './ViewTabs';
+export type { ViewTabsProps } from './ViewTabs';
 export { FormViewEditor } from './FormViewEditor';
 export { FormFieldCard } from './FormFieldCard';
 export { FormRecordFieldFill } from './FormRecordFieldFill';

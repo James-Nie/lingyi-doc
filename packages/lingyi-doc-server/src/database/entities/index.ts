@@ -36,6 +36,7 @@ export { DocTemplateEntity } from './doc-template.entity';
 export { DocCommentThreadEntity, DocCommentReplyEntity, DocCommentReplyLikeEntity } from './document-comment.entity';
 export { DocUserVisitEntity } from './doc-user-visit.entity';
 export { QuotaDailyLogEntity } from './quota-daily-log.entity';
+export { WfTriggerOutboxEntity } from './wf-trigger-outbox.entity';
 export { AI_ENTITIES } from '../../modules/ai/entities';
 export { MCP_ENTITIES } from '../../modules/mcp/entities';
 
@@ -77,6 +78,7 @@ import { DocTemplateEntity } from './doc-template.entity';
 import { DocCommentReplyEntity, DocCommentReplyLikeEntity, DocCommentThreadEntity } from './document-comment.entity';
 import { DocUserVisitEntity } from './doc-user-visit.entity';
 import { QuotaDailyLogEntity } from './quota-daily-log.entity';
+import { WfTriggerOutboxEntity } from './wf-trigger-outbox.entity';
 import { AI_ENTITIES } from '../../modules/ai/entities';
 import { MCP_ENTITIES } from '../../modules/mcp/entities';
 
@@ -123,6 +125,7 @@ export const ALL_ENTITIES = [
   DocCommentReplyLikeEntity,
   DocUserVisitEntity,
   QuotaDailyLogEntity,
+  WfTriggerOutboxEntity,
   ...AI_ENTITIES,
   ...MCP_ENTITIES,
 ];

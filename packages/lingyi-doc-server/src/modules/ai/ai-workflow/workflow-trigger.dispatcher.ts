@@ -18,6 +18,8 @@ export interface RecordChangePayload {
   docId: string;
   tableId: string;
   record: Record<string, unknown>;
+  /** 本次变更中被修改的字段（fieldId），供「监听指定字段」匹配 */
+  changedFields?: string[];
   userId: string;
   tenantId?: string;
 }
@@ -109,8 +111,9 @@ export class WorkflowTriggerDispatcher {
   }
 
   /**
-   * 从文档保存路径的 recordHistory 中识别「新建记录」，逐条分发。
-   * 仅在存在 action === 'create' 的条目时触发，避免把普通字段更新也当作新记录。
+   * 从文档保存路径的 recordHistory 中识别记录变更，逐条分发：
+   * - 含 create 条目的记录 → 分发 added（新增记录）
+   * - 仅有 update 条目的记录 → 分发 updated，携带 changedFields（被修改字段）
    * record 同时以 fieldId（filter 匹配）与 fieldName（模板 {{record.字段名}}）为键，
    * 值为 CellValue 转纯值后的结果。
    */
@@ -120,8 +123,6 @@ export class WorkflowTriggerDispatcher {
     user: { userId: string; tenantId?: string | null },
   ): Promise<void> {
     if (!entries || entries.length === 0) return;
-    const creates = entries.filter((e) => e.action === 'create');
-    if (creates.length === 0) return;
 
     // 收集涉及的表，读取 columnDefs 以映射 fieldId → fieldName
     const sheetIds = new Set<string>();
@@ -138,23 +139,41 @@ export class WorkflowTriggerDispatcher {
 
     for (const [recordId, group] of byRecord) {
       const create = group.find((e) => e.action === 'create');
-      if (!create) continue;
-      const sheetId = create.sheetId ?? group.find((e) => e.sheetId)?.sheetId;
+      const updates = group.filter((e) => e.action === 'update');
+      const sheetId = create?.sheetId ?? group.find((e) => e.sheetId)?.sheetId;
       if (!sheetId) continue;
+
       const nameById = columnDefs.get(sheetId) ?? {};
       const record: Record<string, unknown> = { _id: recordId };
+      const changedFields: string[] = [];
       for (const e of group) {
         if (!e.fieldId) continue;
         const plain = cellToPlain(e.after);
         record[e.fieldId] = plain;
         const name = nameById[e.fieldId];
         if (name) record[name] = plain;
+        if (e.action === 'update') changedFields.push(e.fieldId);
       }
+
+      if (create) {
+        this.dispatch({
+          action: 'added',
+          docId,
+          tableId: sheetId,
+          record,
+          userId: user.userId,
+          tenantId: user.tenantId ?? undefined,
+        });
+        continue;
+      }
+
+      if (updates.length === 0) continue;
       this.dispatch({
-        action: 'added',
+        action: 'updated',
         docId,
         tableId: sheetId,
         record,
+        changedFields,
         userId: user.userId,
         tenantId: user.tenantId ?? undefined,
       });

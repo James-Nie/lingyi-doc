@@ -5,6 +5,7 @@ export type DocumentPatchOp =
   | { type: 'set_sheet_meta'; sheetId: string; patch: Record<string, unknown> }
   | { type: 'set_cell'; sheetId: string; key: string; cell: unknown | null }
   | { type: 'set_cells'; sheetId: string; cells: Record<string, unknown | null> }
+  | { type: 'set_rows'; sheetId: string; rows: Record<string, Record<string, unknown> | null> }
   | { type: 'set_doc_meta'; patch: { title?: string; documentId?: string } }
   | { type: 'replace_content'; content: unknown[] }
   | { type: 'update_content_block'; index: number; block: unknown }
@@ -90,6 +91,36 @@ function applyWorkbookOp(workbook: WorkbookJson, op: DocumentPatchOp): void {
         if (cell == null) delete cells[key];
         else cells[key] = cell;
       }
+      break;
+    }
+    case 'set_rows': {
+      const sheet = ensureSheet(workbook, op.sheetId);
+      const existingRows = (Array.isArray(sheet.data.rows) ? sheet.data.rows : []) as Record<string, unknown>[];
+      const indexByRowId = new Map<string, number>();
+      let rowCount = parseInt(String(sheet.data.rowCount ?? '0'), 10) || existingRows.length;
+      existingRows.forEach((r, i) => {
+        if (r._id != null) indexByRowId.set(String(r._id), i);
+      });
+
+      for (const [recordId, rowData] of Object.entries(op.rows)) {
+        const existingIdx = indexByRowId.get(recordId);
+        if (rowData == null) {
+          if (existingIdx != null) {
+            existingRows.splice(existingIdx, 1);
+            rowCount = Math.max(0, rowCount - 1);
+            for (let i = existingIdx; i < existingRows.length; i++) {
+              if (existingRows[i]._order != null) existingRows[i]._order = i;
+            }
+          }
+        } else if (existingIdx != null) {
+          existingRows[existingIdx] = rowData;
+        } else {
+          existingRows.push(rowData);
+          rowCount += 1;
+        }
+      }
+      sheet.data.rows = existingRows;
+      sheet.data.rowCount = String(rowCount);
       break;
     }
   }
