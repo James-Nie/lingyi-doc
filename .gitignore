@@ -43,3 +43,5 @@ docs
 
 packages/lingyi-doc-ai-ui/
 packages/lingyi-doc-license/
+
+packages/lingyi-doc-server/data/

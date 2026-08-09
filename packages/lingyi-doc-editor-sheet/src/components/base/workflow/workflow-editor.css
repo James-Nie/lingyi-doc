@@ -17,6 +17,7 @@
   background: #fff;
   border-bottom: 1px solid #e5e6eb;
   flex-shrink: 0;
+  justify-content: space-between;
 }
 
 .bwf-topbar__back {
@@ -57,9 +58,6 @@
   background: #e5e6eb;
 }
 
-.bwf-topbar__spacer {
-  flex: 1;
-}
 
 .bwf-topbar__status {
   display: inline-flex;
@@ -1132,7 +1130,7 @@
 .bwf-pick-node-popover {
   display: flex;
   flex-direction: column;
-  width: 260px;
+  width: 280px;
   max-height: min(60vh, 480px);
 }
 

@@ -4,8 +4,9 @@
  * workflowId 由视图配置持久化；未绑定时编辑器会恢复该表最近保存的工作流。
  */
 import React from 'react';
+import { WorkflowEditorContainer } from '@lingyi-doc/editor-sheet';
 import type { FieldOption, TableOption } from '@lingyi-doc/editor-sheet';
-import { WorkflowEditorEmbed } from './WorkflowEditorEmbed';
+import { baseWorkflowApi } from '../../api/baseWorkflow';
 
 export interface WorkflowViewContainerProps {
   tableId: string;
@@ -24,19 +25,22 @@ export interface WorkflowViewContainerProps {
 export const WorkflowViewContainer: React.FC<WorkflowViewContainerProps> = ({
   tableId,
   docId,
+  readOnly,
   workflowId,
   onWorkflowCreated,
   fieldOptions,
   tableOptions,
 }) => {
   return (
-    <WorkflowEditorEmbed
-      tableId={tableId}
+    <WorkflowEditorContainer
       docId={docId}
+      tableId={tableId}
       workflowId={workflowId}
       onWorkflowCreated={onWorkflowCreated}
       fieldOptions={fieldOptions}
       tableOptions={tableOptions}
+      readOnly={readOnly}
+      workflowApi={baseWorkflowApi}
     />
   );
 };

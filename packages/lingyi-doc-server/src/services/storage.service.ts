@@ -189,6 +189,35 @@ export class StorageService implements OnModuleInit {
   }
 
   /**
+   * 获取文档元信息 + sheet 摘要列表（不含 sheet 数据），首屏轻量加载。
+   */
+  async getDocumentMeta(
+    docId: string,
+    ctx: DocumentAccessContext,
+  ): Promise<Record<string, unknown> | null> {
+    this.ensureReady();
+    const access = await this.resolveDocumentAccess(docId, ctx);
+    if (!access) return null;
+    const meta = await this.documentRepository.getDocumentMeta(docId);
+    if (!meta) return null;
+    return { ...meta, ...access };
+  }
+
+  /**
+   * 按 sheetId 加载单个 sheet 的完整数据。
+   */
+  async getSheetContent(
+    docId: string,
+    sheetId: string,
+    ctx: DocumentAccessContext,
+  ): Promise<Record<string, unknown> | null> {
+    this.ensureReady();
+    const access = await this.resolveDocumentAccess(docId, ctx);
+    if (!access) return null;
+    return this.documentRepository.extractSheetContent(docId, sheetId);
+  }
+
+  /**
    * 列出所有文档
    * @param sortBy 排序字段
    * @param ctx 文档访问上下文

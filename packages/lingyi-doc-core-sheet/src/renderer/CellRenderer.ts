@@ -6,7 +6,7 @@ import {
 } from '@lingyi-doc/core-types';
 import { resolveColumnWidth } from '../utils/columnLayout';
 import { resolveRowHeight, isRowLayoutHidden } from '../utils/rowLayout';
-import { BASE_THEME, getSelectTagColors, computeBaseGridWidth, computeBaseGridScreenBounds } from './baseTheme';
+import { getSelectTagColors, computeBaseGridWidth, computeBaseGridScreenBounds } from './baseTheme';
 import { findSelectOption, parseMultiSelectOptionIds } from '../utils/selectOptions';
 import {
   applyBorderLineDash,
@@ -35,6 +35,27 @@ import { DOC_COMMENT_HIGHLIGHT_SELECTED_BG, DOC_COMMENT_HIGHLIGHT_IDLE_BG } from
 
 export interface CellRendererOptions {
   assetManager?: AsyncAssetManager;
+}
+
+/** 行头单元格绘制入参（基类=freeform 实现；CellRendererBase 覆写为多维表实现） */
+export interface RowHeaderCellDrawOptions {
+  row: number;
+  drawY: number;
+  h: number;
+  zoom: number;
+  isHovered: boolean;
+  isSelected: boolean;
+  isChecked: boolean;
+  isActive: boolean;
+  meta?: BaseRowHeaderMeta;
+  depth: number;
+  suppressRowNumbers: boolean;
+  showHoverControls: boolean;
+  primaryColor: string;
+  secondaryColor: string;
+  headerTextColor: string;
+  fontFamily: string;
+  headerWidth: number;
 }
 
 export class CellRenderer {
@@ -1995,71 +2016,6 @@ export class CellRenderer {
   }
 
   /**
-   * 绘制拖动句柄
-   * @param ctx 画布上下文
-   * @param cx 拖动句柄中心X坐标
-   * @param cy 拖动句柄中心Y坐标
-   * @param size 拖动句柄大小
-   * @param color 拖动句柄颜色
-   * @returns 无
-   */
-  protected _drawDragHandle(ctx: CanvasRenderingContext2D, cx: number, cy: number, size: number, color = '#bbb'): void {
-    ctx.save();
-    ctx.fillStyle = color;
-    const dotR = 1.2;
-    const gapX = 3.5;
-    const gapY = 3.5;
-    for (let row = -1; row <= 1; row++) {
-      for (let col = -1; col <= 0; col++) {
-        ctx.beginPath();
-        ctx.arc(cx + col * gapX, cy + row * gapY, dotR, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-    ctx.restore();
-  }
-
-  /**
-   * 绘制行复选框
-   * @param ctx 画布上下文
-   * @param x 复选框左上角X坐标
-   * @param y 复选框左上角Y坐标
-   * @param size 复选框大小
-   * @param checked 是否选中
-   * @param zoom 缩放级别
-   * @returns 无
-   */
-  protected _drawRowCheckbox(
-    ctx: CanvasRenderingContext2D,
-    x: number, y: number, size: number, checked: boolean, zoom: number,
-  ): void {
-    ctx.save();
-    ctx.beginPath();
-    ctx.roundRect(x, y, size, size, 2 * zoom);
-    if (checked) {
-      ctx.fillStyle = '#3370FF';
-      ctx.fill();
-      ctx.strokeStyle = '#3370FF';
-      ctx.lineWidth = 1 * zoom;
-      ctx.stroke();
-      ctx.strokeStyle = '#fff';
-      ctx.lineWidth = 1.5 * zoom;
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-      ctx.beginPath();
-      ctx.moveTo(x + 3 * zoom, y + size / 2);
-      ctx.lineTo(x + size * 0.4, y + size - 3 * zoom);
-      ctx.lineTo(x + size - 2 * zoom, y + 2 * zoom);
-      ctx.stroke();
-    } else {
-      ctx.strokeStyle = '#C9CDD4';
-      ctx.lineWidth = 1 * zoom;
-      ctx.stroke();
-    }
-    ctx.restore();
-  }
-
-  /**
    * 绘制展开面板图标
    * @param ctx 画布上下文
    * @param cx 图标中心X坐标
@@ -2085,31 +2041,7 @@ export class CellRenderer {
   }
 
   /**
-   * 绘制+图标
-   * @param ctx 上画布上下文
-   * @param cx 图标中心X坐标
-   * @param cy 图标中心Y坐标
-   * @param size 图标大小
-   * @param color 图标颜色
-   * @returns 无
-   */
-  protected _drawPlusIcon(ctx: CanvasRenderingContext2D, cx: number, cy: number, size: number, color = '#666'): void {
-    ctx.save();
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 1.2;
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(cx, cy - size / 2);
-    ctx.lineTo(cx, cy + size / 2);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(cx - size / 2, cy);
-    ctx.lineTo(cx + size / 2, cy);
-    ctx.stroke();
-    ctx.restore();
-  }
-
-  /** 多维表第一列：按子记录缩进绘制选区（每行独立内容宽度） */
+   * 多维表第一列：按子记录缩进绘制选区（每行独立内容宽度） */
   drawBaseTreeColumnSelection(
     ctx: CanvasRenderingContext2D,
     startRow: number,
@@ -2215,57 +2147,28 @@ export class CellRenderer {
           const meta = rowTreeMeta?.[r];
           const depth = meta?.depth ?? 0;
           const isLayoutRow = isGroupLayoutRow?.(r) ?? false;
-          const showHoverControls = isBaseMode && !isLayoutRow
-            && ((pinnedRowControls?.(r) ?? false) || isHovered || isChecked || isActive || isSelected);
+          const showHoverControls = !!(isBaseMode && !isLayoutRow
+            && ((pinnedRowControls?.(r) ?? false) || isHovered || isChecked || isActive || isSelected));
 
-          if (isActive && isBaseMode) {
-            ctx.fillStyle = BASE_AXIS_SELECTION.headerBg;
-            ctx.fillRect(0, drawY, config.headerWidth, h);
-          } else if (isChecked && isBaseMode) {
-            ctx.fillStyle = BASE_THEME.rowCheckedBg;
-            ctx.fillRect(0, drawY, config.headerWidth, h);
-          } else if (isSelected && !isChecked) {
-            ctx.fillStyle = axisSel.headerBg;
-            ctx.fillRect(0, drawY, config.headerWidth, h);
-          } else if (isHovered && isBaseMode) {
-            ctx.fillStyle = BASE_THEME.rowHoverBg;
-            ctx.fillRect(0, drawY, config.headerWidth, h);
-          }
-
-          if (isBaseMode) {
-            if (showHoverControls) {
-              this._drawBaseRowHeaderHover(ctx, drawY, h, zoom, isChecked);
-            }
-
-            if (depth === 0 && meta?.hasChildren) {
-              const chevronCx =  38 * zoom + 15;
-              this._drawTreeChevron(
-                ctx, chevronCx, drawY + h / 2, 8 * zoom,
-                meta.isExpanded !== false,
-              );
-            }
-
-            if (depth === 0 && !showHoverControls && !meta?.hasChildren && !suppressRowNumbers) {
-              ctx.font = `${12 * zoom}px ${fontFamily}`;
-              ctx.fillStyle = isActive ? primaryColor : secondaryColor;
-              ctx.textAlign = 'center';
-              ctx.textBaseline = 'middle';
-              ctx.fillText(String(r + 1), config.headerWidth / 2, drawY + h / 2);
-            }
-
-            /** 多维表行头：父记录分支操作（+ | 分支数，靠右不与折叠三角重叠） */
-            // if (!showHoverControls && meta?.hasChildren && meta.childCount > 0) {
-            //   this._drawBaseRowHeaderBranchActions(
-            //     ctx, drawY, h, config.headerWidth + (columnWidths.get(1) ?? 0), meta.childCount, zoom, isHovered || isActive,
-            //   );
-            // }
-          } else {
-            ctx.font = `${11 * zoom}px ${fontFamily}`;
-            ctx.fillStyle = isSelected ? primaryColor : config.headerTextColor;
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(String(r + 1), config.headerWidth / 2, drawY + h / 2);
-          }
+          this.drawRowHeaderCell(ctx, {
+            row: r,
+            drawY,
+            h,
+            zoom,
+            isHovered: !!isHovered,
+            isSelected: !!isSelected,
+            isChecked: !!isChecked,
+            isActive: !!isActive,
+            meta,
+            depth,
+            suppressRowNumbers: !!suppressRowNumbers,
+            showHoverControls,
+            primaryColor,
+            secondaryColor,
+            headerTextColor: config.headerTextColor,
+            fontFamily,
+            headerWidth: config.headerWidth,
+          });
 
           ctx.strokeStyle = config.gridColor;
           ctx.lineWidth = 1;
@@ -2290,155 +2193,22 @@ export class CellRenderer {
   }
 
   /**
-   * 多维表行头：父记录分支操作（+ | 分支数，靠右不与折叠三角重叠）
-   * @param ctx 上下文
-   * @param drawY 行头顶部 y 坐标
-   * @param h 行头高度
-   * @param zoom 缩放比例
-   * @param isChecked 是否选中
+   * 绘制行头单元格（默认实现 = 普通表格）
+   * 多维表实现见 CellRendererBase.drawRowHeaderCell
    */
-  protected _drawBaseRowHeaderHover(
-    ctx: CanvasRenderingContext2D,
-    drawY: number,
-    h: number,
-    zoom: number,
-    isChecked?: boolean,
-  ): void {
-    const cy = drawY + h / 2;
-    const iconSize = 14 * zoom;
-    const padding = 6 * zoom;
+  protected drawRowHeaderCell(ctx: CanvasRenderingContext2D, opts: RowHeaderCellDrawOptions): void {
+    const { row, drawY, h, zoom, isSelected, primaryColor, headerTextColor, fontFamily, headerWidth } = opts;
 
-    const dragCx = padding + 7 * zoom;
-    this._drawDragHandle(ctx, dragCx, cy, 8 * zoom, '#86909C');
-
-    const cbX = padding + 18 * zoom;
-    this._drawRowCheckbox(ctx, cbX, cy - iconSize / 2, iconSize, !!isChecked, zoom);
-  }
-
-  /**
-   * 多维表行头：父记录分支操作（+ | 分支数，靠右不与折叠三角重叠）
-   * @param ctx 上下文
-   * @param drawY 行头顶部 y 坐标
-   * @param h 行头高度
-   * @param headerWidth 行头宽度
-   * @param childCount 子记录分支数
-   * @param zoom 缩放比例
-   * @param highlight 是否高亮
-   */
-  protected _drawBaseRowHeaderBranchActions(
-    ctx: CanvasRenderingContext2D,
-    drawY: number,
-    h: number,
-    headerWidth: number,
-    childCount: number,
-    zoom: number,
-    highlight?: boolean,
-  ): void {
-    const cy = drawY + h / 2;
-    const padding = 6 * zoom;
-    const plusCx = headerWidth - padding - 20 * zoom;
-    const sepX = headerWidth - padding - 11 * zoom;
-    const badgeX = headerWidth - padding - 5 * zoom;
-
-    this._drawPlusIcon(ctx, plusCx, cy, 9 * zoom, highlight ? '#3370FF' : '#86909C');
-
-    ctx.save();
-    ctx.strokeStyle = '#DEE0E3';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(sepX, cy - 7 * zoom);
-    ctx.lineTo(sepX, cy + 7 * zoom);
-    ctx.stroke();
-    ctx.restore();
-
-    this._drawBranchCountBadge(ctx, badgeX, cy, childCount, zoom);
-  }
-
-  /** 多维表行头：父记录分支数徽章 */
-  protected _drawBranchCountBadge(
-    ctx: CanvasRenderingContext2D,
-    cx: number,
-    cy: number,
-    _count: number,
-    zoom: number,
-  ): void {
-    ctx.save();
-    ctx.strokeStyle = '#86909C';
-    ctx.lineWidth = 1.2;
-    ctx.lineCap = 'round';
-    const s = 5 * zoom;
-    ctx.beginPath();
-    ctx.moveTo(cx - s, cy - s * 0.6);
-    ctx.lineTo(cx - s, cy + s * 0.8);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(cx - s, cy - s * 0.6);
-    ctx.lineTo(cx + s * 0.2, cy - s * 0.6);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(cx - s * 0.2, cy + s * 0.2);
-    ctx.lineTo(cx + s * 0.5, cy + s * 0.2);
-    ctx.stroke();
-    ctx.restore();
-  }
-
-  /**
-   * 多维表行头：子记录折叠三角
-   * @param ctx 上下文
-   * @param cx 三角中心 x 坐标
-   * @param cy 三角中心 y 坐标
-   * @param size 三角大小
-   * @param expanded 是否展开
-   */
-  protected _drawTreeChevron(
-    ctx: CanvasRenderingContext2D,
-    cx: number,
-    cy: number,
-    size: number,
-    expanded: boolean,
-  ): void {
-    ctx.save();
-    ctx.strokeStyle = '#666';
-    ctx.lineWidth = 1.2;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    ctx.beginPath();
-    if (expanded) {
-      ctx.moveTo(cx - size / 2, cy - size / 4);
-      ctx.lineTo(cx, cy + size / 4);
-      ctx.lineTo(cx + size / 2, cy - size / 4);
-    } else {
-      ctx.moveTo(cx - size / 4, cy - size / 2);
-      ctx.lineTo(cx + size / 4, cy);
-      ctx.lineTo(cx - size / 4, cy + size / 2);
+    if (isSelected) {
+      ctx.fillStyle = resolveAxisSelection(false).headerBg;
+      ctx.fillRect(0, drawY, headerWidth, h);
     }
-    ctx.stroke();
-    ctx.restore();
-  }
 
-  /**
-   * 多维表行头：子记录分支数徽章
-   * @param ctx 上下文
-   * @param cx 徽章中心 x 坐标
-   * @param cy 徽章中心 y 坐标
-   * @param count 分支数
-   * @param zoom 缩放比例
-   */
-  protected _drawChildCountBadge(
-    ctx: CanvasRenderingContext2D,
-    cx: number,
-    cy: number,
-    count: number,
-    zoom: number,
-  ): void {
-    ctx.save();
-    ctx.font = `${10 * zoom}px Arial, sans-serif`;
-    ctx.fillStyle = '#666';
-    ctx.textAlign = 'left';
+    ctx.font = `${11 * zoom}px ${fontFamily}`;
+    ctx.fillStyle = isSelected ? primaryColor : headerTextColor;
+    ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('⎇', cx - 10 * zoom, cy);
-    ctx.fillText(String(count), cx + 2 * zoom, cy);
-    ctx.restore();
+    ctx.fillText(String(row + 1), headerWidth / 2, drawY + h / 2);
   }
 }
 

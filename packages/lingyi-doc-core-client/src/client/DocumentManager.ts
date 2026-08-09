@@ -215,17 +215,21 @@ export class DocumentManager {
     return request<DocumentApiResponse>(`/docs/${docId}`);
   }
 
-  /** 按路径加载文档（权限与 viewMode 由后端根据当前用户/分享 token 决定） */
+  /** 按路径加载文档（权限与 viewMode 由后端根据当前用户/分享 token 决定）
+   *  - 默认返回全量文档（含 data）
+   *  - `meta: true` 时只返回元信息（docId/title/docType/sheets 等，不含 data），供渐进加载首屏使用
+   */
   static async fetchDocumentByPath(
     spaceSlug: string,
     bookSlug: string,
     docSlug: string,
-    options?: { token?: string },
-  ): Promise<DocumentApiResponse> {
+    options?: { token?: string; meta?: boolean },
+  ): Promise<DocumentApiResponse & { docId?: string }> {
     const qs = new URLSearchParams();
     if (options?.token) qs.set('token', options.token);
+    if (options?.meta) qs.set('meta', '1');
     const query = qs.toString();
-    return request<DocumentApiResponse>(
+    return request<DocumentApiResponse & { docId?: string }>(
       `/c/docs/by-path/${encodePathSegment(spaceSlug)}/${encodePathSegment(bookSlug)}/${encodePathSegment(docSlug)}${query ? `?${query}` : ''}`,
     );
   }
@@ -465,21 +469,84 @@ export class DocumentManager {
     return request(`/docs/${docId}/records/${encodePathSegment(recordId)}/history?page=${page}&pageSize=${pageSize}`);
   }
 
+  /** 文档元信息 + Sheet 列表（不含 sheet 数据），用于首屏轻量加载 */
+  static async loadDocumentMeta(docId: string): Promise<{
+    id: string;
+    title: string;
+    docType: string;
+    version: number;
+    sheets: Array<{ id: string; name: string; type: string }>;
+    activeSheetId: string;
+    permission?: string;
+    canEdit?: boolean;
+    viewMode?: string;
+  } | null> {
+    const result = await request<Record<string, unknown>>(`/docs/${docId}/meta`);
+    const data = result?.data as Record<string, unknown> | undefined;
+    if (!data) return null;
+    return data as any;
+  }
+
+  /** 按 sheetId 加载单个 Sheet 完整数据 */
+  static async loadSheet(docId: string, sheetId: string): Promise<{
+    id: string;
+    name?: string;
+    type?: string;
+    data?: Record<string, unknown>;
+  } | null> {
+    const result = await request<Record<string, unknown>>(`/docs/${docId}/sheets/${encodePathSegment(sheetId)}`);
+    const data = result?.data as Record<string, unknown> | undefined;
+    if (!data) return null;
+    return data as any;
+  }
+
   static async load(
     docId: string,
     prefetched?: DocumentApiResponse,
-  ): Promise<{ title: string; docType: string; version: number; workbook: Workbook } | null> {
+  ): Promise<{
+    title: string;
+    docType: string;
+    version: number;
+    workbook: Workbook;
+    sheetMetaList?: Array<{ id: string; name: string; type: string }>;
+    permission?: string;
+    canEdit?: boolean;
+    viewMode?: string;
+  } | null> {
     try {
-      const doc = prefetched ?? await DocumentManager.fetchDocument(docId);
-      if (!doc?.data) return null;
-      const workbook = requireDocumentHandler('workbook').fromJSON(doc.data) as Workbook;
-      workbook.normalizeAfterLoad(doc.docType);
-      const docType = deriveWorkbookDocType(workbook.sheets.map(s => s.type));
+      if (prefetched?.data) {
+        const workbook = requireDocumentHandler('workbook').fromJSON(prefetched.data) as Workbook;
+        workbook.normalizeAfterLoad(prefetched.docType);
+        const docType = deriveWorkbookDocType(workbook.sheets.map(s => s.type));
+        return {
+          title: prefetched.title, docType, version: prefetched.version ?? 0, workbook,
+          permission: prefetched.permission, canEdit: prefetched.canEdit, viewMode: prefetched.viewMode,
+        };
+      }
+
+      const meta = await DocumentManager.loadDocumentMeta(docId);
+      if (!meta) return null;
+
+      const workbook = new Workbook();
+      const firstSheetId = meta.activeSheetId || meta.sheets[0]?.id;
+      if (firstSheetId) {
+        const sheet = await DocumentManager.loadSheet(docId, firstSheetId);
+        if (sheet?.data) {
+          workbook.addSheetFromJson(firstSheetId, sheet.data as Record<string, unknown>);
+        }
+      }
+      workbook.normalizeAfterLoad(meta.docType);
+
+      const docType = deriveWorkbookDocType(meta.sheets.map(s => s.type));
       return {
-        title: doc.title,
+        title: meta.title,
         docType,
-        version: doc.version ?? 0,
+        version: meta.version,
         workbook,
+        sheetMetaList: meta.sheets,
+        permission: meta.permission as string,
+        canEdit: meta.canEdit as boolean,
+        viewMode: meta.viewMode as string,
       };
     } catch {
       return null;

@@ -33,14 +33,41 @@ export const UnifiedEditorPage: React.FC = () => {
     let cancelled = false;
     setLoading(true);
     setNotFound(false);
-    DocumentManager.fetchDocument(docId)
-      .then(doc => {
+    DocumentManager.loadDocumentMeta(docId)
+      .then(meta => {
         if (cancelled) return;
-        if (!doc?.data) {
+        if (!meta) {
           setNotFound(true);
           return;
         }
-        setEntry(doc);
+        const isSheetType = meta.docType !== 'richtext' && meta.docType !== 'mindnote' && meta.docType !== 'whiteboard';
+        if (isSheetType) {
+          // 表格类型：渐进加载，只传 meta（无 data），EditorPage 按需拉取
+          setEntry({
+            id: meta.id,
+            title: meta.title,
+            docType: meta.docType,
+            version: meta.version,
+            data: undefined,
+            permission: meta.permission as DocumentApiResponse['permission'],
+            canEdit: meta.canEdit,
+            viewMode: meta.viewMode as DocumentApiResponse['viewMode'],
+          });
+          return;
+        }
+        // 非表格类型：全量加载
+        DocumentManager.fetchDocument(docId)
+          .then(doc => {
+            if (cancelled) return;
+            if (!doc?.data) {
+              setNotFound(true);
+              return;
+            }
+            setEntry(doc);
+          })
+          .catch(() => {
+            if (!cancelled) setNotFound(true);
+          });
       })
       .catch(() => {
         if (!cancelled) setNotFound(true);

@@ -274,6 +274,33 @@ export class DocumentController {
     }
   }
 
+  @Get(':docId/meta')
+  async getMeta(
+    @CurrentUser() user: AuthUser,
+    @Param('docId') docId: string,
+  ) {
+    const ctx = this.storageService.accessFromAuth(user);
+    const meta = await this.storageService.getDocumentMeta(docId, ctx);
+    if (!meta) {
+      throw new BusinessException(200001, '文档不存在', HttpStatus.NOT_FOUND);
+    }
+    return { success: true, data: meta };
+  }
+
+  @Get(':docId/sheets/:sheetId')
+  async getSheet(
+    @CurrentUser() user: AuthUser,
+    @Param('docId') docId: string,
+    @Param('sheetId') sheetId: string,
+  ) {
+    const ctx = this.storageService.accessFromAuth(user);
+    const sheet = await this.storageService.getSheetContent(docId, sheetId, ctx);
+    if (!sheet) {
+      throw new BusinessException(200001, 'Sheet 不存在', HttpStatus.NOT_FOUND);
+    }
+    return { success: true, data: sheet };
+  }
+
   @Get(':docId')
   @SkipResponseWrap()
   async getOne(

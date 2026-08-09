@@ -48,25 +48,27 @@ export const WorkflowTopBar: React.FC<WorkflowTopBarProps> = ({
         placeholder="未命名工作流"
         maxLength={64}
       />
-      <div className="bwf-topbar__status">
-        <span className={`bwf-topbar__status-dot ${statusMeta.dotClass}`} />
-        {statusMeta.label}
+      <div>
+        <div className="bwf-topbar__status">
+          <span className={`bwf-topbar__status-dot ${statusMeta.dotClass}`} />
+          {statusMeta.label}
+        </div>
+        {dirty && <span className="bwf-topbar__dirty">· 有未保存修改</span>}
+        <span className="bwf-topbar__divider" />
+        <Tooltip title="启用后，触发器将按本工作流执行">
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
+            <PoweroffOutlined style={{ color: enabled ? '#00b96b' : '#86909c' }} />
+            启用
+            <Switch size="small" checked={enabled} disabled={status === 'draft'} onChange={onEnabledChange} />
+          </span>
+        </Tooltip>
+        <Button icon={<HistoryOutlined />} onClick={onOpenRuns}>运行日志</Button>
+        <Button icon={<SaveOutlined />} onClick={onSave} loading={saving} disabled={!dirty}>保存</Button>
+        <Button type="primary" icon={<CloudSyncOutlined />} onClick={onPublish} loading={publishing}>
+          保存并启用
+        </Button>
       </div>
-      {dirty && <span className="bwf-topbar__dirty">· 有未保存修改</span>}
-      <span className="bwf-topbar__divider" />
-      <Tooltip title="启用后，触发器将按本工作流执行">
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
-          <PoweroffOutlined style={{ color: enabled ? '#00b96b' : '#86909c' }} />
-          启用
-          <Switch size="small" checked={enabled} disabled={status === 'draft'} onChange={onEnabledChange} />
-        </span>
-      </Tooltip>
-      <span className="bwf-topbar__spacer" />
-      <Button icon={<HistoryOutlined />} onClick={onOpenRuns}>运行日志</Button>
-      <Button icon={<SaveOutlined />} onClick={onSave} loading={saving} disabled={!dirty}>保存</Button>
-      <Button type="primary" icon={<CloudSyncOutlined />} onClick={onPublish} loading={publishing}>
-        保存并启用
-      </Button>
+      
     </div>
   );
 };

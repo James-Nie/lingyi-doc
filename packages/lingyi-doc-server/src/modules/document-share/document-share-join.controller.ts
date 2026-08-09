@@ -87,6 +87,7 @@ export class DocumentShareJoinController {
     @Param('bookSlug') bookSlug: string,
     @Param('docSlug') docSlug: string,
     @Query('token') token: string | undefined,
+    @Query('meta') meta: string | undefined,
     @CurrentUser() user?: AuthUser,
     @Req() req?: Request,
     @Res() res?: Response,
@@ -96,6 +97,7 @@ export class DocumentShareJoinController {
       const result = await this.documentShareService.loadDocumentByPath(spaceSlug, bookSlug, docSlug, {
         auth: user,
         token: token || null,
+        metaOnly: meta === '1',
         visitorIp: req?.ip ?? null,
         deviceInfo: typeof userAgent === 'string' ? userAgent.slice(0, 500) : null,
       });

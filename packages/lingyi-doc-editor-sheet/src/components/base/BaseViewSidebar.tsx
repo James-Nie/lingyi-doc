@@ -488,17 +488,6 @@ export const BaseViewSidebar: React.FC<BaseViewSidebarProps> = ({
         flexDirection: 'column',
         gap: 2,
       }}>
-        {/* 数据表 分区标题 */}
-        <div style={{
-          fontSize: 11,
-          fontWeight: 600,
-          color: BASE_THEME.secondaryTextColor,
-          padding: '4px 6px 2px',
-          textTransform: 'uppercase',
-          letterSpacing: '0.5px',
-        }}>
-          数据表
-        </div>
         {/* 当前数据表资源项（视图切换通过顶部 ViewTabs） */}
         <div
           onMouseEnter={() => setHoveredId('__table__')}
@@ -513,7 +502,10 @@ export const BaseViewSidebar: React.FC<BaseViewSidebarProps> = ({
                 if (gridView) onSelectView(gridView.viewId);
                 else if (dataViews.length > 0) onSelectView(dataViews[0].viewId);
               }}
-              style={listItemStyle(true, hoveredId === '__table__')}
+              style={listItemStyle(
+                !dashboardMode && !workflowViews.some(w => w.viewId === activeViewId),
+                hoveredId === '__table__',
+              )}
             >
               <span style={{ display: 'inline-flex', flexShrink: 0 }}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">

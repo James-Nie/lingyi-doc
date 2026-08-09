@@ -434,6 +434,79 @@ export class DocumentRepository {
     };
   }
 
+  /**
+   * 返回文档元信息 + 所有 sheet 摘要列表（不含 sheet 数据），用于首屏轻量加载。
+   * sheet 摘要包含 id / name / type，后续按需通过 extractSheetContent 加载单个 sheet。
+   */
+  async getDocumentMeta(docId: string): Promise<{
+    id: string;
+    title: string;
+    docType: string;
+    version: number;
+    sheets: Array<{ id: string; name: string; type: string }>;
+    activeSheetId: string;
+  } | null> {
+    const rows = await this.docRepo.query(
+      `SELECT d.id, d.title, d.doc_type, d.current_version, dc.content_json
+       FROM documents d
+       LEFT JOIN document_contents dc ON dc.doc_id = d.id
+       WHERE d.id = $1 AND d.is_deleted = false`,
+      [docId],
+    ) as Array<{
+      id: string; title: string; doc_type: string;
+      current_version: number; content_json: unknown;
+    }>;
+    if (!rows.length) return null;
+    const row = rows[0];
+
+    const content = row.content_json != null
+      ? (typeof row.content_json === 'string' ? JSON.parse(row.content_json) : row.content_json) as Record<string, unknown>
+      : null;
+    const sheets = (Array.isArray(content?.sheets) ? content!.sheets : []) as Array<{
+      id: string;
+      data?: { name?: string; type?: string };
+    }>;
+    const activeSheetId = typeof content?.activeSheetId === 'string' ? content!.activeSheetId : '';
+
+    return {
+      id: row.id,
+      title: row.title || '',
+      docType: row.doc_type || 'richtext',
+      version: Number(row.current_version) || 0,
+      sheets: sheets.map(s => ({
+        id: s.id,
+        name: s.data?.name || '',
+        type: s.data?.type || 'freeform',
+      })),
+      activeSheetId,
+    };
+  }
+
+  /**
+   * 从文档的 content_json 中按 sheetId 提取单个 sheet 的完整数据。
+   */
+  async extractSheetContent(docId: string, sheetId: string): Promise<Record<string, unknown> | null> {
+    const rows = await this.docRepo.query(
+      `SELECT dc.content_json FROM document_contents dc WHERE dc.doc_id = $1`,
+      [docId],
+    ) as Array<{ content_json: unknown }>;
+    if (!rows.length || rows[0].content_json == null) return null;
+
+    const content = typeof rows[0].content_json === 'string'
+      ? JSON.parse(rows[0].content_json)
+      : rows[0].content_json;
+    const sheets = Array.isArray(content?.sheets) ? (content.sheets as Array<Record<string, unknown>>) : [];
+    const sheet = sheets.find((s: Record<string, unknown>) => s.id === sheetId);
+    if (!sheet) return null;
+
+    return {
+      id: sheet.id,
+      name: sheet.name,
+      type: sheet.type,
+      data: sheet.data,
+    } as Record<string, unknown>;
+  }
+
   async findInfoMeta(
     docId: string,
     ctx: DocumentAccessContext,

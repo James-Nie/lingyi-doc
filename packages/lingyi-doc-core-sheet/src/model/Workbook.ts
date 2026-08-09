@@ -132,6 +132,21 @@ export class Workbook {
     return id;
   }
 
+  addSheetFromJson(sheetId: string, sheetData: Record<string, unknown>): boolean {
+    if (this._sheets.has(sheetId)) return false;
+    const table = FreeTable.fromJSON({ ...sheetData, id: sheetId });
+    this._sheets.set(sheetId, table);
+    this._sheetOrder.push(sheetId);
+    if (!this._activeSheetId) this._activeSheetId = sheetId;
+    this._notify();
+    return true;
+  }
+
+  /** 检查 sheet 是否已加载 */
+  hasSheet(sheetId: string): boolean {
+    return this._sheets.has(sheetId);
+  }
+
   removeSheet(id: string): boolean {
     if (this._sheets.size <= 1) return false;
     this._sheets.delete(id);

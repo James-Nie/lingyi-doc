@@ -50,14 +50,42 @@ export const DocPublicEditorPage: React.FC<{ inShell?: boolean }> = ({ inShell =
     setLoading(true);
     setError(null);
     try {
-      const raw = pwd
-        ? await DocumentManager.verifyDocumentByPath(spaceSlug, bookSlug, docSlug, { token, password: pwd })
-        : await DocumentManager.fetchDocumentByPath(spaceSlug, bookSlug, docSlug, { token });
-      if (isAccessPending(raw)) {
-        setPending(raw);
+      if (pwd) {
+        const raw = await DocumentManager.verifyDocumentByPath(spaceSlug, bookSlug, docSlug, { token, password: pwd });
+        if (isAccessPending(raw)) {
+          setPending(raw);
+          setEntry(null);
+          return;
+        }
+        if (!raw.data) throw new Error('文档不存在');
+        setPending(null);
+        setEntry(toApiEntry(raw));
+        return;
+      }
+
+      // 先拉轻量 meta（无 data），判断文档类型
+      const meta = await DocumentManager.fetchDocumentByPath(spaceSlug, bookSlug, docSlug, { token, meta: true });
+      if (isAccessPending(meta)) {
+        setPending(meta);
         setEntry(null);
         return;
       }
+      const metaId = (meta as DocumentApiResponse & { docId?: string }).docId
+        ?? (meta as { id?: string }).id;
+      const metaDocType = meta.docType || 'freeform';
+      if (!metaId) throw new Error('文档不存在');
+
+      const isSheetType = metaDocType !== 'richtext' && metaDocType !== 'mindnote' && metaDocType !== 'whiteboard';
+      // 匿名公开访问（无 JWT）时渐进加载的 /meta、/sheets 接口需要鉴权，回退全量 by-path 加载
+      if (isSheetType && authStore.isAuthenticated()) {
+        // 表格类型：渐进加载（meta 已含 docId/permission，data 交给 EditorPage 按需拉取）
+        setPending(null);
+        setEntry(toApiEntry({ ...meta, id: metaId, data: undefined }));
+        return;
+      }
+
+      // 非表格类型 / 匿名分享：全量加载
+      const raw = await DocumentManager.fetchDocumentByPath(spaceSlug, bookSlug, docSlug, { token });
       if (!raw.data) throw new Error('文档不存在');
       setPending(null);
       setEntry(toApiEntry(raw));

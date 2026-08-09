@@ -199,8 +199,8 @@ export const BaseSheetEditor: React.FC<BaseSheetEditorProps> = ({
         overflow: 'hidden',
         background: BASE_THEME.cardBg,
       }}>
-        {/* 顶部视图切换 Tab */}
-        {!activeDashboard && (
+        {/* 顶部视图切换 Tab（工作流视图下隐藏，工作流在左侧栏独立展示） */}
+        {!activeDashboard && currentView !== 'workflow' && (
           <ViewTabs
             views={sheet.views || []}
             activeViewId={sheet.activeViewId}

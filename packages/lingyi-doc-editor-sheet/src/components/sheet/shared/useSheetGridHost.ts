@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
-import { BaseCellRenderer, CellRenderer, DirtyTracker, LayerManager, ViewportManager, AsyncAssetManager } from '@lingyi-doc/core-sheet';
+import { BaseCellRenderer, CellRenderer, CellRendererBase, CellRendererFreeform, DirtyTracker, LayerManager, ViewportManager, AsyncAssetManager } from '@lingyi-doc/core-sheet';
 import type { SheetGridMode } from '../SheetGridView.types';
 
 export interface SheetGridHostValue {
@@ -57,7 +57,9 @@ export function useSheetGridHost(mode: SheetGridMode): SheetGridHostValue {
     const assetManager = assetManagerRef.current;
     assetManager.setOnAssetLoaded(scheduleRender);
 
-    cellRendererRef.current = new CellRenderer(viewportRef.current, { assetManager });
+    cellRendererRef.current = mode === 'base'
+      ? new CellRendererBase(viewportRef.current, { assetManager })
+      : new CellRendererFreeform(viewportRef.current, { assetManager });
     baseCellRendererRef.current = new BaseCellRenderer({ viewportManager: viewportRef.current, assetManager });
 
     return () => {
@@ -67,7 +69,7 @@ export function useSheetGridHost(mode: SheetGridMode): SheetGridHostValue {
       }
       assetManager.clear();
     };
-  }, [scheduleRender]);
+  }, [scheduleRender, mode]);
 
   const bumpLayoutVersion = useCallback(() => {
     setLayoutVersion(v => v + 1);

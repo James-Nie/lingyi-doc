@@ -718,6 +718,7 @@ export class DocumentShareService {
       auth?: AuthUser | null;
       token?: string | null;
       password?: string | null;
+      metaOnly?: boolean;
       visitorIp?: string | null;
       deviceInfo?: string | null;
     },
@@ -729,16 +730,25 @@ export class DocumentShareService {
 
     if (options.auth) {
       const accessCtx = documentAccessFromAuth(options.auth);
-      const body = await this.storageService.loadDocumentWrappedJson(pathCtx.docId, accessCtx);
-      if (body) {
-        await this.storageService.touchLastVisitedUnchecked(pathCtx.docId, accessCtx.userId);
-        return { type: 'raw', body };
+      if (options.metaOnly) {
+        const meta = await this.storageService.getDocumentMeta(pathCtx.docId, accessCtx);
+        if (meta) {
+          await this.storageService.touchLastVisitedUnchecked(pathCtx.docId, accessCtx.userId);
+          return { type: 'data', data: meta };
+        }
+      } else {
+        const body = await this.storageService.loadDocumentWrappedJson(pathCtx.docId, accessCtx);
+        if (body) {
+          await this.storageService.touchLastVisitedUnchecked(pathCtx.docId, accessCtx.userId);
+          return { type: 'raw', body };
+        }
       }
     }
 
     if (options.token) {
       return this.loadDocumentViaPublicToken(pathCtx.docId, options.token, {
         password: options.password,
+        metaOnly: options.metaOnly,
         visitorIp: options.visitorIp,
         deviceInfo: options.deviceInfo,
         userId: options.auth?.userId ?? null,
@@ -756,6 +766,7 @@ export class DocumentShareService {
     token: string,
     options: {
       password?: string | null;
+      metaOnly?: boolean;
       visitorIp?: string | null;
       deviceInfo?: string | null;
       userId?: string | null;
@@ -853,6 +864,15 @@ export class DocumentShareService {
     }
 
     const access = shareLevelToAccess(level);
+
+    if (options.metaOnly) {
+      const meta = await this.documentRepository.getDocumentMeta(docId);
+      if (!meta) {
+        throw new BusinessException(100004, '文档不存在', HttpStatus.NOT_FOUND);
+      }
+      return { type: 'data', data: { ...meta, ...access } };
+    }
+
     const body = wrapApiDataJson(
       buildDocumentRecordJson({ ...row.meta, ...access }, row.contentJsonRaw),
     );
