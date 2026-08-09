@@ -41,11 +41,5 @@ docs
 
 /deploy
 
-packages/lingyi-doc-admin/
 packages/lingyi-doc-ai-ui/
-packages/lingyi-doc-editor/
-packages/lingyi-doc-web/
 packages/lingyi-doc-license/
-packages/lingyi-doc-editor-pro/
-packages/lingyi-doc-core-io/
-packages/lingyi-doc-editor-doc/

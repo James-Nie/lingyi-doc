@@ -1,0 +1,32 @@
+{
+  "name": "@lingyi-doc/editor-pro",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Product facade: OSS editor + commercial AI UI. Must not be depended on by @lingyi-doc/editor.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@lingyi-doc/ai-ui": "*",
+    "@lingyi-doc/editor": "*"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "typescript": "^5.3.0"
+  },
+  "peerDependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  }
+}
