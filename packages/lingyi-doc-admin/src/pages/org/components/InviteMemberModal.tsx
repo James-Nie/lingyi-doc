@@ -115,7 +115,7 @@ export const InviteMemberModal: React.FC<InviteMemberModalProps> = ({
           </>
         ) : null
       }
-      destroyOnClose
+      destroyOnHidden
       width={620}
     >
       {!selected ? (

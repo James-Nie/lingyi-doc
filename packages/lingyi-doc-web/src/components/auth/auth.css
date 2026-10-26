@@ -335,3 +335,58 @@
     padding: 32px 24px 48px;
   }
 }
+
+/* ===== 第三方扫码登录 ===== */
+.auth-oauth {
+  margin-top: 20px;
+}
+
+.auth-oauth-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #86909c;
+  font-size: 12px;
+  margin-bottom: 16px;
+}
+
+.auth-oauth-divider::before,
+.auth-oauth-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: #e5e6eb;
+}
+
+.auth-oauth-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 40px;
+  font-size: 14px;
+}
+
+.auth-oauth-btn + .auth-oauth-btn {
+  margin-top: 10px;
+}
+
+.auth-oauth-btn--dingtalk {
+  color: #1d2129;
+  border-color: #d9d9d9;
+}
+
+.auth-oauth-btn--dingtalk:hover {
+  color: #1677ff;
+  border-color: #1677ff;
+}
+
+.auth-oauth-btn--feishu {
+  color: #1d2129;
+  border-color: #d9d9d9;
+}
+
+.auth-oauth-btn--feishu:hover {
+  color: #3370ff;
+  border-color: #3370ff;
+}

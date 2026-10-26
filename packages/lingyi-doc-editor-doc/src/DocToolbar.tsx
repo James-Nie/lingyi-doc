@@ -95,8 +95,15 @@ export const DocToolbar: React.FC<DocToolbarProps> = ({
       if (toolbarRef.current?.contains(target as Node)) return;
       closeAll();
     };
+    const onKeydown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeAll();
+    };
     document.addEventListener('mousedown', onDocClick);
-    return () => document.removeEventListener('mousedown', onDocClick);
+    document.addEventListener('keydown', onKeydown);
+    return () => {
+      document.removeEventListener('mousedown', onDocClick);
+      document.removeEventListener('keydown', onKeydown);
+    };
   }, []);
 
   const currentStyleLabel = PARAGRAPH_OPTIONS.find(o => o.value === state.paragraphStyle)?.label ?? '正文';
@@ -130,6 +137,8 @@ export const DocToolbar: React.FC<DocToolbarProps> = ({
         <button
           ref={insertMenuAnchorRef}
           type="button"
+          aria-label="插入"
+          title="插入"
           onClick={() => { closeAll(); onAction({ type: 'new' }); }}
           style={{
             width: 28, height: 28, borderRadius: '50%', border: 'none', background: '#00B42A',
@@ -205,6 +214,11 @@ export const DocToolbar: React.FC<DocToolbarProps> = ({
           onAction({ type: 'list', listType: 'ordered', orderedStyle: styles[styleIndex] });
           closeAll();
         }}
+        onDirectToggle={() => {
+          // 点图标本体：直接应用默认编号样式（已激活时 toggleList 自动取消）
+          onAction({ type: 'list', listType: 'ordered', orderedStyle: 'multiLevel' });
+          closeAll();
+        }}
       />
 
       <IndentDropdown
@@ -278,7 +292,7 @@ function TextColorPicker({ open, color, onToggle, onPick, onClose }: {
     <>
       <div ref={anchorRef}>
         <ToolbarTooltip label="文字颜色" active={open} hideTooltip hoverBg={DOC_TOOLBAR_HOVER_BG}>
-          <button type="button" onClick={onToggle} style={{ ...docToolbarIconBtn(), padding: '0 4px' }}>
+          <button type="button" aria-label="文字颜色" title="文字颜色" onClick={onToggle} style={{ ...docToolbarIconBtn(), padding: '0 4px' }}>
             <IconTextColor color={color} />
           </button>
         </ToolbarTooltip>
@@ -306,7 +320,7 @@ function HighlightColorPicker({ open, color, highlightColor, onToggle, onPick, o
     <>
       <div ref={anchorRef}>
         <ToolbarTooltip label="背景色" active={open} hideTooltip hoverBg={DOC_TOOLBAR_HOVER_BG}>
-          <button type="button" onClick={onToggle} style={{ ...docToolbarIconBtn(), padding: '0 4px' }}>
+          <button type="button" aria-label="背景色" title="背景色" onClick={onToggle} style={{ ...docToolbarIconBtn(), padding: '0 4px' }}>
             <IconHighlight color={highlightColor} />
           </button>
         </ToolbarTooltip>
@@ -340,13 +354,13 @@ function AlignDropdown({ open, align, AlignIcon, onToggle, onSelect }: {
     <>
       <div ref={anchorRef}>
         <ToolbarTooltip label="对齐方式" active={open} hideTooltip hoverBg={DOC_TOOLBAR_HOVER_BG}>
-          <button type="button" onClick={onToggle} style={{ ...docToolbarIconBtn(), gap: 1, padding: '0 4px' }}>
+          <button type="button" aria-label="对齐方式" title="对齐方式" onClick={onToggle} style={{ ...docToolbarIconBtn(), gap: 1, padding: '0 4px' }}>
             <IconBtnWrap><AlignIcon /></IconBtnWrap><IconChevronDown />
           </button>
         </ToolbarTooltip>
       </div>
       {open && createPortal(
-        <div data-doc-toolbar-menu style={{
+        <div data-doc-toolbar-menu onMouseDown={e => e.preventDefault()} style={{
           position: 'fixed', top: pos.top, left: pos.left, padding: 6,
           background: '#fff', borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
           border: `1px solid ${DOC_COLORS.border}`, zIndex: 10000, display: 'flex', gap: 2,
@@ -375,8 +389,8 @@ function AlignDropdown({ open, align, AlignIcon, onToggle, onSelect }: {
  * @param onSelect 选择有序列表样式
  * @returns 有序列表下拉菜单组件
  */
-function OrderedListDropdown({ open, active, onToggle, onSelect }: {
-  open: boolean; active: boolean; onToggle: () => void; onSelect: (styleIndex: number) => void;
+function OrderedListDropdown({ open, active, onToggle, onSelect, onDirectToggle }: {
+  open: boolean; active: boolean; onToggle: () => void; onSelect: (styleIndex: number) => void; onDirectToggle: () => void;
 }) {
   const anchorRef = useRef<HTMLDivElement>(null);
   const pos = useFloatingPos(anchorRef, open);
@@ -391,13 +405,28 @@ function OrderedListDropdown({ open, active, onToggle, onSelect }: {
     <>
       <div ref={anchorRef}>
         <ToolbarTooltip label="有序列表" active={active || open} hideTooltip hoverBg={DOC_TOOLBAR_HOVER_BG}>
-          <button type="button" onClick={onToggle} style={{ ...docToolbarIconBtn(), gap: 1, padding: '0 4px' }}>
-            <IconBtnWrap active={active}><IconOrderedList /></IconBtnWrap><IconChevronDown />
-          </button>
+          <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+            {/* 图标本体：直接应用/取消默认编号样式 */}
+            <button
+              type="button" aria-label="有序列表" title="有序列表"
+              onClick={() => onDirectToggle()}
+              style={{ ...docToolbarIconBtn(), color: active ? DOC_COLORS.primary : DOC_COLORS.text, paddingRight: 0 }}
+            >
+              <IconBtnWrap active={active}><IconOrderedList /></IconBtnWrap>
+            </button>
+            {/* 箭头：打开编号样式菜单 */}
+            <button
+              type="button" aria-label="有序列表样式" title="有序列表样式"
+              onClick={onToggle}
+              style={{ ...docToolbarIconBtn(), padding: '2px 0' }}
+            >
+              <IconChevronDown />
+            </button>
+          </span>
         </ToolbarTooltip>
       </div>
       {open && createPortal(
-        <div data-doc-toolbar-menu style={{
+        <div data-doc-toolbar-menu onMouseDown={e => e.preventDefault()} style={{
           position: 'fixed', top: pos.top, left: pos.left, padding: 8,
           background: '#fff', borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
           border: `1px solid ${DOC_COLORS.border}`, zIndex: 10000, display: 'flex', gap: 8,
@@ -442,13 +471,13 @@ function IndentDropdown({ open, onToggle, onSelect }: {
     <>
       <div ref={anchorRef}>
         <ToolbarTooltip label="缩进" active={open} hideTooltip hoverBg={DOC_TOOLBAR_HOVER_BG}>
-          <button type="button" onClick={onToggle} style={{ ...docToolbarIconBtn(), gap: 1, padding: '0 4px' }}>
+          <button type="button" aria-label="缩进" title="缩进" onClick={onToggle} style={{ ...docToolbarIconBtn(), gap: 1, padding: '0 4px' }}>
             <IconIndentInc /><IconChevronDown />
           </button>
         </ToolbarTooltip>
       </div>
       {open && createPortal(
-        <div data-doc-toolbar-menu style={{
+        <div data-doc-toolbar-menu onMouseDown={e => e.preventDefault()} style={{
           position: 'fixed', top: pos.top, left: pos.left, minWidth: 160, padding: '4px 0',
           background: '#fff', borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
           border: `1px solid ${DOC_COLORS.border}`, zIndex: 10000,
@@ -484,9 +513,10 @@ function DocIconBtn({ label, shortcut, active, disabled, onClick, children }: {
   label: string; shortcut?: string; active?: boolean; disabled?: boolean;
   onClick?: () => void; children: React.ReactNode;
 }) {
+  const ariaTitle = shortcut ? `${label}（${shortcut}）` : label;
   return (
     <ToolbarTooltip label={label} shortcut={shortcut} active={active} disabled={disabled} twoLineTooltip={!!shortcut} hoverBg={DOC_TOOLBAR_HOVER_BG}>
-      <button type="button" style={{
+      <button type="button" aria-label={ariaTitle} title={ariaTitle} style={{
         ...docToolbarIconBtn(disabled),
         color: disabled ? '#C9CDD4' : active ? DOC_COLORS.primary : DOC_COLORS.text,
       }} disabled={disabled} onClick={disabled ? undefined : onClick}>
@@ -536,12 +566,12 @@ function StyleDropdown({ open, label, selected, onToggle, onSelect }: {
   return (
     <div ref={anchorRef}>
       <ToolbarTooltip label="段落样式" active={open} hideTooltip hoverBg={DOC_TOOLBAR_HOVER_BG}>
-        <button type="button" style={docToolbarDropdownBtn} onClick={onToggle}>
+        <button type="button" aria-label={`段落样式：${label}`} title={`段落样式：${label}`} style={docToolbarDropdownBtn} onClick={onToggle}>
           <span>{label}</span><IconChevronDown />
         </button>
       </ToolbarTooltip>
       {open && createPortal(
-        <div data-doc-toolbar-menu style={{
+        <div data-doc-toolbar-menu onMouseDown={e => e.preventDefault()} style={{
           position: 'fixed', top: pos.top, left: pos.left, minWidth: 220, padding: '4px 0',
           background: '#fff', borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
           border: `1px solid ${DOC_COLORS.border}`, zIndex: 10000,
@@ -569,12 +599,12 @@ function SizeDropdown({ open, fontSize, onToggle, onSelect }: {
   return (
     <div ref={anchorRef}>
       <ToolbarTooltip label="字号" active={open} hideTooltip hoverBg={DOC_TOOLBAR_HOVER_BG}>
-        <button type="button" style={{ ...docToolbarDropdownBtn, minWidth: 56, justifyContent: 'space-between' }} onClick={onToggle}>
+        <button type="button" aria-label={`字号：${fontSize}px`} title={`字号：${fontSize}px`} style={{ ...docToolbarDropdownBtn, minWidth: 56, justifyContent: 'space-between' }} onClick={onToggle}>
           <span>{fontSize}px</span><IconChevronDown />
         </button>
       </ToolbarTooltip>
       {open && createPortal(
-        <div data-doc-toolbar-menu style={{
+        <div data-doc-toolbar-menu onMouseDown={e => e.preventDefault()} style={{
           position: 'fixed', top: pos.top, left: pos.left, minWidth: 100, padding: '4px 0',
           background: '#fff', borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
           border: `1px solid ${DOC_COLORS.border}`, zIndex: 10000,
@@ -608,7 +638,7 @@ function AlignMenu({ open, anchorRef, value, onSelect, onClose }: {
   ];
   if (!open) return null;
   return createPortal(
-    <div data-doc-toolbar-menu style={{
+    <div data-doc-toolbar-menu onMouseDown={e => e.preventDefault()} style={{
       position: 'fixed', top: pos.top, left: pos.left, padding: 6,
       background: '#fff', borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
       border: `1px solid ${DOC_COLORS.border}`, zIndex: 10000, display: 'flex', gap: 2,
@@ -649,7 +679,7 @@ function OrderedListMenu({ open, anchorRef, onSelect, onClose }: {
   ];
   if (!open) return null;
   return createPortal(
-    <div data-doc-toolbar-menu style={{
+    <div data-doc-toolbar-menu onMouseDown={e => e.preventDefault()} style={{
       position: 'fixed', top: pos.top, left: pos.left, padding: 8,
       background: '#fff', borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
       border: `1px solid ${DOC_COLORS.border}`, zIndex: 10000, display: 'flex', gap: 8,
@@ -691,7 +721,7 @@ function IndentMenu({ open, anchorRef, onSelect, onClose }: {
   ];
   if (!open) return null;
   return createPortal(
-    <div data-doc-toolbar-menu style={{
+    <div data-doc-toolbar-menu onMouseDown={e => e.preventDefault()} style={{
       position: 'fixed', top: pos.top, left: pos.left, minWidth: 160, padding: '4px 0',
       background: '#fff', borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
       border: `1px solid ${DOC_COLORS.border}`, zIndex: 10000,

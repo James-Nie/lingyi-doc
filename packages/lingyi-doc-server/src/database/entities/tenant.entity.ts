@@ -192,8 +192,14 @@ export class TenantRoleEntity {
   @Column({ type: 'json', nullable: true })
   permissions!: string[] | null;
 
-  @Column({ name: 'is_system', type: 'smallint', default: 0 })
-  isSystem!: number;
+  /**
+   * 是否为系统内置角色。
+   * 修复：库中该列为 BOOLEAN，实体此前声明 smallint，导致
+   * `entity.isSystem === 1` 恒为 false —— 系统角色「不可编辑 / 不可删除」的
+   * 保护全部失效。已与库对齐为 boolean。
+   */
+  @Column({ name: 'is_system', type: 'boolean', default: false })
+  isSystem!: boolean;
 
   @Column({ name: 'system_role', type: 'smallint', nullable: true })
   systemRole!: number | null;

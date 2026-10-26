@@ -19,6 +19,36 @@ export default () => ({
     /** HTTP 等非安全上下文无法使用 Web Crypto 时，允许明文密码（仅 dev 建议开启） */
     allowPlainPassword: process.env.AUTH_PASSWORD_ALLOW_PLAIN === '1',
   },
+  oauth: {
+    /**
+     * 第三方扫码登录「紧急关闭」开关。
+     * 默认开启（由各渠道的 X_OAUTH_ENABLED 分别控制）；仅当显式设为 0 时整体关闭。
+     * 注意是 `!== '0'` 而非 `=== '1'`：避免"忘了开总开关"导致静默失效。
+     */
+    enabled: process.env.OAUTH_ENABLED !== '0',
+    /** 前端站点地址，用于拼接登录成功后的回跳地址 */
+    webBaseUrl: process.env.OAUTH_WEB_BASE_URL || 'http://localhost:5173',
+    /** 允许的业务回跳路径白名单（相对路径，逗号分隔），防开放重定向 */
+    redirectAllowlist: (process.env.OAUTH_REDIRECT_ALLOWLIST || '/,/workspace,/recent')
+      .split(',').map((s) => s.trim()).filter(Boolean),
+    /** state 有效期（秒），一次性消费 */
+    stateTtlSec: Number(process.env.OAUTH_STATE_TTL_SEC || 300),
+    /**
+     * 服务端对外可访问的基地址，用于拼接第三方回调地址
+     * （必须与钉钉/飞书后台登记的回调域名一致）。留空则按请求头推导。
+     */
+    callbackBaseUrl: process.env.OAUTH_CALLBACK_BASE_URL || '',
+    dingtalk: {
+      enabled: process.env.DINGTALK_OAUTH_ENABLED === '1',
+      appKey: process.env.DINGTALK_APP_KEY || '',
+      appSecret: process.env.DINGTALK_APP_SECRET || '',
+    },
+    feishu: {
+      enabled: process.env.FEISHU_OAUTH_ENABLED === '1',
+      appId: process.env.FEISHU_APP_ID || '',
+      appSecret: process.env.FEISHU_APP_SECRET || '',
+    },
+  },
   deploy: {
     type: Number(process.env.DEPLOY_TYPE || 1),
     accountMode: Number(process.env.ACCOUNT_MODE || 1),

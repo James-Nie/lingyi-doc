@@ -341,7 +341,7 @@ export const DocImageBlock: React.FC<DocImageBlockProps> = ({
         onCancel={() => setPreviewOpen(false)}
         width="auto"
         centered
-        destroyOnClose
+        destroyOnHidden
         styles={{ body: { padding: 0, lineHeight: 0 } }}
       >
         <img

@@ -218,7 +218,7 @@ export class McpTokenService {
       tokenId: row.id,
       tokenName: row.name,
       userId: row.userId,
-      email: user.email,
+      email: user.email ?? '',
       tenantId: row.tenantId,
       scopes: row.scopes as McpScope[],
     };

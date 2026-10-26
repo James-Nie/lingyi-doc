@@ -15,6 +15,8 @@ import { DocIdCanonicalRedirect } from './pages/DocIdCanonicalRedirect';
 import { LoginPage } from './pages/auth/LoginPage';
 import { RegisterPage } from './pages/auth/RegisterPage';
 import { ForgotPasswordPage } from './pages/auth/ForgotPasswordPage';
+import { OAuthCallbackPage } from './pages/auth/OAuthCallbackPage';
+import { OAuthBindConfirmPage } from './pages/auth/OAuthBindConfirmPage';
 import { ForceChangePasswordPage } from './pages/auth/ForceChangePasswordPage';
 import { WorkspaceSelectPage } from './pages/auth/WorkspaceSelectPage';
 import { AccountPage } from './pages/account/AccountPage';
@@ -96,6 +98,10 @@ const AppRoutes: React.FC = () => (
     <Route path="/login" element={<GuestGuard><LoginPage /></GuestGuard>} />
     <Route path="/register" element={<GuestGuard><RegisterPage /></GuestGuard>} />
     <Route path="/forgot-password" element={<GuestGuard><ForgotPasswordPage /></GuestGuard>} />
+    {/* 第三方扫码登录回调：不加 GuestGuard，登录中会立即变为已登录态 */}
+    <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
+    {/* 扫码命中既有账号时的确认合并页（同样不加 GuestGuard） */}
+    <Route path="/oauth/bind-confirm" element={<OAuthBindConfirmPage />} />
     <Route
       path={appPath.changePassword}
       element={<ChangePasswordGuard><ForceChangePasswordPage /></ChangePasswordGuard>}

@@ -264,7 +264,7 @@ export function DocColorMenu({
   const panelW = 10 * SWATCH + 9 * GAP + 24 + (showCustom ? 228 : 0);
 
   return createPortal(
-    <div ref={panelRef} data-doc-toolbar-menu style={{
+    <div ref={panelRef} data-doc-toolbar-menu onMouseDown={e => e.preventDefault()} style={{
       position: 'fixed', top: pos.top, left: pos.left, zIndex: 10002,
       maxHeight: 'calc(100vh - 16px)', overflowY: 'auto',
       visibility: positioned ? 'visible' : 'hidden',

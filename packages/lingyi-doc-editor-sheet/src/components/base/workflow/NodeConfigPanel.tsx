@@ -1,8 +1,13 @@
 /**
  * 工作流编辑器 - 右侧节点配置面板
+ *
+ * 开放架构：
+ * - 优先查找「渲染器注册表」rendererRegistry（插件可通过 registerConfigRenderer 注册自定义配置组件）
+ * - 未注册时，若节点元数据含 configFields，则用通用 SchemaForm 自动渲染
+ * - 兜底显示「该节点暂无配置项」
  */
 import React, { useMemo } from 'react';
-import { Button, Checkbox, Empty, Input, Radio, Select, Tabs, Typography, Collapse } from 'antd';
+import { Button, Checkbox, Empty, Input, InputNumber, Radio, Select, Tabs, Typography, Collapse } from 'antd';
 import { DeleteOutlined, PlusOutlined, CloseOutlined, ThunderboltOutlined } from '@ant-design/icons';
 import {
   createEmptyConditionGroup,
@@ -12,6 +17,8 @@ import {
   normalizeSwitchConfig,
   type Condition,
   type ConditionGroup,
+  type NodeConfigField,
+  type NodeTypeMeta,
   type SwitchBranchConfig,
   type WorkflowNode,
 } from '@lingyi-doc/core-sheet';
@@ -35,6 +42,21 @@ interface NodeConfigPanelProps {
   /** 可选：可用数据表列表（触发器「选择数据表」使用） */
   tableOptions?: TableOption[];
   onUpdateNode: (id: string, patch: Partial<WorkflowNode>) => void;
+}
+
+/** 自定义配置渲染器注册表明细（插件开放入口） */
+export interface NodeConfigRendererProps {
+  node: WorkflowNode;
+  fields: FieldOption[];
+  tables: TableOption[];
+  onUpdate: (id: string, patch: Partial<WorkflowNode>) => void;
+}
+
+const rendererRegistry = new Map<string, React.FC<NodeConfigRendererProps>>();
+
+/** 插件注册自定义配置渲染器 */
+export function registerConfigRenderer(type: string, component: React.FC<NodeConfigRendererProps>): void {
+  rendererRegistry.set(type, component);
 }
 
 const OPERATORS: Array<{ value: Condition['operator']; label: string; needValue: boolean }> = [
@@ -93,11 +115,26 @@ export const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({ node, fieldOpt
 };
 
 function renderConfigByType(node: WorkflowNode, fields: FieldOption[], tables: TableOption[], onUpdate: NodeConfigPanelProps['onUpdateNode']): React.ReactNode {
+  // 1) 插件自定义渲染器
+  const Custom = rendererRegistry.get(node.type);
+  if (Custom) {
+    return <Custom node={node} fields={fields} tables={tables} onUpdate={onUpdate} />;
+  }
+  // 2) Schema 驱动的通用配置表单
+  const meta = getNodeMeta(node.type);
+  if (meta?.configFields?.length) {
+    return (
+      <SchemaConfigForm
+        node={node}
+        meta={meta}
+        fields={fields}
+        tables={tables}
+        onChange={(cfg) => onUpdate(node.id, { config: cfg })}
+      />
+    );
+  }
+  // 3) 兜底
   switch (node.type) {
-    case 'trigger.record_added':
-      return <RecordAddedTriggerConfigSection config={node.config as Record<string, unknown>} fields={fields} tables={tables} onChange={(cfg) => onUpdate(node.id, { config: cfg })} />;
-    case 'trigger.record_updated': case 'trigger.record_match':
-      return <RecordChangedTriggerConfigSection config={node.config as Record<string, unknown>} fields={fields} tables={tables} onChange={(cfg) => onUpdate(node.id, { config: cfg })} />;
     case 'trigger.manual':
       return <div className="bwf-config__section"><label className="bwf-config__label">说明</label><div className="bwf-config__hint">手动触发可在「运行日志」面板中通过"测试运行"按钮启动。测试时需要传入一条样例 record（字段为 key/value 结构）。</div></div>;
     case 'trigger.form_submitted':
@@ -108,30 +145,126 @@ function renderConfigByType(node: WorkflowNode, fields: FieldOption[], tables: T
       return <div className="bwf-config__section"><label className="bwf-config__label">说明</label><div className="bwf-config__hint">按设定的时间规则定时触发，无需输入记录。</div></div>;
     case 'trigger.webhook':
       return <div className="bwf-config__section"><label className="bwf-config__label">说明</label><div className="bwf-config__hint">通过 Webhook 接口接收外部数据。调用方推送数据即可启动整个工作流，推送的数据以 record 形式传入。</div></div>;
-    case 'condition.if':
-      return <IfElseConfigSection config={node.config as Record<string, unknown>} fields={fields} onChange={(cfg) => onUpdate(node.id, { config: cfg })} />;
-    case 'condition.switch':
-      return <SwitchConfigSection config={node.config as Record<string, unknown>} fields={fields} onChange={(cfg) => onUpdate(node.id, { config: cfg })} />;
-    case 'record.create':
-      return <RecordCreateConfigSection config={node.config as Record<string, unknown>} fields={fields} onChange={(cfg) => onUpdate(node.id, { config: cfg })} />;
-    case 'record.update':
-      return <RecordUpdateConfigSection config={node.config as Record<string, unknown>} fields={fields} onChange={(cfg) => onUpdate(node.id, { config: cfg })} />;
-    case 'record.find':
-      return <RecordFindConfigSection config={node.config as Record<string, unknown>} fields={fields} onChange={(cfg) => onUpdate(node.id, { config: cfg })} />;
-    case 'ai.analyze': case 'ai.classify': case 'ai.generate_text': case 'ai.agent':
-      return <AiConfigSection config={node.config as Record<string, unknown>} fields={fields} nodeType={node.type} onChange={(cfg) => onUpdate(node.id, { config: cfg })} />;
-    case 'notify.feishu_message': case 'notify.dingtalk_bot':
-      return <NotifyConfigSection config={node.config as Record<string, unknown>} nodeType={node.type} onChange={(cfg) => onUpdate(node.id, { config: cfg })} />;
-    case 'notify.dingtalk_message':
-      return <DingTalkMessageConfigSection config={node.config as Record<string, unknown>} onChange={(cfg) => onUpdate(node.id, { config: cfg })} />;
-    case 'notify.dingtalk_email':
-      return <div className="bwf-config__section"><label className="bwf-config__label">说明</label><div className="bwf-config__hint">通过钉钉发送邮件通知，功能建设中，敬请期待。</div></div>;
     case 'end': case 'start':
       return <div className="bwf-config__section"><div className="bwf-config__hint">该节点无需配置。</div></div>;
     default:
       return <div className="bwf-config__section"><div className="bwf-config__hint">该节点类型暂无配置项。</div></div>;
   }
 }
+
+/* ========== Schema 驱动的通用配置表单（插件节点兜底渲染） ========== */
+const SchemaConfigForm: React.FC<{
+  node: WorkflowNode;
+  meta: NodeTypeMeta;
+  fields: FieldOption[];
+  tables: TableOption[];
+  onChange: (cfg: Record<string, unknown>) => void;
+}> = ({ node, meta, fields, tables, onChange }) => {
+  const config = node.config ?? {};
+  const visible = (meta.configFields ?? []).filter((f) => {
+    if (!f.onlyFor) return true;
+    return config[f.onlyFor.key] === f.onlyFor.value || (f.onlyFor.value === undefined && !config[f.onlyFor.key]);
+  });
+  return (
+    <>
+      {(meta.outputs?.length ? [
+        <div key="outputs" className="bwf-config__section">
+          <label className="bwf-config__label">输出</label>
+          {meta.outputs.map((o) => (
+            <div key={o.key} className="bwf-config__map" style={{ alignItems: 'flex-start' }}>
+              <code style={{ flexShrink: 0, fontSize: 12 }}>{'{{' + o.key + '}}'}</code>
+              <span className="bwf-config__map-arrow">{'\u2190'}</span>
+              <span style={{ fontSize: 13, color: '#4e5969' }}>{o.description}</span>
+            </div>
+          ))}
+        </div>,
+      ] : [])}
+      {visible.map((f) => (
+        <SchemaField key={f.key} field={f} value={config[f.key]} config={config} fields={fields} tables={tables}
+          onChange={(value) => onChange({ ...config, [f.key]: value })} />
+      ))}
+    </>
+  );
+};
+
+const SchemaField: React.FC<{
+  field: NodeConfigField;
+  value: unknown;
+  config: Record<string, unknown>;
+  fields: FieldOption[];
+  tables: TableOption[];
+  onChange: (value: unknown) => void;
+}> = ({ field, value, config, fields, tables, onChange }) => {
+  const set = (v: unknown) => onChange(v);
+  let control: React.ReactNode = null;
+  switch (field.type) {
+    case 'text': {
+      control = <Input value={(value as string) ?? ''} placeholder={field.placeholder} onChange={(e) => set(e.target.value)} />;
+      break;
+    }
+    case 'textarea': {
+      control = <TextArea rows={4} value={(value as string) ?? ''} placeholder={field.placeholder} onChange={(e) => set(e.target.value)} />;
+      break;
+    }
+    case 'number': {
+      control = <InputNumber style={{ width: '100%' }} value={value as number | undefined} onChange={(v) => set(v)} />;
+      break;
+    }
+    case 'boolean': {
+      control = <Checkbox checked={Boolean(value)} onChange={(e) => set(e.target.checked)}>{field.placeholder ?? ''}</Checkbox>;
+      break;
+    }
+    case 'select': {
+      control = (
+        <Select value={(value as string | undefined) ?? undefined} options={field.options} placeholder={field.placeholder}
+          onChange={(v) => set(v)} style={{ width: '100%' }} allowClear />
+      );
+      break;
+    }
+    case 'tags': {
+      control = (
+        <Select mode="tags" value={(value as string[] | undefined) ?? []} tokenSeparators={[',', '，', ' ']} placeholder={field.placeholder}
+          options={((value as string[] | undefined) ?? []).map((v) => ({ value: v, label: v }))} onChange={(v) => set(v)} style={{ width: '100%' }} />
+      );
+      break;
+    }
+    case 'secret': {
+      control = (
+        <Input.Password value={typeof value === 'string' && value ? '\u2022\u2022\u2022\u2022' : ''} autoComplete="new-password"
+          placeholder={value ? '已配置，输入以覆盖' : field.placeholder}
+          onChange={(e) => { if (e.target.value) set(e.target.value); }} />
+      );
+      break;
+    }
+    case 'field-select': {
+      control = <Select showSearch optionFilterProp="label" value={(value as string | undefined) ?? undefined} placeholder={field.placeholder}
+        options={fields.map((f) => ({ value: f.id, label: `${f.name}（${f.type}）` }))} onChange={(v) => set(v)} style={{ width: '100%' }} allowClear />;
+      break;
+    }
+    case 'multi-field-select': {
+      control = <Select mode="multiple" showSearch optionFilterProp="label" value={(value as string[] | undefined) ?? []} placeholder={field.placeholder}
+        options={fields.map((f) => ({ value: f.id, label: f.name }))} onChange={(v) => set(v)} style={{ width: '100%' }} />;
+      break;
+    }
+    case 'table-select': {
+      control = <Select showSearch optionFilterProp="label" value={(value as string | undefined) ?? undefined} placeholder={field.placeholder || '默认使用触发器所在表'}
+        options={tables.map((t) => ({ value: t.id, label: t.name }))} onChange={(v) => set(v)} style={{ width: '100%' }} allowClear />;
+      break;
+    }
+    default:
+      control = <div className="bwf-config__hint">字段类型「{field.type}」请由插件自定义渲染器实现。</div>;
+  }
+  return (
+    <div className="bwf-config__section">
+      <label className="bwf-config__label">
+        {field.label}
+        {field.required && <span className="bwf-config__required"> *</span>}
+      </label>
+      {control}
+      {field.description && <div className="bwf-config__hint">{field.description}</div>}
+    </div>
+  );
+};
 
 /* ========== 触发器：创建记录时（配置 / 输出 两个标签页） ========== */
 const RecordAddedTriggerConfigSection: React.FC<{
@@ -685,3 +818,42 @@ const DingTalkMessageConfigSection: React.FC<{ config: Record<string, unknown>; 
     </div>
   </>);
 };
+
+/* ============ 内置自定义渲染器注册（插件化；第三方可另注册覆盖） ============ */
+registerConfigRenderer('trigger.record_added', (p) => (
+  <RecordAddedTriggerConfigSection config={p.node.config ?? {}} fields={p.fields} tables={p.tables} onChange={(cfg) => p.onUpdate(p.node.id, { config: cfg })} />
+));
+registerConfigRenderer('trigger.record_updated', (p) => (
+  <RecordChangedTriggerConfigSection config={p.node.config ?? {}} fields={p.fields} tables={p.tables} onChange={(cfg) => p.onUpdate(p.node.id, { config: cfg })} />
+));
+registerConfigRenderer('trigger.record_match', (p) => (
+  <RecordChangedTriggerConfigSection config={p.node.config ?? {}} tables={p.tables} fields={p.fields} onChange={(cfg) => p.onUpdate(p.node.id, { config: cfg })} />
+));
+registerConfigRenderer('condition.if', (p) => (
+  <IfElseConfigSection config={p.node.config ?? {}} fields={p.fields} onChange={(cfg) => p.onUpdate(p.node.id, { config: cfg })} />
+));
+registerConfigRenderer('condition.switch', (p) => (
+  <SwitchConfigSection config={p.node.config ?? {}} fields={p.fields} onChange={(cfg) => p.onUpdate(p.node.id, { config: cfg })} />
+));
+registerConfigRenderer('record.create', (p) => (
+  <RecordCreateConfigSection config={p.node.config ?? {}} fields={p.fields} onChange={(cfg) => p.onUpdate(p.node.id, { config: cfg })} />
+));
+registerConfigRenderer('record.update', (p) => (
+  <RecordUpdateConfigSection config={p.node.config ?? {}} fields={p.fields} onChange={(cfg) => p.onUpdate(p.node.id, { config: cfg })} />
+));
+registerConfigRenderer('record.find', (p) => (
+  <RecordFindConfigSection config={p.node.config ?? {}} fields={p.fields} onChange={(cfg) => p.onUpdate(p.node.id, { config: cfg })} />
+));
+for (const t of ['ai.analyze', 'ai.classify', 'ai.generate_text', 'ai.agent']) {
+  registerConfigRenderer(t, (p) => (
+    <AiConfigSection config={p.node.config ?? {}} fields={p.fields} nodeType={p.node.type} onChange={(cfg) => p.onUpdate(p.node.id, { config: cfg })} />
+  ));
+}
+for (const t of ['notify.feishu_message', 'notify.dingtalk_bot']) {
+  registerConfigRenderer(t, (p) => (
+    <NotifyConfigSection config={p.node.config ?? {}} nodeType={p.node.type} onChange={(cfg) => p.onUpdate(p.node.id, { config: cfg })} />
+  ));
+}
+registerConfigRenderer('notify.dingtalk_message', (p) => (
+  <DingTalkMessageConfigSection config={p.node.config ?? {}} onChange={(cfg) => p.onUpdate(p.node.id, { config: cfg })} />
+));

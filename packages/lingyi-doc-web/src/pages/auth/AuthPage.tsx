@@ -6,6 +6,11 @@ import { resetPasswordBySms, sendSmsCode, verifySmsCode } from '../../api/sms';
 import { AuthPageLayout } from '../../components/auth/AuthPageLayout';
 import { PASSWORD_HINT, validatePassword } from '../../utils/passwordRules';
 import { appPath } from '../../utils/appPaths';
+import {
+  fetchOAuthProviders,
+  startOAuthLogin,
+  type OAuthProviderSummary,
+} from '../../services/oauthApi';
 import '../../components/auth/auth.css';
 
 export type AuthMode = 'login' | 'register' | 'forgot';
@@ -52,6 +57,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'login' }) => 
   const [smsSending, setSmsSending] = useState(false);
   const [smsCountdown, setSmsCountdown] = useState(0);
   const [loginType, setLoginType] = useState<'email' | 'phone'>('email');
+  const [oauthProviders, setOauthProviders] = useState<OAuthProviderSummary[]>([]);
   const [loginForm] = Form.useForm();
   const [phoneForm] = Form.useForm();
   const [registerForm] = Form.useForm();
@@ -69,6 +75,15 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'login' }) => 
   useEffect(() => {
     setMode(initialMode);
   }, [initialMode]);
+
+  // 第三方扫码渠道：仅 SaaS 且已配置凭证时后端才返回，私有化返回空
+  useEffect(() => {
+    let cancelled = false;
+    void fetchOAuthProviders().then(items => {
+      if (!cancelled) setOauthProviders(items);
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     if (suspended) {
@@ -377,6 +392,25 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'login' }) => 
                 </Button>
               </Form.Item>
             </Form>
+            {oauthProviders.length > 0 && (
+              <div className="auth-oauth">
+                <div className="auth-oauth-divider"><span>或</span></div>
+                {oauthProviders.map(provider => (
+                  <Button
+                    key={provider.provider}
+                    size="large"
+                    block
+                    className={`auth-oauth-btn auth-oauth-btn--${provider.provider}`}
+                    onClick={() => startOAuthLogin(
+                      provider.provider,
+                      redirect && redirect.startsWith('/') ? redirect : '/',
+                    )}
+                  >
+                    {provider.name}扫码登录
+                  </Button>
+                ))}
+              </div>
+            )}
             <div className="auth-footer">
               还没有账号？
               <button type="button" className="auth-link-button" onClick={() => switchMode('register')}>

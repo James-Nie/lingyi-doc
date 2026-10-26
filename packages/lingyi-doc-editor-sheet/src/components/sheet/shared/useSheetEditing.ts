@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { isSystemColumnType } from '@lingyi-doc/core-sheet';
 import { getSheetCellEditText, parseCellValue, parseFieldValue, parseFreeformBooleanInput } from '@lingyi-doc/core-types';
 import type { CellCoord, CellValue, ColumnDef } from '@lingyi-doc/core-types';
@@ -6,6 +6,7 @@ import type { FreeTable } from '@lingyi-doc/core-sheet';
 import { useSheetStore } from '../../../store/sheetStore';
 import { syncToolbarFromCell } from '../../../utils/syncToolbarFromCell';
 import type { SheetInteractionDeps } from './sheetInteraction.types';
+import { setFormulaBarCommit } from './formulaBarCommitRef';
 
 export interface UseSheetEditingOptions {
   table: FreeTable;
@@ -113,12 +114,18 @@ export function useSheetEditing({
     }
     setEditingCell(null);
 
+    // 通知 canvas 重绘（更新单元格值、位置变化后都需要重绘）
+    dirtyTrackerRef.current.markFullRedraw();
+    scheduleRender();
+
     if (commitType === 'enter') {
-      selectionManagerRef.current.setActiveCell(coord);
-      setSelection(
-        { sheetId: table.sheetId, start: coord, end: coord },
-        coord,
-      );
+      const newCoord = selectionManagerRef.current.moveActiveCell('down', table.rowCount, table.colCount);
+      if (newCoord) {
+        setSelection(
+          { sheetId: table.sheetId, start: newCoord, end: newCoord },
+          newCoord,
+        );
+      }
     }
 
     if (commitType === 'tab') {
@@ -133,7 +140,7 @@ export function useSheetEditing({
     if (!isBaseSheet) {
       syncToolbarFromCell(table.getCell(recordCoord.row, recordCoord.col));
     }
-  }, [table, setEditingCell, setFormulaBarText, setSelection, isFreeformSheet, isBaseSheet, formatCellEditText, mapCoordToRecord, columnDefs, selectionManagerRef]);
+  }, [table, setEditingCell, setFormulaBarText, setSelection, isFreeformSheet, isBaseSheet, formatCellEditText, mapCoordToRecord, columnDefs, selectionManagerRef, dirtyTrackerRef, scheduleRender]);
 
   const handleEditCancel = useCallback(() => {
     setEditingCell(null);
@@ -202,6 +209,14 @@ export function useSheetEditing({
     const cellData = table.getCell(recordCoord.row, recordCoord.col);
     setFormulaBarText(cellData ? getSheetCellEditText(cellData.value, isFreeformSheet) : '');
   }, [table, setEditingCell, setFormulaBarText, isFreeformSheet, isBaseSheet, formatCellEditText, mapCoordToRecord, columnDefs]);
+
+  // 把 handleEditCommit 注册到模块级 ref，让 FormulaBar 可以直接调用
+  useEffect(() => {
+    setFormulaBarCommit((coord: CellCoord, value: string, commitType?: 'enter' | 'tab') => {
+      handleEditCommit(coord, value, commitType);
+    });
+    return () => setFormulaBarCommit(null);
+  }, [handleEditCommit]);
 
   return {
     dropdownEditCell,

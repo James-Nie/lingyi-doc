@@ -12,6 +12,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import type { Request } from 'express';
+import { AUDIT_ACTIONS } from '../../constants/audit';
 import { BusinessException } from '../../common/exceptions/business.exception';
 import { PERMISSIONS } from '../../constants/rbac';
 import { AuthAudience } from '../../auth/decorators/auth-audience.decorator';
@@ -67,7 +68,7 @@ export class AdminApiKeyController {
       });
       void this.auditLogRepository.create({
         operatorId: user.userId,
-        action: 'api_key.create',
+        action: AUDIT_ACTIONS.API_KEY_CREATE,
         targetType: 'api_key',
         targetId: result.id,
         detail: { name: result.name },
@@ -93,7 +94,7 @@ export class AdminApiKeyController {
       const result = await this.adminApiKeyService.revokeApiKey(id);
       void this.auditLogRepository.create({
         operatorId: user.userId,
-        action: 'api_key.revoke',
+        action: AUDIT_ACTIONS.API_KEY_REVOKE,
         targetType: 'api_key',
         targetId: id,
         ip: this.authService.getClientIp(req),

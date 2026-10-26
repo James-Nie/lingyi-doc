@@ -8,13 +8,18 @@ import type { EffectivePlan, MembershipPlanCode } from './membership';
 
 export interface DbUser {
   id: string;
-  email: string;
-  password_hash: string;
+  /** 本地注册必填；纯第三方扫码注册用户可能为 null */
+  email: string | null;
+  /** 本地/初始密码哈希；纯第三方登录用户可能为 null */
+  password_hash: string | null;
   display_name: string;
   avatar_url: string | null;
   phone: string | null;
   oauth_union_id: string | null;
   ldap_uuid: string | null;
+  /** 渠道来源：dingtalk | feishu | manual | null(本地注册) */
+  imported_from?: string | null;
+  last_oauth_login_at?: Date | null;
   personal_setting: unknown | null;
   locale: string | null;
   is_active: boolean;
@@ -25,6 +30,24 @@ export interface DbUser {
   login_fail_count: number;
   locked_until: Date | null;
   need_change_password: boolean;
+  created_at: Date;
+  updated_at: Date;
+}
+
+/** 第三方登录渠道 */
+export type OAuthProviderCode = 'dingtalk' | 'feishu';
+
+/** 用户 ↔ 第三方账号绑定记录 */
+export interface DbUserOauthBinding {
+  id: string;
+  user_id: string;
+  provider: OAuthProviderCode;
+  provider_app_id: string;
+  provider_user_id: string;
+  provider_union_id: string | null;
+  raw_profile: Record<string, unknown> | null;
+  bound_at: Date;
+  last_used_at: Date | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -43,6 +66,10 @@ export interface DbAuditLog {
   operator_id: string;
   operator_name?: string | null;
   action: string;
+  /** 动作所属模块（由 action 前缀推导），2026-09-19 新增 */
+  module: string | null;
+  /** success | failure，2026-09-19 新增（等保三级 8.1.4.3 b） */
+  result: string;
   target_type: string | null;
   target_id: string | null;
   detail: unknown;

@@ -151,7 +151,7 @@ export const SelectMembersModal: React.FC<SelectMembersModalProps> = ({
       okText="确定"
       cancelText="取消"
       okButtonProps={{ disabled: selectedIds.length === 0 }}
-      destroyOnClose
+      destroyOnHidden
       className="select-members-modal-root"
     >
       <div className="select-members-modal">

@@ -5,14 +5,14 @@ import React, { useMemo, useState } from 'react';
 import { Input, Tooltip } from 'antd';
 import { SearchOutlined, DragOutlined } from '@ant-design/icons';
 import {
-  NODE_TYPE_CATALOG,
+  listNodeMetas,
   TRIGGER_GROUPS,
   getNodeMeta,
   type NodeTypeMeta,
   type WorkflowNodeType,
 } from '@lingyi-doc/core-sheet';
 
-type CategoryKey = 'common' | 'feishu' | 'dingtalk' | 'ai' | 'shortcut';
+type CategoryKey = 'common' | 'feishu' | 'dingtalk' | 'ai' | 'shortcut' | 'integration';
 
 const CATEGORY_TABS: Array<{ key: CategoryKey; label: string }> = [
   { key: 'common', label: '常用' },
@@ -20,6 +20,7 @@ const CATEGORY_TABS: Array<{ key: CategoryKey; label: string }> = [
   { key: 'dingtalk', label: '钉钉' },
   { key: 'ai', label: 'AI' },
   { key: 'shortcut', label: '节点捷径' },
+  { key: 'integration', label: '集成' },
 ];
 
 const CATEGORY_LABELS: Record<CategoryKey, string> = {
@@ -28,6 +29,7 @@ const CATEGORY_LABELS: Record<CategoryKey, string> = {
   dingtalk: '钉钉',
   ai: 'AI',
   shortcut: '节点捷径',
+  integration: '集成',
 };
 
 interface NodeLibraryProps {
@@ -42,9 +44,11 @@ export const NodeLibrary: React.FC<NodeLibraryProps> = ({ onDragStart, onClickAd
   const [keyword, setKeyword] = useState('');
 
   const grouped = useMemo(() => {
+    // 运行时注册表（支持插件 registerNodeMeta 动态扩展）
+    const catalog = listNodeMetas();
     // 触发器过滤模式：按 TRIGGER_GROUPS 分组展示（AI 表格 / 待办 / 内置工具）
     if (filterMode === 'trigger') {
-      const triggers = NODE_TYPE_CATALOG.filter(
+      const triggers = catalog.filter(
         (n) => n.type.startsWith('trigger.') || n.type === 'start',
       );
       const byGroup = new Map<string, NodeTypeMeta[]>();
@@ -61,7 +65,7 @@ export const NodeLibrary: React.FC<NodeLibraryProps> = ({ onDragStart, onClickAd
       return groups;
     }
 
-    let catalogItems = NODE_TYPE_CATALOG;
+    let catalogItems = catalog;
 
     const filtered = catalogItems.filter((n) => {
       if (keyword.trim()) {

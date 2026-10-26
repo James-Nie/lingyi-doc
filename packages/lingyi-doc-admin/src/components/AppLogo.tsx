@@ -47,7 +47,8 @@ export const AppLogoWithName: React.FC<AppLogoWithNameProps> = ({
   gap = 10,
   fontSize = 15,
   fontWeight = 600,
-  color = '#1f2329',
+  // 走 Token 而非字面量：与 --color-text-1 同值，便于后续统一调整
+  color = 'var(--color-text-1)',
   className,
   style,
   alt,

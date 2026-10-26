@@ -1,4 +1,4 @@
-import { Entity, PrimaryColumn, Column } from 'typeorm';
+import { Entity, PrimaryColumn, Column, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 
 @Entity('documents')
 export class DocumentEntity {
@@ -49,4 +49,15 @@ export class DocumentEntity {
 
   @Column({ name: 'last_visited_at', type: 'timestamp', nullable: true })
   lastVisitedAt!: Date | null;
+
+  /** 内容治理台（P0-1）时间轴依据。2026-09-19 迁移新增，存量行为迁移执行时间 */
+  @CreateDateColumn({ name: 'created_at', type: 'timestamp' })
+  createdAt!: Date;
+
+  @UpdateDateColumn({ name: 'updated_at', type: 'timestamp' })
+  updatedAt!: Date;
+
+  /** 归档时间，NULL=未归档。归档仅移出治理台默认列表，不删除内容 */
+  @Column({ name: 'archived_at', type: 'timestamp', nullable: true })
+  archivedAt!: Date | null;
 }

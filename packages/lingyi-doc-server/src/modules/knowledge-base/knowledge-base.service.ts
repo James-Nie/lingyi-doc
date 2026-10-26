@@ -523,7 +523,7 @@ export class KnowledgeBaseService {
         .map(u => ({
           userId: u.id,
           displayName: u.display_name,
-          email: u.email,
+          email: u.email ?? '',
           phone: u.phone ?? null,
         })),
     };

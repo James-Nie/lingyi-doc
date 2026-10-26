@@ -22,6 +22,8 @@ export interface RecordChangePayload {
   changedFields?: string[];
   userId: string;
   tenantId?: string;
+  /** 'workflow:<instanceId>'：来自工作流自写，跳过触发，防止自循环 */
+  source?: string;
 }
 
 /** 随保存请求携带的行级变更历史条目（与 document.repository 同构） */

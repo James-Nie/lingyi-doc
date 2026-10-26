@@ -101,6 +101,20 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     await this.client.del(this.key(key));
   }
 
+  /** 原子读取并删除（用于 OAuth state 一次性消费，防重放） */
+  async getdel(key: string): Promise<string | null> {
+    if (!this.client) return null;
+    const fullKey = this.key(key);
+    try {
+      return await this.client.getdel(fullKey);
+    } catch {
+      // 兼容不支持 GETDEL 的旧版 Redis
+      const value = await this.client.get(fullKey);
+      if (value !== null) await this.client.del(fullKey);
+      return value;
+    }
+  }
+
   async expire(key: string, ttlSec: number): Promise<void> {
     if (!this.client) return;
     await this.client.expire(this.key(key), ttlSec);

@@ -21,6 +21,8 @@ function toDbUser(entity: UserEntity): DbUser {
     phone: entity.phone,
     oauth_union_id: entity.oauthUnionId,
     ldap_uuid: entity.ldapUuid,
+    imported_from: entity.importedFrom,
+    last_oauth_login_at: entity.lastOauthLoginAt,
     personal_setting: entity.personalSetting,
     locale: entity.locale,
     is_active: entity.isActive,
@@ -39,7 +41,8 @@ function toDbUser(entity: UserEntity): DbUser {
 function toPublicUser(user: DbUser, defaultUserSource: UserSource): PublicUser {
   return {
     id: user.id,
-    email: user.email,
+    // 第三方扫码注册用户可能无邮箱，对外统一降级为空串，避免 API 类型扩散为 nullable
+    email: user.email ?? '',
     displayName: user.display_name,
     avatarUrl: user.avatar_url ?? null,
     userType: user.user_type,
@@ -81,9 +84,12 @@ export class UserRepository {
   ) {}
 
   async findByEmail(email: string): Promise<DbUser | null> {
-    // 等值匹配走 uk_users_email；调用方/入库统一小写，禁止 LOWER() 包列
+    // 第三方扫码注册用户 email 为 NULL，空串查询直接返回，避免无意义命中
+    const normalized = normalizeEmail(email);
+    if (!normalized) return null;
+    // 等值匹配走 uk_users_email_active；调用方/入库统一小写，禁止 LOWER() 包列
     const entity = await this.repo.findOne({
-      where: { email: normalizeEmail(email) },
+      where: { email: normalized },
     });
     return entity ? toDbUser(entity) : null;
   }
@@ -148,34 +154,48 @@ export class UserRepository {
 
   async create(input: {
     id: string;
-    email: string;
-    passwordHash: string;
+    email?: string | null;
+    passwordHash?: string | null;
     displayName: string;
     phone?: string | null;
+    avatarUrl?: string | null;
     userType?: UserType;
     userSource?: UserSource;
     personalPlan?: number;
     personalVipExpireAt?: Date | null;
     needChangePassword?: boolean;
+    importedFrom?: string | null;
   }): Promise<DbUser> {
     const userType = input.userType ?? 'consumer';
     const userSource = input.userSource ?? this.deployService.defaultUserSource();
     await this.repo.save({
       id: input.id,
-      email: normalizeEmail(input.email),
-      passwordHash: input.passwordHash,
+      email: input.email ? normalizeEmail(input.email) : null,
+      passwordHash: input.passwordHash ?? null,
       displayName: input.displayName,
       phone: input.phone ?? null,
+      avatarUrl: input.avatarUrl ?? null,
       userType,
       userSource,
       personalPlan: input.personalPlan ?? 1,
       personalVipExpireAt: input.personalVipExpireAt ?? null,
       canCreateTeam: 0,
       needChangePassword: input.needChangePassword ?? false,
+      importedFrom: input.importedFrom ?? null,
     });
     const user = await this.findById(input.id);
     if (!user) throw new Error('创建用户失败');
     return user;
+  }
+
+  /** 第三方登录成功：更新登录时间与第三方登录标记 */
+  async recordOauthLoginSuccess(id: string): Promise<void> {
+    await this.repo.update(id, {
+      lastLoginAt: new Date(),
+      lastOauthLoginAt: new Date(),
+      loginFailCount: 0,
+      lockedUntil: null,
+    });
   }
 
   async updateProfile(

@@ -21,6 +21,8 @@ import { isCollapsedDocSelection, isWholeBlockSelection,
 interface SelectionDeps {
   blocksRef: React.MutableRefObject<DocBlock[]>;
   blockRefs: React.MutableRefObject<Map<string, HTMLElement>>;
+  /** 选区快照保护锁：为 true 期间（如链接弹窗打开）不因选区折叠而清空已保存选区 */
+  selectionSnapshotLockRef?: React.MutableRefObject<boolean>;
   docSelectionRef: React.MutableRefObject<DocSelection | null>;
   savedTextSelectionRef: React.MutableRefObject<NativeTextSelectionDetail | null>;
   pendingSelectionRestoreRef: React.MutableRefObject<{ blocks: DocBlock[]; slices: TextSelectionSlice[] } | null>;
@@ -37,6 +39,7 @@ export function useEditorSelection(deps: SelectionDeps) {
   const {
     blocksRef,
     blockRefs,
+    selectionSnapshotLockRef,
     docSelectionRef,
     savedTextSelectionRef,
     pendingSelectionRestoreRef,
@@ -153,13 +156,16 @@ export function useEditorSelection(deps: SelectionDeps) {
   }, [docSelectionRef, blocksRef, activeIndex]);
 
   const captureTextSelectionSnapshot = useCallback(() => {
+    // 保护锁期间（如链接/图片弹窗打开导致焦点转移）：选区折叠不代表用户取消选择，
+    // 保留 savedTextSelectionRef 供确认后恢复使用
+    if (selectionSnapshotLockRef?.current) return;
     const detail = getNativeTextSelectionDetail(blocksRef.current, blockRefs.current);
     if (detail && !detail.collapsed && detail.slices.length) {
       savedTextSelectionRef.current = detail;
     } else if (detail?.collapsed) {
       savedTextSelectionRef.current = null;
     }
-  }, [blocksRef, blockRefs, savedTextSelectionRef]);
+  }, [blocksRef, blockRefs, savedTextSelectionRef, selectionSnapshotLockRef]);
 
   const flushPendingSelectionRestore = useCallback(() => {
     const pending = pendingSelectionRestoreRef.current;

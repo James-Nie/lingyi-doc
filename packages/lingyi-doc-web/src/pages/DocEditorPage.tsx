@@ -34,6 +34,7 @@ import { CollabStatusBar } from '../components/CollabStatusBar';
 import { useCollabBlockLock } from '../hooks/useCollabBlockLock';
 import { appPath } from '../utils/appPaths';
 import { authStore } from '../stores/authStore';
+import { documentLibraryStore } from '../stores/documentLibraryStore';
 import type { EditorAccessProps } from '../types/editorAccess';
 import { isRichDocDownloadFormat, type DownloadFormat } from '../utils/downloadAs';
 import { fetchSystemFeatures } from '../api/system';
@@ -77,6 +78,8 @@ export const DocEditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiR
   const saveManagerRef = useRef<SaveManager | null>(null);
   const collabBridgeRef = useRef<DocumentCollabBridge | null>(null);
   const titleRef = useRef('未命名文档');
+  /** 标题有改动待同步侧边栏：保存成功后 bump 一次，避免每次键入都刷新列表 */
+  const titleSyncPendingRef = useRef(false);
 
   const [collabUsers, setCollabUsers] = useState<OnlineUser[]>([]);
   const [collabState, setCollabState] = useState<CollabConnectionState>('idle');
@@ -306,6 +309,11 @@ export const DocEditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiR
             if (snap) {
               collabBridgeRef.current?.syncSavedSnapshot(snap as unknown as Record<string, unknown>);
             }
+            // 标题保存成功后通知侧边栏刷新文档名（B11）
+            if (titleSyncPendingRef.current) {
+              titleSyncPendingRef.current = false;
+              documentLibraryStore.bump();
+            }
           },
         });
         manager.initialize(result.version, document.toJSON() as unknown as Record<string, unknown>, result.title);
@@ -398,6 +406,7 @@ export const DocEditorPage: React.FC<{ docId?: string; prefetched?: DocumentApiR
     setTitle(t);
     titleRef.current = t;
     if (docRef.current) docRef.current.title = t;
+    titleSyncPendingRef.current = true;
     saveManagerRef.current?.markTitleDirty();
     collabBridgeRef.current?.scheduleBroadcast();
   }, [readOnly]);

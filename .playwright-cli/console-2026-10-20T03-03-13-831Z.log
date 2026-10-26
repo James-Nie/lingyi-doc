@@ -1,0 +1,1098 @@
+[     535ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:21550
+[     642ms] [ERROR] Warning: [antd: Modal] `destroyOnClose` is deprecated. Please use `destroyOnHidden` instead. @ http://localhost:5173/node_modules/.vite/deps/chunk-ZTDYRBMQ.js?v=c1bccdc8:2891
+[     667ms] [WARNING] ⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition. @ http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4426
+[     667ms] [WARNING] ⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath. @ http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4426
+[     919ms] [ERROR] Error: <path> attribute d: Expected path command, "…5 3 5 3s5-1 5-3 dfsf". @ http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:1231
+[  342442ms] [ERROR] Warning: %s a style property during rerender (%s) when a conflicting property is set (%s) can lead to styling bugs. To avoid this, don't mix shorthand and non-shorthand properties for the same value; instead, replace the shorthand with separate values.%s Updating padding paddingLeft 
+    at div
+    at div
+    at http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/DocBlockView.tsx:651:6
+    at div
+    at SelectionWrap (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/DocBlockView.tsx:630:3)
+    at DocBlockView (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/DocBlockView.tsx:29:3)
+    at div
+    at div
+    at DocBlockWrapper (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/DocBlockWrapper.tsx:32:3)
+    at div
+    at div
+    at div
+    at div
+    at div
+    at RichDocEditor (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/RichDocEditor.tsx:51:3)
+    at div
+    at div
+    at div
+    at DocEditorPage (http://localhost:5173/src/pages/DocEditorPage.tsx:65:10)
+    at div
+    at DocPublicEditorPage (http://localhost:5173/src/pages/DocPublicEditorPage.tsx:38:39)
+    at main
+    at div
+    at div
+    at TemplatePickerProvider (http://localhost:5173/src/components/templates/TemplatePickerContext.tsx:44:3)
+    at AppShellFrame (http://localhost:5173/src/components/layout/AppLayout.tsx:47:33)
+    at DocPublicRoute (http://localhost:5173/src/App.tsx:101:30)
+    at RenderedRoute (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4122:5)
+    at Routes (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4592:5)
+    at AppRoutes
+    at Bootstrap (http://localhost:5173/src/App.tsx:59:22)
+    at div
+    at Router (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4535:15)
+    at BrowserRouter (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:5273:5)
+    at div
+    at LocaleProvider (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:5632:13)
+    at MotionWrapper (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:7824:32)
+    at ProviderChildren (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:7924:5)
+    at ConfigProvider (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:8260:27)
+    at SheetAntdProvider (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-shared/src/AntdProvider.tsx:20:37)
+    at App @ http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:520
+[  982804ms] [ERROR] Warning: [antd: Modal] `maskClosable` is deprecated. Please use `mask.closable` instead. @ http://localhost:5173/node_modules/.vite/deps/chunk-ZTDYRBMQ.js?v=c1bccdc8:2891
+[ 1801017ms] [ERROR] Failed to load resource: the server responded with a status of 401 (Unauthorized) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[ 2185551ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:21550
+[ 2186122ms] [ERROR] Warning: [antd: Modal] `destroyOnClose` is deprecated. Please use `destroyOnHidden` instead. @ http://localhost:5173/node_modules/.vite/deps/chunk-ZTDYRBMQ.js?v=c1bccdc8:2891
+[ 2186218ms] [WARNING] ⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition. @ http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4426
+[ 2186218ms] [WARNING] ⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath. @ http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4426
+[ 2187760ms] [ERROR] Error: <path> attribute d: Expected path command, "…5 3 5 3s5-1 5-3 dfsf". @ http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:1231
+[ 2449197ms] [ERROR] Error: <path> attribute d: Expected path command, "…5 3 5 3s5-1 5-3 dfsf". @ http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:1231
+[ 2449364ms] [ERROR] Error: <path> attribute d: Expected path command, "…5 3 5 3s5-1 5-3 dfsf". @ http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:1231
+[ 3176873ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:21550
+[ 3177100ms] [ERROR] Warning: [antd: Modal] `destroyOnClose` is deprecated. Please use `destroyOnHidden` instead. @ http://localhost:5173/node_modules/.vite/deps/chunk-ZTDYRBMQ.js?v=c1bccdc8:2891
+[ 3177138ms] [WARNING] ⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition. @ http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4426
+[ 3177138ms] [WARNING] ⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath. @ http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4426
+[ 3177496ms] [ERROR] Error: <path> attribute d: Expected path command, "…5 3 5 3s5-1 5-3 dfsf". @ http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:1231
+[ 3232275ms] [ERROR] Error: <path> attribute d: Expected path command, "…5 3 5 3s5-1 5-3 dfsf". @ http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:1231
+[ 3475271ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:21550
+[ 3475368ms] [ERROR] Warning: [antd: Modal] `destroyOnClose` is deprecated. Please use `destroyOnHidden` instead. @ http://localhost:5173/node_modules/.vite/deps/chunk-ZTDYRBMQ.js?v=c1bccdc8:2891
+[ 3475447ms] [WARNING] ⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition. @ http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4426
+[ 3475447ms] [WARNING] ⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath. @ http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4426
+[ 3475673ms] [ERROR] Error: <path> attribute d: Expected path command, "…5 3 5 3s5-1 5-3 dfsf". @ http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:1231
+[ 3479492ms] [LOG] [link-debug] onOpenLinkDialog detail: {"slices":[{"blockIndex":7,"start":0,"end":6}],"collapsed":false,"backward":true} @ http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/RichDocEditor.tsx?t=1792468859400:393
+[ 3479494ms] [ERROR] Warning: [antd: Modal] `maskClosable` is deprecated. Please use `mask.closable` instead. @ http://localhost:5173/node_modules/.vite/deps/chunk-ZTDYRBMQ.js?v=c1bccdc8:2891
+[ 3504419ms] [LOG] [link-debug] applyLinkWithTitle native: {"slices":[],"collapsed":true} saved: null @ http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/hooks/useEditorToolbar.ts?t=1792468625436:80
+[ 3655711ms] [ERROR] Failed to load resource: the server responded with a status of 401 (Unauthorized) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[ 3674696ms] [ERROR] Error: <path> attribute d: Expected path command, "…5 3 5 3s5-1 5-3 dfsf". @ http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:1231
+[ 3698342ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:21550
+[ 3698418ms] [ERROR] Warning: [antd: Modal] `destroyOnClose` is deprecated. Please use `destroyOnHidden` instead. @ http://localhost:5173/node_modules/.vite/deps/chunk-ZTDYRBMQ.js?v=c1bccdc8:2891
+[ 3698436ms] [WARNING] ⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition. @ http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4426
+[ 3698436ms] [WARNING] ⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath. @ http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4426
+[ 3698588ms] [ERROR] Error: <path> attribute d: Expected path command, "…5 3 5 3s5-1 5-3 dfsf". @ http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:1231
+[ 3702529ms] [LOG] [link-debug] onOpenLinkDialog detail: {"slices":[{"blockIndex":7,"start":0,"end":6}],"collapsed":false,"backward":true} @ http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/RichDocEditor.tsx?t=1792469077311:395
+[ 3702533ms] [ERROR] Warning: [antd: Modal] `maskClosable` is deprecated. Please use `mask.closable` instead. @ http://localhost:5173/node_modules/.vite/deps/chunk-ZTDYRBMQ.js?v=c1bccdc8:2891
+[ 3703397ms] [LOG] [link-debug] applyLinkWithTitle native: {"slices":[],"collapsed":true} saved: {"slices":[{"blockIndex":7,"start":0,"end":6}],"collapsed":false,"backward":true} @ http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/hooks/useEditorToolbar.ts?t=1792468625436:80
+[ 3740593ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:21550
+[ 3740672ms] [ERROR] Warning: [antd: Modal] `destroyOnClose` is deprecated. Please use `destroyOnHidden` instead. @ http://localhost:5173/node_modules/.vite/deps/chunk-ZTDYRBMQ.js?v=c1bccdc8:2891
+[ 3740690ms] [WARNING] ⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition. @ http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4426
+[ 3740690ms] [WARNING] ⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath. @ http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4426
+[ 3740863ms] [ERROR] Error: <path> attribute d: Expected path command, "…5 3 5 3s5-1 5-3 dfsf". @ http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:1231
+[ 3964836ms] [ERROR] Error: <path> attribute d: Expected path command, "…5 3 5 3s5-1 5-3 dfsf". @ http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:1231
+[ 4072819ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:21550
+[ 4072970ms] [ERROR] Warning: [antd: Modal] `destroyOnClose` is deprecated. Please use `destroyOnHidden` instead. @ http://localhost:5173/node_modules/.vite/deps/chunk-ZTDYRBMQ.js?v=c1bccdc8:2891
+[ 4072991ms] [WARNING] ⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition. @ http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4426
+[ 4072991ms] [WARNING] ⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath. @ http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4426
+[ 4073141ms] [ERROR] Error: <path> attribute d: Expected path command, "…5 3 5 3s5-1 5-3 dfsf". @ http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:1231
+[ 4170103ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:21550
+[ 4170185ms] [ERROR] Warning: [antd: Modal] `destroyOnClose` is deprecated. Please use `destroyOnHidden` instead. @ http://localhost:5173/node_modules/.vite/deps/chunk-ZTDYRBMQ.js?v=c1bccdc8:2891
+[ 4170205ms] [WARNING] ⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition. @ http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4426
+[ 4170205ms] [WARNING] ⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath. @ http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4426
+[ 4170358ms] [ERROR] Error: <path> attribute d: Expected path command, "…5 3 5 3s5-1 5-3 dfsf". @ http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:1231
+[ 4199168ms] [ERROR] Warning: %s a style property during rerender (%s) when a conflicting property is set (%s) can lead to styling bugs. To avoid this, don't mix shorthand and non-shorthand properties for the same value; instead, replace the shorthand with separate values.%s Updating padding paddingLeft 
+    at div
+    at div
+    at http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/DocBlockView.tsx?t=1792469536784:674:6
+    at div
+    at SelectionWrap (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/DocBlockView.tsx?t=1792469536784:653:3)
+    at DocBlockView (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/DocBlockView.tsx?t=1792469536784:37:3)
+    at div
+    at div
+    at DocBlockWrapper (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/DocBlockWrapper.tsx?t=1792468625436:32:3)
+    at div
+    at div
+    at div
+    at div
+    at div
+    at RichDocEditor (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/RichDocEditor.tsx?t=1792469536784:51:3)
+    at div
+    at div
+    at div
+    at DocEditorPage (http://localhost:5173/src/pages/DocEditorPage.tsx?t=1792469536784:65:10)
+    at div
+    at DocPublicEditorPage (http://localhost:5173/src/pages/DocPublicEditorPage.tsx?t=1792469536784:38:39)
+    at main
+    at div
+    at div
+    at TemplatePickerProvider (http://localhost:5173/src/components/templates/TemplatePickerContext.tsx?t=1792469536784:44:3)
+    at AppShellFrame (http://localhost:5173/src/components/layout/AppLayout.tsx?t=1792469536784:47:33)
+    at DocPublicRoute (http://localhost:5173/src/App.tsx?t=1792469536784:101:30)
+    at RenderedRoute (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4122:5)
+    at Routes (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4592:5)
+    at AppRoutes
+    at Bootstrap (http://localhost:5173/src/App.tsx?t=1792469536784:59:22)
+    at div
+    at Router (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4535:15)
+    at BrowserRouter (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:5273:5)
+    at div
+    at LocaleProvider (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:5632:13)
+    at MotionWrapper (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:7824:32)
+    at ProviderChildren (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:7924:5)
+    at ConfigProvider (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:8260:27)
+    at SheetAntdProvider (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-shared/src/AntdProvider.tsx:20:37)
+    at App @ http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:520
+[ 4339334ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:21550
+[ 4339412ms] [ERROR] Warning: [antd: Modal] `destroyOnClose` is deprecated. Please use `destroyOnHidden` instead. @ http://localhost:5173/node_modules/.vite/deps/chunk-ZTDYRBMQ.js?v=c1bccdc8:2891
+[ 4339431ms] [WARNING] ⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition. @ http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4426
+[ 4339431ms] [WARNING] ⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath. @ http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4426
+[ 4339600ms] [ERROR] Error: <path> attribute d: Expected path command, "…5 3 5 3s5-1 5-3 dfsf". @ http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:1231
+[ 4530256ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:21550
+[ 4530334ms] [ERROR] Warning: [antd: Modal] `destroyOnClose` is deprecated. Please use `destroyOnHidden` instead. @ http://localhost:5173/node_modules/.vite/deps/chunk-ZTDYRBMQ.js?v=c1bccdc8:2891
+[ 4530399ms] [WARNING] ⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition. @ http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4426
+[ 4530400ms] [WARNING] ⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath. @ http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4426
+[ 4530563ms] [ERROR] Error: <path> attribute d: Expected path command, "…5 3 5 3s5-1 5-3 dfsf". @ http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:1231
+[ 4697445ms] [ERROR] Error: <path> attribute d: Expected path command, "…5 3 5 3s5-1 5-3 dfsf". @ http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:1231
+[ 4831488ms] [ERROR] Warning: %s a style property during rerender (%s) when a conflicting property is set (%s) can lead to styling bugs. To avoid this, don't mix shorthand and non-shorthand properties for the same value; instead, replace the shorthand with separate values.%s Removing paddingLeft padding 
+    at ul
+    at div
+    at SelectionWrap (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/DocBlockView.tsx?t=1792470225164:653:3)
+    at ListBlockView (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/DocBlockView.tsx?t=1792470225164:758:3)
+    at DocBlockView (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/DocBlockView.tsx?t=1792470225164:37:3)
+    at div
+    at div
+    at DocBlockWrapper (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/DocBlockWrapper.tsx?t=1792470090662:32:3)
+    at div
+    at div
+    at div
+    at div
+    at div
+    at RichDocEditor (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/RichDocEditor.tsx?t=1792470090662:51:3)
+    at div
+    at div
+    at div
+    at DocEditorPage (http://localhost:5173/src/pages/DocEditorPage.tsx?t=1792470090662:65:10)
+    at div
+    at DocPublicEditorPage (http://localhost:5173/src/pages/DocPublicEditorPage.tsx?t=1792470090662:38:39)
+    at main
+    at div
+    at div
+    at TemplatePickerProvider (http://localhost:5173/src/components/templates/TemplatePickerContext.tsx?t=1792470090662:44:3)
+    at AppShellFrame (http://localhost:5173/src/components/layout/AppLayout.tsx?t=1792470090662:47:33)
+    at DocPublicRoute (http://localhost:5173/src/App.tsx?t=1792470090662:101:30)
+    at RenderedRoute (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4122:5)
+    at Routes (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4592:5)
+    at AppRoutes
+    at Bootstrap (http://localhost:5173/src/App.tsx?t=1792470090662:59:22)
+    at div
+    at Router (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4535:15)
+    at BrowserRouter (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:5273:5)
+    at div
+    at LocaleProvider (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:5632:13)
+    at MotionWrapper (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:7824:32)
+    at ProviderChildren (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:7924:5)
+    at ConfigProvider (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:8260:27)
+    at SheetAntdProvider (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-shared/src/AntdProvider.tsx:20:37)
+    at App @ http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:520
+[ 4831488ms] [ERROR] Warning: %s a style property during rerender (%s) when a conflicting property is set (%s) can lead to styling bugs. To avoid this, don't mix shorthand and non-shorthand properties for the same value; instead, replace the shorthand with separate values.%s Removing paddingTop padding 
+    at ul
+    at div
+    at SelectionWrap (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/DocBlockView.tsx?t=1792470225164:653:3)
+    at ListBlockView (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/DocBlockView.tsx?t=1792470225164:758:3)
+    at DocBlockView (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/DocBlockView.tsx?t=1792470225164:37:3)
+    at div
+    at div
+    at DocBlockWrapper (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/DocBlockWrapper.tsx?t=1792470090662:32:3)
+    at div
+    at div
+    at div
+    at div
+    at div
+    at RichDocEditor (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/RichDocEditor.tsx?t=1792470090662:51:3)
+    at div
+    at div
+    at div
+    at DocEditorPage (http://localhost:5173/src/pages/DocEditorPage.tsx?t=1792470090662:65:10)
+    at div
+    at DocPublicEditorPage (http://localhost:5173/src/pages/DocPublicEditorPage.tsx?t=1792470090662:38:39)
+    at main
+    at div
+    at div
+    at TemplatePickerProvider (http://localhost:5173/src/components/templates/TemplatePickerContext.tsx?t=1792470090662:44:3)
+    at AppShellFrame (http://localhost:5173/src/components/layout/AppLayout.tsx?t=1792470090662:47:33)
+    at DocPublicRoute (http://localhost:5173/src/App.tsx?t=1792470090662:101:30)
+    at RenderedRoute (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4122:5)
+    at Routes (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4592:5)
+    at AppRoutes
+    at Bootstrap (http://localhost:5173/src/App.tsx?t=1792470090662:59:22)
+    at div
+    at Router (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4535:15)
+    at BrowserRouter (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:5273:5)
+    at div
+    at LocaleProvider (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:5632:13)
+    at MotionWrapper (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:7824:32)
+    at ProviderChildren (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:7924:5)
+    at ConfigProvider (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:8260:27)
+    at SheetAntdProvider (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-shared/src/AntdProvider.tsx:20:37)
+    at App @ http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:520
+[ 4831488ms] [ERROR] Warning: %s a style property during rerender (%s) when a conflicting property is set (%s) can lead to styling bugs. To avoid this, don't mix shorthand and non-shorthand properties for the same value; instead, replace the shorthand with separate values.%s Removing paddingBottom padding 
+    at ul
+    at div
+    at SelectionWrap (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/DocBlockView.tsx?t=1792470225164:653:3)
+    at ListBlockView (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/DocBlockView.tsx?t=1792470225164:758:3)
+    at DocBlockView (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/DocBlockView.tsx?t=1792470225164:37:3)
+    at div
+    at div
+    at DocBlockWrapper (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/DocBlockWrapper.tsx?t=1792470090662:32:3)
+    at div
+    at div
+    at div
+    at div
+    at div
+    at RichDocEditor (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/RichDocEditor.tsx?t=1792470090662:51:3)
+    at div
+    at div
+    at div
+    at DocEditorPage (http://localhost:5173/src/pages/DocEditorPage.tsx?t=1792470090662:65:10)
+    at div
+    at DocPublicEditorPage (http://localhost:5173/src/pages/DocPublicEditorPage.tsx?t=1792470090662:38:39)
+    at main
+    at div
+    at div
+    at TemplatePickerProvider (http://localhost:5173/src/components/templates/TemplatePickerContext.tsx?t=1792470090662:44:3)
+    at AppShellFrame (http://localhost:5173/src/components/layout/AppLayout.tsx?t=1792470090662:47:33)
+    at DocPublicRoute (http://localhost:5173/src/App.tsx?t=1792470090662:101:30)
+    at RenderedRoute (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4122:5)
+    at Routes (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4592:5)
+    at AppRoutes
+    at Bootstrap (http://localhost:5173/src/App.tsx?t=1792470090662:59:22)
+    at div
+    at Router (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4535:15)
+    at BrowserRouter (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:5273:5)
+    at div
+    at LocaleProvider (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:5632:13)
+    at MotionWrapper (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:7824:32)
+    at ProviderChildren (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:7924:5)
+    at ConfigProvider (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:8260:27)
+    at SheetAntdProvider (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-shared/src/AntdProvider.tsx:20:37)
+    at App @ http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:520
+[ 4831489ms] [ERROR] Warning: %s a style property during rerender (%s) when a conflicting property is set (%s) can lead to styling bugs. To avoid this, don't mix shorthand and non-shorthand properties for the same value; instead, replace the shorthand with separate values.%s Removing paddingLeft padding 
+    at ul
+    at div
+    at SelectionWrap (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/DocBlockView.tsx?t=1792470225164:653:3)
+    at ListBlockView (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/DocBlockView.tsx?t=1792470225164:758:3)
+    at DocBlockView (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/DocBlockView.tsx?t=1792470225164:37:3)
+    at div
+    at div
+    at DocBlockWrapper (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/DocBlockWrapper.tsx?t=1792470090662:32:3)
+    at div
+    at div
+    at div
+    at div
+    at div
+    at RichDocEditor (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/RichDocEditor.tsx?t=1792470090662:51:3)
+    at div
+    at div
+    at div
+    at DocEditorPage (http://localhost:5173/src/pages/DocEditorPage.tsx?t=1792470090662:65:10)
+    at div
+    at DocPublicEditorPage (http://localhost:5173/src/pages/DocPublicEditorPage.tsx?t=1792470090662:38:39)
+    at main
+    at div
+    at div
+    at TemplatePickerProvider (http://localhost:5173/src/components/templates/TemplatePickerContext.tsx?t=1792470090662:44:3)
+    at AppShellFrame (http://localhost:5173/src/components/layout/AppLayout.tsx?t=1792470090662:47:33)
+    at DocPublicRoute (http://localhost:5173/src/App.tsx?t=1792470090662:101:30)
+    at RenderedRoute (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4122:5)
+    at Routes (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4592:5)
+    at AppRoutes
+    at Bootstrap (http://localhost:5173/src/App.tsx?t=1792470090662:59:22)
+    at div
+    at Router (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4535:15)
+    at BrowserRouter (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:5273:5)
+    at div
+    at LocaleProvider (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:5632:13)
+    at MotionWrapper (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:7824:32)
+    at ProviderChildren (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:7924:5)
+    at ConfigProvider (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:8260:27)
+    at SheetAntdProvider (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-shared/src/AntdProvider.tsx:20:37)
+    at App @ http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:520
+[ 4831489ms] [ERROR] Warning: %s a style property during rerender (%s) when a conflicting property is set (%s) can lead to styling bugs. To avoid this, don't mix shorthand and non-shorthand properties for the same value; instead, replace the shorthand with separate values.%s Removing paddingTop padding 
+    at ul
+    at div
+    at SelectionWrap (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/DocBlockView.tsx?t=1792470225164:653:3)
+    at ListBlockView (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/DocBlockView.tsx?t=1792470225164:758:3)
+    at DocBlockView (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/DocBlockView.tsx?t=1792470225164:37:3)
+    at div
+    at div
+    at DocBlockWrapper (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/DocBlockWrapper.tsx?t=1792470090662:32:3)
+    at div
+    at div
+    at div
+    at div
+    at div
+    at RichDocEditor (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/RichDocEditor.tsx?t=1792470090662:51:3)
+    at div
+    at div
+    at div
+    at DocEditorPage (http://localhost:5173/src/pages/DocEditorPage.tsx?t=1792470090662:65:10)
+    at div
+    at DocPublicEditorPage (http://localhost:5173/src/pages/DocPublicEditorPage.tsx?t=1792470090662:38:39)
+    at main
+    at div
+    at div
+    at TemplatePickerProvider (http://localhost:5173/src/components/templates/TemplatePickerContext.tsx?t=1792470090662:44:3)
+    at AppShellFrame (http://localhost:5173/src/components/layout/AppLayout.tsx?t=1792470090662:47:33)
+    at DocPublicRoute (http://localhost:5173/src/App.tsx?t=1792470090662:101:30)
+    at RenderedRoute (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4122:5)
+    at Routes (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4592:5)
+    at AppRoutes
+    at Bootstrap (http://localhost:5173/src/App.tsx?t=1792470090662:59:22)
+    at div
+    at Router (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4535:15)
+    at BrowserRouter (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:5273:5)
+    at div
+    at LocaleProvider (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:5632:13)
+    at MotionWrapper (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:7824:32)
+    at ProviderChildren (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:7924:5)
+    at ConfigProvider (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:8260:27)
+    at SheetAntdProvider (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-shared/src/AntdProvider.tsx:20:37)
+    at App @ http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:520
+[ 4831489ms] [ERROR] Warning: %s a style property during rerender (%s) when a conflicting property is set (%s) can lead to styling bugs. To avoid this, don't mix shorthand and non-shorthand properties for the same value; instead, replace the shorthand with separate values.%s Removing paddingBottom padding 
+    at ul
+    at div
+    at SelectionWrap (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/DocBlockView.tsx?t=1792470225164:653:3)
+    at ListBlockView (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/DocBlockView.tsx?t=1792470225164:758:3)
+    at DocBlockView (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/DocBlockView.tsx?t=1792470225164:37:3)
+    at div
+    at div
+    at DocBlockWrapper (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/DocBlockWrapper.tsx?t=1792470090662:32:3)
+    at div
+    at div
+    at div
+    at div
+    at div
+    at RichDocEditor (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/RichDocEditor.tsx?t=1792470090662:51:3)
+    at div
+    at div
+    at div
+    at DocEditorPage (http://localhost:5173/src/pages/DocEditorPage.tsx?t=1792470090662:65:10)
+    at div
+    at DocPublicEditorPage (http://localhost:5173/src/pages/DocPublicEditorPage.tsx?t=1792470090662:38:39)
+    at main
+    at div
+    at div
+    at TemplatePickerProvider (http://localhost:5173/src/components/templates/TemplatePickerContext.tsx?t=1792470090662:44:3)
+    at AppShellFrame (http://localhost:5173/src/components/layout/AppLayout.tsx?t=1792470090662:47:33)
+    at DocPublicRoute (http://localhost:5173/src/App.tsx?t=1792470090662:101:30)
+    at RenderedRoute (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4122:5)
+    at Routes (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4592:5)
+    at AppRoutes
+    at Bootstrap (http://localhost:5173/src/App.tsx?t=1792470090662:59:22)
+    at div
+    at Router (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4535:15)
+    at BrowserRouter (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:5273:5)
+    at div
+    at LocaleProvider (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:5632:13)
+    at MotionWrapper (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:7824:32)
+    at ProviderChildren (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:7924:5)
+    at ConfigProvider (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:8260:27)
+    at SheetAntdProvider (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-shared/src/AntdProvider.tsx:20:37)
+    at App @ http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:520
+[ 4831490ms] [ERROR] Warning: %s a style property during rerender (%s) when a conflicting property is set (%s) can lead to styling bugs. To avoid this, don't mix shorthand and non-shorthand properties for the same value; instead, replace the shorthand with separate values.%s Removing paddingLeft padding 
+    at ul
+    at div
+    at SelectionWrap (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/DocBlockView.tsx?t=1792470225164:653:3)
+    at ListBlockView (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/DocBlockView.tsx?t=1792470225164:758:3)
+    at DocBlockView (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/DocBlockView.tsx?t=1792470225164:37:3)
+    at div
+    at div
+    at DocBlockWrapper (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/DocBlockWrapper.tsx?t=1792470090662:32:3)
+    at div
+    at div
+    at div
+    at div
+    at div
+    at RichDocEditor (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/RichDocEditor.tsx?t=1792470090662:51:3)
+    at div
+    at div
+    at div
+    at DocEditorPage (http://localhost:5173/src/pages/DocEditorPage.tsx?t=1792470090662:65:10)
+    at div
+    at DocPublicEditorPage (http://localhost:5173/src/pages/DocPublicEditorPage.tsx?t=1792470090662:38:39)
+    at main
+    at div
+    at div
+    at TemplatePickerProvider (http://localhost:5173/src/components/templates/TemplatePickerContext.tsx?t=1792470090662:44:3)
+    at AppShellFrame (http://localhost:5173/src/components/layout/AppLayout.tsx?t=1792470090662:47:33)
+    at DocPublicRoute (http://localhost:5173/src/App.tsx?t=1792470090662:101:30)
+    at RenderedRoute (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4122:5)
+    at Routes (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4592:5)
+    at AppRoutes
+    at Bootstrap (http://localhost:5173/src/App.tsx?t=1792470090662:59:22)
+    at div
+    at Router (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4535:15)
+    at BrowserRouter (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:5273:5)
+    at div
+    at LocaleProvider (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:5632:13)
+    at MotionWrapper (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:7824:32)
+    at ProviderChildren (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:7924:5)
+    at ConfigProvider (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:8260:27)
+    at SheetAntdProvider (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-shared/src/AntdProvider.tsx:20:37)
+    at App @ http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:520
+[ 4831490ms] [ERROR] Warning: %s a style property during rerender (%s) when a conflicting property is set (%s) can lead to styling bugs. To avoid this, don't mix shorthand and non-shorthand properties for the same value; instead, replace the shorthand with separate values.%s Removing paddingTop padding 
+    at ul
+    at div
+    at SelectionWrap (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/DocBlockView.tsx?t=1792470225164:653:3)
+    at ListBlockView (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/DocBlockView.tsx?t=1792470225164:758:3)
+    at DocBlockView (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/DocBlockView.tsx?t=1792470225164:37:3)
+    at div
+    at div
+    at DocBlockWrapper (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/DocBlockWrapper.tsx?t=1792470090662:32:3)
+    at div
+    at div
+    at div
+    at div
+    at div
+    at RichDocEditor (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/RichDocEditor.tsx?t=1792470090662:51:3)
+    at div
+    at div
+    at div
+    at DocEditorPage (http://localhost:5173/src/pages/DocEditorPage.tsx?t=1792470090662:65:10)
+    at div
+    at DocPublicEditorPage (http://localhost:5173/src/pages/DocPublicEditorPage.tsx?t=1792470090662:38:39)
+    at main
+    at div
+    at div
+    at TemplatePickerProvider (http://localhost:5173/src/components/templates/TemplatePickerContext.tsx?t=1792470090662:44:3)
+    at AppShellFrame (http://localhost:5173/src/components/layout/AppLayout.tsx?t=1792470090662:47:33)
+    at DocPublicRoute (http://localhost:5173/src/App.tsx?t=1792470090662:101:30)
+    at RenderedRoute (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4122:5)
+    at Routes (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4592:5)
+    at AppRoutes
+    at Bootstrap (http://localhost:5173/src/App.tsx?t=1792470090662:59:22)
+    at div
+    at Router (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4535:15)
+    at BrowserRouter (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:5273:5)
+    at div
+    at LocaleProvider (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:5632:13)
+    at MotionWrapper (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:7824:32)
+    at ProviderChildren (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:7924:5)
+    at ConfigProvider (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:8260:27)
+    at SheetAntdProvider (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-shared/src/AntdProvider.tsx:20:37)
+    at App @ http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:520
+[ 4831491ms] [ERROR] Warning: %s a style property during rerender (%s) when a conflicting property is set (%s) can lead to styling bugs. To avoid this, don't mix shorthand and non-shorthand properties for the same value; instead, replace the shorthand with separate values.%s Removing paddingBottom padding 
+    at ul
+    at div
+    at SelectionWrap (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/DocBlockView.tsx?t=1792470225164:653:3)
+    at ListBlockView (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/DocBlockView.tsx?t=1792470225164:758:3)
+    at DocBlockView (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/DocBlockView.tsx?t=1792470225164:37:3)
+    at div
+    at div
+    at DocBlockWrapper (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/DocBlockWrapper.tsx?t=1792470090662:32:3)
+    at div
+    at div
+    at div
+    at div
+    at div
+    at RichDocEditor (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/RichDocEditor.tsx?t=1792470090662:51:3)
+    at div
+    at div
+    at div
+    at DocEditorPage (http://localhost:5173/src/pages/DocEditorPage.tsx?t=1792470090662:65:10)
+    at div
+    at DocPublicEditorPage (http://localhost:5173/src/pages/DocPublicEditorPage.tsx?t=1792470090662:38:39)
+    at main
+    at div
+    at div
+    at TemplatePickerProvider (http://localhost:5173/src/components/templates/TemplatePickerContext.tsx?t=1792470090662:44:3)
+    at AppShellFrame (http://localhost:5173/src/components/layout/AppLayout.tsx?t=1792470090662:47:33)
+    at DocPublicRoute (http://localhost:5173/src/App.tsx?t=1792470090662:101:30)
+    at RenderedRoute (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4122:5)
+    at Routes (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4592:5)
+    at AppRoutes
+    at Bootstrap (http://localhost:5173/src/App.tsx?t=1792470090662:59:22)
+    at div
+    at Router (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4535:15)
+    at BrowserRouter (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:5273:5)
+    at div
+    at LocaleProvider (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:5632:13)
+    at MotionWrapper (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:7824:32)
+    at ProviderChildren (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:7924:5)
+    at ConfigProvider (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:8260:27)
+    at SheetAntdProvider (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-shared/src/AntdProvider.tsx:20:37)
+    at App @ http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:520
+[ 4831491ms] [ERROR] Warning: %s a style property during rerender (%s) when a conflicting property is set (%s) can lead to styling bugs. To avoid this, don't mix shorthand and non-shorthand properties for the same value; instead, replace the shorthand with separate values.%s Removing paddingLeft padding 
+    at ul
+    at div
+    at SelectionWrap (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/DocBlockView.tsx?t=1792470225164:653:3)
+    at ListBlockView (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/DocBlockView.tsx?t=1792470225164:758:3)
+    at DocBlockView (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/DocBlockView.tsx?t=1792470225164:37:3)
+    at div
+    at div
+    at DocBlockWrapper (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/DocBlockWrapper.tsx?t=1792470090662:32:3)
+    at div
+    at div
+    at div
+    at div
+    at div
+    at RichDocEditor (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/RichDocEditor.tsx?t=1792470090662:51:3)
+    at div
+    at div
+    at div
+    at DocEditorPage (http://localhost:5173/src/pages/DocEditorPage.tsx?t=1792470090662:65:10)
+    at div
+    at DocPublicEditorPage (http://localhost:5173/src/pages/DocPublicEditorPage.tsx?t=1792470090662:38:39)
+    at main
+    at div
+    at div
+    at TemplatePickerProvider (http://localhost:5173/src/components/templates/TemplatePickerContext.tsx?t=1792470090662:44:3)
+    at AppShellFrame (http://localhost:5173/src/components/layout/AppLayout.tsx?t=1792470090662:47:33)
+    at DocPublicRoute (http://localhost:5173/src/App.tsx?t=1792470090662:101:30)
+    at RenderedRoute (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4122:5)
+    at Routes (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4592:5)
+    at AppRoutes
+    at Bootstrap (http://localhost:5173/src/App.tsx?t=1792470090662:59:22)
+    at div
+    at Router (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4535:15)
+    at BrowserRouter (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:5273:5)
+    at div
+    at LocaleProvider (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:5632:13)
+    at MotionWrapper (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:7824:32)
+    at ProviderChildren (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:7924:5)
+    at ConfigProvider (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:8260:27)
+    at SheetAntdProvider (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-shared/src/AntdProvider.tsx:20:37)
+    at App @ http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:520
+[ 4831491ms] [ERROR] Warning: %s a style property during rerender (%s) when a conflicting property is set (%s) can lead to styling bugs. To avoid this, don't mix shorthand and non-shorthand properties for the same value; instead, replace the shorthand with separate values.%s Removing paddingTop padding 
+    at ul
+    at div
+    at SelectionWrap (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/DocBlockView.tsx?t=1792470225164:653:3)
+    at ListBlockView (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/DocBlockView.tsx?t=1792470225164:758:3)
+    at DocBlockView (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/DocBlockView.tsx?t=1792470225164:37:3)
+    at div
+    at div
+    at DocBlockWrapper (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/DocBlockWrapper.tsx?t=1792470090662:32:3)
+    at div
+    at div
+    at div
+    at div
+    at div
+    at RichDocEditor (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/RichDocEditor.tsx?t=1792470090662:51:3)
+    at div
+    at div
+    at div
+    at DocEditorPage (http://localhost:5173/src/pages/DocEditorPage.tsx?t=1792470090662:65:10)
+    at div
+    at DocPublicEditorPage (http://localhost:5173/src/pages/DocPublicEditorPage.tsx?t=1792470090662:38:39)
+    at main
+    at div
+    at div
+    at TemplatePickerProvider (http://localhost:5173/src/components/templates/TemplatePickerContext.tsx?t=1792470090662:44:3)
+    at AppShellFrame (http://localhost:5173/src/components/layout/AppLayout.tsx?t=1792470090662:47:33)
+    at DocPublicRoute (http://localhost:5173/src/App.tsx?t=1792470090662:101:30)
+    at RenderedRoute (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4122:5)
+    at Routes (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4592:5)
+    at AppRoutes
+    at Bootstrap (http://localhost:5173/src/App.tsx?t=1792470090662:59:22)
+    at div
+    at Router (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4535:15)
+    at BrowserRouter (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:5273:5)
+    at div
+    at LocaleProvider (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:5632:13)
+    at MotionWrapper (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:7824:32)
+    at ProviderChildren (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:7924:5)
+    at ConfigProvider (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:8260:27)
+    at SheetAntdProvider (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-shared/src/AntdProvider.tsx:20:37)
+    at App @ http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:520
+[ 4831491ms] [ERROR] Warning: %s a style property during rerender (%s) when a conflicting property is set (%s) can lead to styling bugs. To avoid this, don't mix shorthand and non-shorthand properties for the same value; instead, replace the shorthand with separate values.%s Removing paddingBottom padding 
+    at ul
+    at div
+    at SelectionWrap (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/DocBlockView.tsx?t=1792470225164:653:3)
+    at ListBlockView (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/DocBlockView.tsx?t=1792470225164:758:3)
+    at DocBlockView (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/DocBlockView.tsx?t=1792470225164:37:3)
+    at div
+    at div
+    at DocBlockWrapper (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/DocBlockWrapper.tsx?t=1792470090662:32:3)
+    at div
+    at div
+    at div
+    at div
+    at div
+    at RichDocEditor (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/RichDocEditor.tsx?t=1792470090662:51:3)
+    at div
+    at div
+    at div
+    at DocEditorPage (http://localhost:5173/src/pages/DocEditorPage.tsx?t=1792470090662:65:10)
+    at div
+    at DocPublicEditorPage (http://localhost:5173/src/pages/DocPublicEditorPage.tsx?t=1792470090662:38:39)
+    at main
+    at div
+    at div
+    at TemplatePickerProvider (http://localhost:5173/src/components/templates/TemplatePickerContext.tsx?t=1792470090662:44:3)
+    at AppShellFrame (http://localhost:5173/src/components/layout/AppLayout.tsx?t=1792470090662:47:33)
+    at DocPublicRoute (http://localhost:5173/src/App.tsx?t=1792470090662:101:30)
+    at RenderedRoute (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4122:5)
+    at Routes (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4592:5)
+    at AppRoutes
+    at Bootstrap (http://localhost:5173/src/App.tsx?t=1792470090662:59:22)
+    at div
+    at Router (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4535:15)
+    at BrowserRouter (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:5273:5)
+    at div
+    at LocaleProvider (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:5632:13)
+    at MotionWrapper (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:7824:32)
+    at ProviderChildren (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:7924:5)
+    at ConfigProvider (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:8260:27)
+    at SheetAntdProvider (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-shared/src/AntdProvider.tsx:20:37)
+    at App @ http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:520
+[ 5086103ms] Error: useTemplatePicker must be used within TemplatePickerProvider
+    at useTemplatePicker (http://localhost:5173/src/components/templates/TemplatePickerContext.tsx?t=1792470090662:34:19)
+    at useCreateDocument (http://localhost:5173/src/hooks/useCreateDocument.ts?t=1792470090662:54:18)
+    at AppSidebar (http://localhost:5173/src/components/layout/AppSidebar.tsx?t=1792470090662:164:21)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:11548:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:14926:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:15914:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:3674:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:3699:24)
+    at invokeGuardedCallback (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:3733:39)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:19765:15)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:19198:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:19137:13)
+    at renderRootSync (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:19116:15)
+    at performSyncWorkOnRoot (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:18874:28)
+    at flushSyncCallbacks (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:9119:30)
+    at flushSync (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:18959:15)
+[ 5086104ms] Error: useTemplatePicker must be used within TemplatePickerProvider
+    at useTemplatePicker (http://localhost:5173/src/components/templates/TemplatePickerContext.tsx?t=1792470090662:34:19)
+    at useCreateDocument (http://localhost:5173/src/hooks/useCreateDocument.ts?t=1792470090662:54:18)
+    at AppSidebar (http://localhost:5173/src/components/layout/AppSidebar.tsx?t=1792470090662:164:21)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:11548:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:14926:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:15914:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:3674:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:3699:24)
+    at invokeGuardedCallback (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:3733:39)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:19765:15)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:19198:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:19137:13)
+    at renderRootSync (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:19116:15)
+    at recoverFromConcurrentError (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:18736:28)
+    at performSyncWorkOnRoot (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:18879:28)
+    at flushSyncCallbacks (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:9119:30)
+[ 5086105ms] [ERROR] The above error occurred in the <AppSidebar> component:
+
+    at AppSidebar (http://localhost:5173/src/components/layout/AppSidebar.tsx?t=1792470090662:154:30)
+    at div
+    at TemplatePickerProvider (http://localhost:5173/src/components/templates/TemplatePickerContext.tsx?t=1792470235227:44:3)
+    at AppShellFrame (http://localhost:5173/src/components/layout/AppLayout.tsx?t=1792470090662:47:33)
+    at DocPublicRoute (http://localhost:5173/src/App.tsx?t=1792470090662:101:30)
+    at RenderedRoute (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4122:5)
+    at Routes (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4592:5)
+    at AppRoutes
+    at Bootstrap (http://localhost:5173/src/App.tsx?t=1792470090662:59:22)
+    at div
+    at Router (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4535:15)
+    at BrowserRouter (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:5273:5)
+    at div
+    at LocaleProvider (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:5632:13)
+    at MotionWrapper (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:7824:32)
+    at ProviderChildren (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:7924:5)
+    at ConfigProvider (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:8260:27)
+    at SheetAntdProvider (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-shared/src/AntdProvider.tsx:20:37)
+    at App
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries. @ http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:14031
+[ 5086120ms] Error: useTemplatePicker must be used within TemplatePickerProvider
+    at useTemplatePicker (http://localhost:5173/src/components/templates/TemplatePickerContext.tsx?t=1792470090662:34:19)
+    at useCreateDocument (http://localhost:5173/src/hooks/useCreateDocument.ts?t=1792470090662:54:18)
+    at AppSidebar (http://localhost:5173/src/components/layout/AppSidebar.tsx?t=1792470090662:164:21)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:11548:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:14926:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:15914:22)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:19753:22)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:19198:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:19137:13)
+    at renderRootSync (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:19116:15)
+    at recoverFromConcurrentError (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:18736:28)
+    at performSyncWorkOnRoot (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:18879:28)
+    at flushSyncCallbacks (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:9119:30)
+    at flushSync (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:18959:15)
+    at Object.scheduleRefresh (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:20004:13)
+    at http://localhost:5173/@react-refresh:228:17
+[ 5095582ms] Error: useTemplatePicker must be used within TemplatePickerProvider
+    at useTemplatePicker (http://localhost:5173/src/components/templates/TemplatePickerContext.tsx?t=1792470090662:34:19)
+    at useCreateDocument (http://localhost:5173/src/hooks/useCreateDocument.ts?t=1792470090662:54:18)
+    at AppSidebar (http://localhost:5173/src/components/layout/AppSidebar.tsx?t=1792470090662:164:21)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:11548:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:14926:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:15914:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:3674:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:3699:24)
+    at invokeGuardedCallback (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:3733:39)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:19765:15)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:19198:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:19137:13)
+    at renderRootSync (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:19116:15)
+    at performSyncWorkOnRoot (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:18874:28)
+    at flushSyncCallbacks (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:9119:30)
+    at flushSync (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:18959:15)
+[ 5095595ms] Error: useTemplatePicker must be used within TemplatePickerProvider
+    at useTemplatePicker (http://localhost:5173/src/components/templates/TemplatePickerContext.tsx?t=1792470090662:34:19)
+    at useCreateDocument (http://localhost:5173/src/hooks/useCreateDocument.ts?t=1792470090662:54:18)
+    at AppSidebar (http://localhost:5173/src/components/layout/AppSidebar.tsx?t=1792470090662:164:21)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:11548:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:14926:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:15914:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:3674:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:3699:24)
+    at invokeGuardedCallback (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:3733:39)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:19765:15)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:19198:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:19137:13)
+    at renderRootSync (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:19116:15)
+    at recoverFromConcurrentError (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:18736:28)
+    at performSyncWorkOnRoot (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:18879:28)
+    at flushSyncCallbacks (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:9119:30)
+[ 5095589ms] [ERROR] The above error occurred in the <AppSidebar> component:
+
+    at AppSidebar (http://localhost:5173/src/components/layout/AppSidebar.tsx?t=1792470090662:154:30)
+    at div
+    at TemplatePickerProvider (http://localhost:5173/src/components/templates/TemplatePickerContext.tsx?t=1792470235227:44:3)
+    at AppShellFrame (http://localhost:5173/src/components/layout/AppLayout.tsx?t=1792470090662:47:33)
+    at DocPublicRoute (http://localhost:5173/src/App.tsx?t=1792470090662:101:30)
+    at RenderedRoute (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4122:5)
+    at Routes (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4592:5)
+    at AppRoutes
+    at Bootstrap (http://localhost:5173/src/App.tsx?t=1792470090662:59:22)
+    at div
+    at Router (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4535:15)
+    at BrowserRouter (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:5273:5)
+    at div
+    at LocaleProvider (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:5632:13)
+    at MotionWrapper (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:7824:32)
+    at ProviderChildren (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:7924:5)
+    at ConfigProvider (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:8260:27)
+    at SheetAntdProvider (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-shared/src/AntdProvider.tsx:20:37)
+    at App
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries. @ http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:14031
+[ 5095596ms] Error: useTemplatePicker must be used within TemplatePickerProvider
+    at useTemplatePicker (http://localhost:5173/src/components/templates/TemplatePickerContext.tsx?t=1792470090662:34:19)
+    at useCreateDocument (http://localhost:5173/src/hooks/useCreateDocument.ts?t=1792470090662:54:18)
+    at AppSidebar (http://localhost:5173/src/components/layout/AppSidebar.tsx?t=1792470090662:164:21)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:11548:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:14926:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:15914:22)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:19753:22)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:19198:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:19137:13)
+    at renderRootSync (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:19116:15)
+    at recoverFromConcurrentError (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:18736:28)
+    at performSyncWorkOnRoot (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:18879:28)
+    at flushSyncCallbacks (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:9119:30)
+    at flushSync (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:18959:15)
+    at Object.scheduleRoot (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:20015:13)
+    at http://localhost:5173/@react-refresh:208:17
+[ 5149031ms] Error: useTemplatePicker must be used within TemplatePickerProvider
+    at useTemplatePicker (http://localhost:5173/src/components/templates/TemplatePickerContext.tsx?t=1792470090662:34:19)
+    at useCreateDocument (http://localhost:5173/src/hooks/useCreateDocument.ts?t=1792470090662:54:18)
+    at AppSidebar (http://localhost:5173/src/components/layout/AppSidebar.tsx?t=1792470090662:164:21)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:11548:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:14926:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:15914:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:3674:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:3699:24)
+    at invokeGuardedCallback (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:3733:39)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:19765:15)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:19198:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:19137:13)
+    at renderRootSync (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:19116:15)
+    at performSyncWorkOnRoot (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:18874:28)
+    at flushSyncCallbacks (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:9119:30)
+    at flushSync (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:18959:15)
+[ 5149032ms] Error: useTemplatePicker must be used within TemplatePickerProvider
+    at useTemplatePicker (http://localhost:5173/src/components/templates/TemplatePickerContext.tsx?t=1792470090662:34:19)
+    at useCreateDocument (http://localhost:5173/src/hooks/useCreateDocument.ts?t=1792470090662:54:18)
+    at AppSidebar (http://localhost:5173/src/components/layout/AppSidebar.tsx?t=1792470090662:164:21)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:11548:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:14926:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:15914:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:3674:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:3699:24)
+    at invokeGuardedCallback (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:3733:39)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:19765:15)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:19198:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:19137:13)
+    at renderRootSync (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:19116:15)
+    at recoverFromConcurrentError (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:18736:28)
+    at performSyncWorkOnRoot (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:18879:28)
+    at flushSyncCallbacks (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:9119:30)
+[ 5149014ms] [ERROR] The above error occurred in the <AppSidebar> component:
+
+    at AppSidebar (http://localhost:5173/src/components/layout/AppSidebar.tsx?t=1792470090662:154:30)
+    at div
+    at TemplatePickerProvider (http://localhost:5173/src/components/templates/TemplatePickerContext.tsx?t=1792470235227:44:3)
+    at AppShellFrame (http://localhost:5173/src/components/layout/AppLayout.tsx?t=1792470090662:47:33)
+    at DocPublicRoute (http://localhost:5173/src/App.tsx?t=1792470090662:101:30)
+    at RenderedRoute (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4122:5)
+    at Routes (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4592:5)
+    at AppRoutes
+    at Bootstrap (http://localhost:5173/src/App.tsx?t=1792470090662:59:22)
+    at div
+    at Router (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4535:15)
+    at BrowserRouter (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:5273:5)
+    at div
+    at LocaleProvider (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:5632:13)
+    at MotionWrapper (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:7824:32)
+    at ProviderChildren (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:7924:5)
+    at ConfigProvider (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:8260:27)
+    at SheetAntdProvider (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-shared/src/AntdProvider.tsx:20:37)
+    at App
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries. @ http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:14031
+[ 5149032ms] Error: useTemplatePicker must be used within TemplatePickerProvider
+    at useTemplatePicker (http://localhost:5173/src/components/templates/TemplatePickerContext.tsx?t=1792470090662:34:19)
+    at useCreateDocument (http://localhost:5173/src/hooks/useCreateDocument.ts?t=1792470090662:54:18)
+    at AppSidebar (http://localhost:5173/src/components/layout/AppSidebar.tsx?t=1792470090662:164:21)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:11548:26)
+    at mountIndeterminateComponent (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:14926:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:15914:22)
+    at beginWork$1 (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:19753:22)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:19198:20)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:19137:13)
+    at renderRootSync (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:19116:15)
+    at recoverFromConcurrentError (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:18736:28)
+    at performSyncWorkOnRoot (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:18879:28)
+    at flushSyncCallbacks (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:9119:30)
+    at flushSync (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:18959:15)
+    at Object.scheduleRoot (http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:20015:13)
+    at http://localhost:5173/@react-refresh:208:17
+[ 5193873ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:21550
+[ 5194076ms] [ERROR] Warning: [antd: Modal] `destroyOnClose` is deprecated. Please use `destroyOnHidden` instead. @ http://localhost:5173/node_modules/.vite/deps/chunk-ZTDYRBMQ.js?v=c1bccdc8:2891
+[ 5194102ms] [WARNING] ⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition. @ http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4426
+[ 5194102ms] [WARNING] ⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath. @ http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4426
+[ 5329965ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:21550
+[ 5330050ms] [WARNING] ⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition. @ http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4426
+[ 5330050ms] [WARNING] ⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath. @ http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4426
+[ 5510258ms] [ERROR] Failed to load resource: the server responded with a status of 401 (Unauthorized) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[ 6164910ms] [ERROR] Warning: %s a style property during rerender (%s) when a conflicting property is set (%s) can lead to styling bugs. To avoid this, don't mix shorthand and non-shorthand properties for the same value; instead, replace the shorthand with separate values.%s Updating padding paddingLeft 
+    at div
+    at div
+    at http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/DocBlockView.tsx?t=1792470689204:674:6
+    at div
+    at SelectionWrap (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/DocBlockView.tsx?t=1792470689204:653:3)
+    at DocBlockView (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/DocBlockView.tsx?t=1792470689204:37:3)
+    at div
+    at div
+    at DocBlockWrapper (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/DocBlockWrapper.tsx?t=1792470135315:32:3)
+    at div
+    at div
+    at div
+    at div
+    at div
+    at RichDocEditor (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/RichDocEditor.tsx?t=1792471525545:51:3)
+    at div
+    at div
+    at div
+    at DocEditorPage (http://localhost:5173/src/pages/DocEditorPage.tsx?t=1792470705044:66:10)
+    at div
+    at DocPublicEditorPage (http://localhost:5173/src/pages/DocPublicEditorPage.tsx?t=1792470705044:38:39)
+    at main
+    at div
+    at div
+    at TemplatePickerProvider (http://localhost:5173/src/components/templates/TemplatePickerContext.tsx?t=1792470705044:44:3)
+    at AppShellFrame (http://localhost:5173/src/components/layout/AppLayout.tsx?t=1792470705044:47:33)
+    at DocPublicRoute (http://localhost:5173/src/App.tsx?t=1792470705044:101:30)
+    at RenderedRoute (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4122:5)
+    at Routes (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4592:5)
+    at AppRoutes
+    at Bootstrap (http://localhost:5173/src/App.tsx?t=1792470705044:59:22)
+    at div
+    at Router (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4535:15)
+    at BrowserRouter (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:5273:5)
+    at div
+    at LocaleProvider (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:5632:13)
+    at MotionWrapper (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:7824:32)
+    at ProviderChildren (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:7924:5)
+    at ConfigProvider (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:8260:27)
+    at SheetAntdProvider (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-shared/src/AntdProvider.tsx:20:37)
+    at App @ http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:520
+[ 6186353ms] [ERROR] Warning: %s a style property during rerender (%s) when a conflicting property is set (%s) can lead to styling bugs. To avoid this, don't mix shorthand and non-shorthand properties for the same value; instead, replace the shorthand with separate values.%s Updating padding paddingLeft 
+    at div
+    at div
+    at http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/DocBlockView.tsx?t=1792470689204:674:6
+    at div
+    at SelectionWrap (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/DocBlockView.tsx?t=1792470689204:653:3)
+    at DocBlockView (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/DocBlockView.tsx?t=1792470689204:37:3)
+    at div
+    at div
+    at DocBlockWrapper (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/DocBlockWrapper.tsx?t=1792470135315:32:3)
+    at div
+    at div
+    at div
+    at div
+    at div
+    at RichDocEditor (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/RichDocEditor.tsx?t=1792471525545:51:3)
+    at div
+    at div
+    at div
+    at DocEditorPage (http://localhost:5173/src/pages/DocEditorPage.tsx?t=1792470705044:66:10)
+    at div
+    at DocPublicEditorPage (http://localhost:5173/src/pages/DocPublicEditorPage.tsx?t=1792470705044:38:39)
+    at main
+    at div
+    at div
+    at TemplatePickerProvider (http://localhost:5173/src/components/templates/TemplatePickerContext.tsx?t=1792470705044:44:3)
+    at AppShellFrame (http://localhost:5173/src/components/layout/AppLayout.tsx?t=1792470705044:47:33)
+    at DocPublicRoute (http://localhost:5173/src/App.tsx?t=1792470705044:101:30)
+    at RenderedRoute (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4122:5)
+    at Routes (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4592:5)
+    at AppRoutes
+    at Bootstrap (http://localhost:5173/src/App.tsx?t=1792470705044:59:22)
+    at div
+    at Router (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4535:15)
+    at BrowserRouter (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:5273:5)
+    at div
+    at LocaleProvider (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:5632:13)
+    at MotionWrapper (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:7824:32)
+    at ProviderChildren (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:7924:5)
+    at ConfigProvider (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:8260:27)
+    at SheetAntdProvider (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-shared/src/AntdProvider.tsx:20:37)
+    at App @ http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:520
+[ 6212445ms] [ERROR] Warning: %s a style property during rerender (%s) when a conflicting property is set (%s) can lead to styling bugs. To avoid this, don't mix shorthand and non-shorthand properties for the same value; instead, replace the shorthand with separate values.%s Updating padding paddingLeft 
+    at div
+    at div
+    at http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/DocBlockView.tsx?t=1792470689204:674:6
+    at div
+    at SelectionWrap (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/DocBlockView.tsx?t=1792470689204:653:3)
+    at DocBlockView (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/DocBlockView.tsx?t=1792470689204:37:3)
+    at div
+    at div
+    at DocBlockWrapper (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/DocBlockWrapper.tsx?t=1792470135315:32:3)
+    at div
+    at div
+    at div
+    at div
+    at div
+    at RichDocEditor (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-doc/src/RichDocEditor.tsx?t=1792471525545:51:3)
+    at div
+    at div
+    at div
+    at DocEditorPage (http://localhost:5173/src/pages/DocEditorPage.tsx?t=1792470705044:66:10)
+    at div
+    at DocPublicEditorPage (http://localhost:5173/src/pages/DocPublicEditorPage.tsx?t=1792470705044:38:39)
+    at main
+    at div
+    at div
+    at TemplatePickerProvider (http://localhost:5173/src/components/templates/TemplatePickerContext.tsx?t=1792470705044:44:3)
+    at AppShellFrame (http://localhost:5173/src/components/layout/AppLayout.tsx?t=1792470705044:47:33)
+    at DocPublicRoute (http://localhost:5173/src/App.tsx?t=1792470705044:101:30)
+    at RenderedRoute (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4122:5)
+    at Routes (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4592:5)
+    at AppRoutes
+    at Bootstrap (http://localhost:5173/src/App.tsx?t=1792470705044:59:22)
+    at div
+    at Router (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:4535:15)
+    at BrowserRouter (http://localhost:5173/node_modules/.vite/deps/react-router-dom.js?v=c1bccdc8:5273:5)
+    at div
+    at LocaleProvider (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:5632:13)
+    at MotionWrapper (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:7824:32)
+    at ProviderChildren (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:7924:5)
+    at ConfigProvider (http://localhost:5173/node_modules/.vite/deps/antd.js?v=c1bccdc8:8260:27)
+    at SheetAntdProvider (http://localhost:5173/@fs/Users/niejianbo/Desktop/document/git-core/niejianbo/lingyi-doc/packages/lingyi-doc-editor-shared/src/AntdProvider.tsx:20:37)
+    at App @ http://localhost:5173/node_modules/.vite/deps/chunk-TWJKGM7B.js?v=c1bccdc8:520
+[ 6550794ms] [ERROR] Warning: [antd: Space] `direction` is deprecated. Please use `orientation` instead. @ http://localhost:5173/node_modules/.vite/deps/chunk-ZTDYRBMQ.js?v=c1bccdc8:2891
+[ 7310320ms] [ERROR] Failed to load resource: the server responded with a status of 401 (Unauthorized) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[ 9110365ms] [ERROR] Failed to load resource: the server responded with a status of 401 (Unauthorized) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[10910341ms] [ERROR] Failed to load resource: the server responded with a status of 401 (Unauthorized) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[11690292ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[11750255ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[11810255ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[11870263ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[11930255ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[11990219ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[12050200ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[12110198ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[12170204ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[12230202ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[12290223ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[12350201ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[12410203ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[12470203ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[12530194ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[12590200ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[12650202ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[12710274ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[12770289ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[12830203ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[12890222ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[12950206ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[13010209ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[13070205ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[13130217ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[13190233ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[13250213ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[13310213ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[13370208ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[13430202ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[13490214ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[13550285ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[13610201ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[13670208ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[13730221ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[13790217ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[13850208ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[13910201ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[13970200ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[14030288ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[14090197ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[14150200ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[14210204ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[14270276ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[14330201ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[14390190ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[14450249ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[14510254ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[14570194ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[14630214ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[14690172ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[14750181ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[14810173ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[14870167ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[14930259ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[14990217ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[15050230ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[15110190ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[15170168ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[15230169ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[15290189ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[15350163ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[15410175ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[15470187ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[15530164ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[15590239ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[15650156ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[15710193ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[15770258ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[15830270ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[15890226ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[15950168ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[16010176ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[16070162ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[16130154ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[16190154ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[16250178ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[16310164ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[16370231ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[16430170ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[16490211ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[16550148ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[16610175ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[16670152ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[16730152ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[16790145ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[16850515ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[16910413ms] [ERROR] Failed to load resource: the server responded with a status of 401 (Unauthorized) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[18710309ms] [ERROR] Failed to load resource: the server responded with a status of 401 (Unauthorized) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[20510328ms] [ERROR] Failed to load resource: the server responded with a status of 401 (Unauthorized) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[22310408ms] [ERROR] Failed to load resource: the server responded with a status of 401 (Unauthorized) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[24170429ms] [ERROR] Failed to load resource: the server responded with a status of 401 (Unauthorized) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[25970488ms] [ERROR] Failed to load resource: the server responded with a status of 401 (Unauthorized) @ http://localhost:5173/api/v1/c/tenants/invitations:0
+[27770376ms] [ERROR] Failed to load resource: the server responded with a status of 401 (Unauthorized) @ http://localhost:5173/api/v1/c/tenants/invitations:0

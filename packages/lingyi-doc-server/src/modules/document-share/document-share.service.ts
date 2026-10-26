@@ -6,6 +6,8 @@ import { DocumentShareRepository } from '../../repositories/document-share.repos
 import { DocumentCommentService } from '../document-comment/document-comment.service';
 import { DocumentRepository } from '../../repositories/document.repository';
 import { TenantMemberRepository } from '../../repositories/tenant-member.repository';
+import { TenantRepository } from '../../repositories/tenant.repository';
+import { TenantSecurityPolicyRepository, type TenantSecurityPolicy } from '../../repositories/tenant-security-policy.repository';
 import { UserRepository } from '../../repositories/user.repository';
 import type { DocShareEntity } from '../../database/entities/document-share.entity';
 import type {
@@ -122,10 +124,68 @@ export class DocumentShareService {
     private readonly storageService: StorageService,
     private readonly commentService: DocumentCommentService,
     private readonly ossService: OssService,
+    private readonly securityPolicyRepository: TenantSecurityPolicyRepository,
+    private readonly tenantRepository: TenantRepository,
   ) {}
 
   private ctx(auth: AuthUser): DocumentAccessContext {
     return documentAccessFromAuth(auth);
+  }
+
+  /**
+   * 解析文档生效的外发安全策略（P0-2）。
+   *
+   * 租户归属顺序：文档 tenant_id → 会话 currentTenantId → 当前用户的工作区租户。
+   * 最后一条兜底是为了让**个人文档**在私有化实例上同样受策略约束 ——
+   * 私有化只有唯一租户，若个人文档直接跳过策略，等保三级的外发管控就形同虚设。
+   */
+  private async resolveSecurityPolicy(
+    auth: AuthUser,
+    docTenantId: string | null,
+  ): Promise<TenantSecurityPolicy | null> {
+    let tenantId = docTenantId ?? auth.currentTenantId ?? null;
+    if (!tenantId) {
+      const tenants = await this.tenantRepository.listForUser(auth.userId);
+      tenantId = tenants[0]?.id ?? null;
+    }
+    if (!tenantId) return null;
+    return this.securityPolicyRepository.get(tenantId);
+  }
+
+  /**
+   * 外链分享的准入校验与配置钳制。
+   * 返回钳制后的配置；违反「硬开关」时直接抛业务异常（用户无法绕过）。
+   */
+  private applySharePolicy(
+    policy: TenantSecurityPolicy | null,
+    input: {
+      allowDownload: boolean;
+      allowCopy: boolean;
+      allowPrint: boolean;
+      allowReshare: boolean;
+      watermarkEnabled: boolean;
+      expireTime: Date | null;
+      hasPassword: boolean;
+    },
+  ) {
+    if (!policy) {
+      return { ...input, clamped: [] as string[] };
+    }
+    if (!policy.linkShareEnabled) {
+      throw new BusinessException(110007, '外链分享已被管理员禁用，请联系企业管理员', HttpStatus.FORBIDDEN);
+    }
+    if (policy.requirePassword && !input.hasPassword) {
+      throw new BusinessException(110008, '管理员要求外链必须设置访问口令，请先设置口令后再开启分享');
+    }
+    const clampedResult = this.securityPolicyRepository.clampShareSettings(policy, {
+      allowDownload: input.allowDownload,
+      allowCopy: input.allowCopy,
+      allowPrint: input.allowPrint,
+      allowReshare: input.allowReshare,
+      watermarkEnabled: input.watermarkEnabled,
+      expireTime: input.expireTime,
+    });
+    return { ...clampedResult, hasPassword: input.hasPassword };
   }
 
   private async buildPathContext(docId: string) {
@@ -202,7 +262,7 @@ export class DocumentShareService {
     },
     operatorIp?: string | null,
   ): Promise<DocShareConfigDto> {
-    await this.requireManageableDoc(auth, docId);
+    const doc = await this.requireManageableDoc(auth, docId);
     const permissionLevel = assertPermissionLevel(input.permissionLevel);
 
     const existing = await this.shareRepository.findByDocId(docId);
@@ -220,18 +280,30 @@ export class DocumentShareService {
       throw new BusinessException(100002, '无效的过期时间');
     }
 
-    const saved = await this.shareRepository.upsertShare({
-      docId,
-      shareType: 'link',
-      shareToken,
-      permissionLevel,
-      expireTime,
-      passwordHash,
+    // P0-2：租户级外发策略作为上限/下限钳制单文档配置，用户不可绕过
+    const policy = await this.resolveSecurityPolicy(auth, doc.tenantId ?? null);
+    const clamped = this.applySharePolicy(policy, {
       allowDownload: input.allowDownload ?? true,
       allowPrint: input.allowPrint ?? true,
       allowCopy: input.allowCopy ?? true,
       allowReshare: input.allowReshare ?? false,
       watermarkEnabled: input.watermarkEnabled ?? false,
+      expireTime,
+      hasPassword: !!passwordHash,
+    });
+
+    const saved = await this.shareRepository.upsertShare({
+      docId,
+      shareType: 'link',
+      shareToken,
+      permissionLevel,
+      expireTime: clamped.expireTime,
+      passwordHash,
+      allowDownload: clamped.allowDownload,
+      allowPrint: clamped.allowPrint,
+      allowCopy: clamped.allowCopy,
+      allowReshare: clamped.allowReshare,
+      watermarkEnabled: clamped.watermarkEnabled,
       operatorId: auth.userId,
     });
 
@@ -249,6 +321,8 @@ export class DocumentShareService {
         permissionLevel: saved.permissionLevel,
         expireTime: toIso(saved.expireTime),
         status: saved.status,
+        // 记录被全局策略改写的字段，便于管理员解释「为什么我设了却没用」
+        policyClamped: clamped.clamped.length ? clamped.clamped : undefined,
       },
     });
 
@@ -448,7 +522,7 @@ export class DocumentShareService {
         .map(u => ({
           userId: u.id,
           displayName: u.display_name,
-          email: u.email,
+          email: u.email ?? '',
           phone: u.phone ?? null,
         })),
     };

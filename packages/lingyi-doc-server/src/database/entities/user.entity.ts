@@ -5,11 +5,13 @@ export class UserEntity {
   @PrimaryColumn({ type: 'char', length: 36 })
   id!: string;
 
-  @Column({ type: 'varchar', length: 255 })
-  email!: string;
+  /** 本地注册用户必填；第三方扫码注册用户可能为空 */
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  email!: string | null;
 
-  @Column({ name: 'password_hash', type: 'varchar', length: 255 })
-  passwordHash!: string;
+  /** 本地/初始密码哈希；纯第三方登录用户可能为空 */
+  @Column({ name: 'password_hash', type: 'varchar', length: 255, nullable: true })
+  passwordHash!: string | null;
 
   @Column({ name: 'display_name', type: 'varchar', length: 100 })
   displayName!: string;
@@ -46,6 +48,13 @@ export class UserEntity {
 
   @Column({ name: 'oauth_union_id', type: 'varchar', length: 128, nullable: true })
   oauthUnionId!: string | null;
+
+  /** 渠道来源：dingtalk | feishu | manual | null(本地注册) */
+  @Column({ name: 'imported_from', type: 'varchar', length: 20, nullable: true })
+  importedFrom!: string | null;
+
+  @Column({ name: 'last_oauth_login_at', type: 'timestamp', nullable: true })
+  lastOauthLoginAt!: Date | null;
 
   @Column({ name: 'ldap_uuid', type: 'varchar', length: 128, nullable: true })
   ldapUuid!: string | null;

@@ -40,7 +40,8 @@ export type WorkflowNodeType =
   | 'notify.dingtalk_bot'
   | 'notify.dingtalk_message'
   | 'notify.dingtalk_email'
-  | 'notify.feishu_message';
+  | 'notify.feishu_message'
+  | 'approval.human';
 
 // ==================== 工作流图元 ====================
 
@@ -98,7 +99,7 @@ export type WorkflowTriggerFilter = ConditionGroup;
 
 export interface NodeExecution {
   nodeId: string;
-  status: 'pending' | 'running' | 'completed' | 'failed' | 'skipped';
+  status: 'pending' | 'running' | 'waiting' | 'completed' | 'failed' | 'skipped';
   input: Record<string, unknown>;
   output?: Record<string, unknown>;
   branchOutput?: string;
@@ -133,11 +134,13 @@ export interface WorkflowData {
 export interface WorkflowInstance {
   id: string;
   workflowId: string;
-  status: 'running' | 'completed' | 'failed' | 'paused';
+  status: 'running' | 'completed' | 'failed' | 'paused' | 'waiting';
   error?: string | null;
   variables: Record<string, unknown>;
   history: NodeExecution[];
   currentNodeId?: string | null;
+  waitToken?: string | null;
+  waitNodeId?: string | null;
   createdAt: string;
   updatedAt: string;
 }

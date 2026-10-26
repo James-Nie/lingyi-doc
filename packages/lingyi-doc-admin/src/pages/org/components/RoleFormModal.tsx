@@ -46,7 +46,7 @@ export const RoleFormModal: React.FC<RoleFormModalProps> = ({
       confirmLoading={loading}
       onCancel={onCancel}
       onOk={() => form.validateFields().then(onSubmit)}
-      destroyOnClose
+      destroyOnHidden
       width={520}
     >
       <Form form={form} layout="vertical">

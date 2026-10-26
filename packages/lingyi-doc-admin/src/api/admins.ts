@@ -15,6 +15,8 @@ export interface SystemRole {
   code: string;
   name: string;
   description: string | null;
+  /** 是否系统预置角色（系统角色不可改权限点、不可删除） */
+  isSystem?: boolean;
 }
 
 export async function listAdmins(
@@ -45,7 +47,10 @@ export async function removeAdmin(userId: string): Promise<void> {
 }
 
 export async function listSystemRoles(): Promise<SystemRole[]> {
-  return adminFetch('/api/v1/admin/roles');
+  // GET /api/v1/admin/roles 自 P0-3 起返回 { items, total }（含权限点与引用情况），
+  // 此处兼容旧的分页包裹写法，避免调用方（管理员管理页的角色下拉）被破坏
+  const res = await adminFetch<{ items: SystemRole[] } | SystemRole[]>('/api/v1/admin/roles');
+  return Array.isArray(res) ? res : (res.items ?? []);
 }
 
 export async function searchUsers(

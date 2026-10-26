@@ -8,6 +8,7 @@ import { FormulaDropdown } from './FormulaDropdown';
 import { ToolbarTooltip, modShortcut, redoShortcut } from './Tooltip';
 import { ColumnFilterDropdown } from './ColumnFilterDropdown';
 import { FreezeDropdown } from './FreezeDropdown';
+import { ConditionalFormatDropdown } from './ConditionalFormatDropdown';
 import { InsertDropdown } from './InsertDropdown';
 import { SheetFindReplacePanel } from './SheetFindReplacePanel';
 import type { FreeTable } from '@lingyi-doc/core-sheet';
@@ -431,6 +432,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
 
   const [, setFilterTick] = useState(0);
   const [freezeMenuOpen, setFreezeMenuOpen] = useState(false);
+  const [condFmtMenuOpen, setCondFmtMenuOpen] = useState(false);
   useEffect(() => table.onChange(() => setFilterTick(v => v + 1)), [table]);
 
   // 表格数据变更时：仅在已有查找结果时刷新高亮
@@ -975,7 +977,20 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         )}
       />
       <ToolbarLabeledBtn showChevron label="排序" disabled icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M8 6h12M8 12h8M8 18h4" /><path d="M4 6v12M4 6l-2 2M4 18l-2-2" /></svg>} onClick={stub('排序')} />
-      <ToolbarLabeledBtn showChevron label="条件格式" icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="3" y="3" width="8" height="8" fill="#4caf50" stroke="none" /><rect x="13" y="3" width="8" height="8" fill="#ff9800" stroke="none" /><rect x="3" y="13" width="8" height="8" fill="#2196f3" stroke="none" /><rect x="13" y="13" width="8" height="8" fill="#e91e63" stroke="none" /></svg>} onClick={stub('条件格式')} />
+      <ConditionalFormatDropdown
+        table={table}
+        open={condFmtMenuOpen}
+        onOpenChange={setCondFmtMenuOpen}
+        trigger={(
+          <ToolbarLabeledBtn
+            showChevron
+            label="条件格式"
+            active={condFmtMenuOpen}
+            icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="3" y="3" width="8" height="8" fill="#4caf50" stroke="none" /><rect x="13" y="3" width="8" height="8" fill="#ff9800" stroke="none" /><rect x="3" y="13" width="8" height="8" fill="#2196f3" stroke="none" /><rect x="13" y="13" width="8" height="8" fill="#e91e63" stroke="none" /></svg>}
+            onClick={() => setCondFmtMenuOpen(v => !v)}
+          />
+        )}
+      />
       <ToolbarLabeledBtn showChevron label="下拉列表" icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="4" y="6" width="16" height="12" rx="1" /><path d="M8 10h8M8 14h5" /></svg>} onClick={stub('下拉列表')} />
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
         <ToolbarTooltip label="公式">

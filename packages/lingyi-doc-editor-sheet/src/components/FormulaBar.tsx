@@ -1,5 +1,6 @@
 import React from 'react';
 import { useSheetStore } from '../store/sheetStore';
+import { getFormulaBarCommit } from './sheet/shared/formulaBarCommitRef';
 
 export const FormulaBar: React.FC = () => {
   const formulaBarText = useSheetStore(s => s.formulaBarText);
@@ -12,6 +13,18 @@ export const FormulaBar: React.FC = () => {
   const cellLabel = activeCell
     ? `${String.fromCharCode(65 + activeCell.col)}${activeCell.row + 1}`
     : '';
+
+  const handleCommit = (commitType: 'enter' | 'tab') => {
+    if (!activeCell) return;
+    const commitFn = getFormulaBarCommit();
+    if (commitFn) {
+      commitFn(activeCell, formulaBarText, commitType);
+    } else if (!editingCell) {
+      // fallback: 没有 commitFn 时打开 CellEditor
+      markKeyboardEditOpened();
+      setEditingCell(activeCell);
+    }
+  };
 
   return (
     <div
@@ -44,14 +57,25 @@ export const FormulaBar: React.FC = () => {
         value={formulaBarText}
         onChange={e => setFormulaBarText(e.target.value)}
         onKeyDown={e => {
-          if (e.key !== 'Enter') return;
-          e.preventDefault();
-          if (activeCell && !editingCell) {
-            markKeyboardEditOpened();
-            setEditingCell(activeCell);
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            handleCommit('enter');
+            (e.target as HTMLInputElement).blur();
             return;
           }
-          (e.target as HTMLInputElement).blur();
+          if (e.key === 'Tab') {
+            e.preventDefault();
+            handleCommit('tab');
+            (e.target as HTMLInputElement).blur();
+            return;
+          }
+          if (e.key === 'Escape') {
+            e.preventDefault();
+            setFormulaBarText('');
+            if (editingCell) setEditingCell(null);
+            (e.target as HTMLInputElement).blur();
+            return;
+          }
         }}
         style={{
           flex: 1,

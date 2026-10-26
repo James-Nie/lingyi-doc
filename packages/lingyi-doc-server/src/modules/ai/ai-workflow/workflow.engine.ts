@@ -1,57 +1,51 @@
 /**
- * 多维表工作流执行引擎（重写）
+ * 多维表工作流执行引擎（开放架构版）
  *
  * 关键能力：
- * 1. 节点执行器注册表（NodeExecutorRegistry）按 type 分发
- * 2. 条件分支：edges[*].branch 决定下一节点（condition.if → 'true' | 'false'）
- * 3. 多入口 trigger：trigger.record_added 等节点从 variables.record 取上下文
- * 4. 历史记录：每个节点的执行写回 instance.history（含 branchOutput）
- * 5. 异常隔离：单节点失败即终止实例，错误信息持久化
+ * 1. 插件化节点：通过 WorkflowNodeRegistryService 按 nodes[*].type 查表执行，
+ *    不再在引擎内硬编码注册（新增节点 = 新增 provider）。
+ * 2. 条件分支：edges[*].branch 决定下一节点（condition.if → 'true'/'false'；switch → branch:<id>）
+ * 3. 同步/异步生命周期：async 节点返回 status='waiting'，实例挂起为 waiting；
+ *    经 resume() 结果回调，从等待节点的下一节点续跑。
+ * 4. 节点超时与重试：依据 WorkflowNodeDefinition.timeoutMs / retries。
+ * 5. 历史记录：每个节点的执行写回 instance.history（含 branchOutput）。
+ * 6. 异常隔离：单节点失败即终止实例，错误信息持久化。
  */
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
+import { ConfigService } from '@nestjs/config';
 import { AIWorkflowEntity } from '../entities/ai-workflow.entity';
 import { AIWorkflowInstanceEntity } from '../entities/ai-workflow-instance.entity';
 import type { NodeExecution, WorkflowEdge, WorkflowNode } from '../entities/ai.types';
-import { AgentService } from '../ai-agent/agent.service';
 import type { AuthUser } from '../../../auth/decorators/current-user.decorator';
-import { NodeExecutorRegistry } from './node-registry';
-import type { NodeExecContext } from './node-registry';
-import {
-  AiAgentExecutor,
-  AiAnalyzeExecutor,
-  AiClassifyExecutor,
-  AiGenerateTextExecutor,
-  ConditionIfExecutor,
-  ConditionLegacyExecutor,
-  ConditionSwitchExecutor,
-  EndExecutor,
-  LoopEachRecordExecutor,
-  NotifyDingTalkBotExecutor,
-  NotifyDingTalkEmailExecutor,
-  NotifyDingTalkMessageExecutor,
-  NotifyFeishuMessageExecutor,
-  RecordCreateExecutor,
-  RecordFindExecutor,
-  RecordUpdateExecutor,
-  StartLegacyExecutor,
-  TriggerButtonClickedExecutor,
-  TriggerCommentReceivedExecutor,
-  TriggerFormSubmittedExecutor,
-  TriggerManualExecutor,
-  TriggerRecordAddedExecutor,
-  TriggerRecordDatetimeExecutor,
-  TriggerRecordDeletedExecutor,
-  TriggerRecordMatchExecutor,
-  TriggerRecordUpdatedExecutor,
-  TriggerScheduledExecutor,
-  TriggerTodoCompletedExecutor,
-  TriggerWebhookExecutor,
-} from './node-executors';
+import { WorkflowNodeRegistryService } from './workflow-node-registry.service';
+import type { NodeExecContext, NodeExecResult } from './node-registry';
 import { matchTriggerFilter } from './node-registry';
 import { InjectDataSource } from '@nestjs/typeorm';
+import { AIWorkflowRunStepEntity } from '../../../database/entities/ai-workflow-run-step.entity';
+
+export interface DispatchPayload {
+  action: 'added' | 'updated' | 'deleted';
+  docId: string;
+  tableId: string;
+  record: Record<string, unknown>;
+  changedFields?: string[];
+  userId: string;
+  tenantId?: string;
+  /** 'workflow:<instanceId>'：来自工作流自写，跳过触发，防止自循环 */
+  source?: string;
+}
+
+/** 执行所需的流程图（可来自活定义或冻结快照） */
+interface WorkflowGraph {
+  workflowId: string;
+  docId?: string | null;
+  tableId?: string | null;
+  nodes: WorkflowNode[];
+  edges: WorkflowEdge[];
+}
 
 interface CellJson {
   type?: string;
@@ -72,97 +66,70 @@ function cellToPlainValue(value: unknown): unknown {
   if (typeof value !== 'object') return value;
   const v = value as CellJson;
   switch (v.type) {
-    case 'empty':
-      return '';
-    case 'text':
-      return v.text ?? '';
+    case 'empty': return '';
+    case 'text': return v.text ?? '';
     case 'number':
-    case 'boolean':
-      return v.value;
-    case 'date':
-      return v.timestamp;
-    case 'formula':
-      return v.cached ? cellToPlainValue(v.cached) : '#CALC!';
-    case 'error':
-      return v.error ?? '';
-    case 'richtext':
-      return (v.segments ?? []).map((s) => s.text ?? '').join('');
-    case 'link':
-      return v.text || v.url || '';
-    case 'image':
-      return (v.images ?? []).length > 0 ? `[${(v.images ?? []).length}张图片]` : '';
-    default:
-      return String(value);
+    case 'boolean': return v.value;
+    case 'date': return v.timestamp;
+    case 'formula': return v.cached ? cellToPlainValue(v.cached) : '#CALC!';
+    case 'error': return v.error ?? '';
+    case 'richtext': return (v.segments ?? []).map((s) => s.text ?? '').join('');
+    case 'link': return v.text || v.url || '';
+    case 'image': return (v.images ?? []).length > 0 ? `[${(v.images ?? []).length}张图片]` : '';
+    default: return String(value);
   }
 }
 
 @Injectable()
 export class WorkflowEngine {
   private readonly logger = new Logger(WorkflowEngine.name);
-  readonly registry: NodeExecutorRegistry;
 
   constructor(
-    private readonly agentService: AgentService,
+    private readonly nodeRegistry: WorkflowNodeRegistryService,
+    private readonly config: ConfigService,
     @InjectRepository(AIWorkflowInstanceEntity)
     private readonly instanceRepo: Repository<AIWorkflowInstanceEntity>,
+    @InjectRepository(AIWorkflowRunStepEntity)
+    private readonly stepRepo: Repository<AIWorkflowRunStepEntity>,
     @InjectDataSource()
     private readonly dataSource: DataSource,
-  ) {
-    this.registry = new NodeExecutorRegistry();
-    // 注册内置执行器
-    this.registry.register(new StartLegacyExecutor());
-    this.registry.register(new EndExecutor());
-    this.registry.register(new ConditionLegacyExecutor());
-    this.registry.register(new ConditionIfExecutor());
-    this.registry.register(new ConditionSwitchExecutor());
-    this.registry.register(new LoopEachRecordExecutor());
-    this.registry.register(new AiAnalyzeExecutor());
-    this.registry.register(new AiClassifyExecutor());
-    this.registry.register(new AiGenerateTextExecutor());
-    this.registry.register(new AiAgentExecutor());
-    this.registry.register(new RecordCreateExecutor());
-    this.registry.register(new RecordUpdateExecutor());
-    this.registry.register(new RecordFindExecutor());
-    this.registry.register(new NotifyDingTalkBotExecutor());
-    this.registry.register(new NotifyDingTalkMessageExecutor());
-    this.registry.register(new NotifyDingTalkEmailExecutor());
-    this.registry.register(new NotifyFeishuMessageExecutor());
-    this.registry.register(new TriggerRecordAddedExecutor());
-    this.registry.register(new TriggerRecordUpdatedExecutor());
-    this.registry.register(new TriggerRecordMatchExecutor());
-    this.registry.register(new TriggerRecordDeletedExecutor());
-    this.registry.register(new TriggerRecordDatetimeExecutor());
-    this.registry.register(new TriggerButtonClickedExecutor());
-    this.registry.register(new TriggerFormSubmittedExecutor());
-    this.registry.register(new TriggerTodoCompletedExecutor());
-    this.registry.register(new TriggerCommentReceivedExecutor());
-    this.registry.register(new TriggerScheduledExecutor());
-    this.registry.register(new TriggerWebhookExecutor());
-    this.registry.register(new TriggerManualExecutor());
-  }
+  ) {}
 
   /**
-   * 同步执行（用于 manual 触发 / API 触发的请求-响应场景）
-   * 返回最终 instance
+   * 同步执行（手动触发 / API 触发的请求-响应场景；async 节点会挂起为 waiting）
    */
   async runSync(
     workflow: AIWorkflowEntity,
     initialVariables: Record<string, unknown>,
     user: AuthUser,
   ): Promise<AIWorkflowInstanceEntity> {
-    const startNode = this.getStartNode(workflow);
+    const startNode = this.getStartNode(graphOf(workflow));
+    const record = (initialVariables.record ?? null) as Record<string, unknown> | null;
     const instance = await this.instanceRepo.save({
       id: uuidv4(),
       workflowId: workflow.id,
+      docId: workflow.docId ?? null,
+      tableId: workflow.tableId ?? null,
+      recordId: (typeof record?._id === 'string' && record._id) ? record._id : null,
+      triggerType: workflow.triggerType ?? null,
+      definitionSnapshot: {
+        version: workflow.version,
+        nodes: workflow.nodes ?? [],
+        edges: workflow.edges ?? [],
+        variables: workflow.variables ?? [],
+      },
       variables: initialVariables,
       currentNodeId: startNode.id,
       history: [],
       status: 'running',
       error: null,
+      waitToken: null,
+      waitNodeId: null,
+      waitExpiresAt: null,
     });
 
     try {
-      await this.runWorkflow(instance, workflow, user);
+      await this.runWorkflow(instance, graphOf(workflow), user);
     } catch (error) {
       this.logger.error(`Workflow ${instance.id} failed: ${(error as Error).message}`);
     }
@@ -170,7 +137,7 @@ export class WorkflowEngine {
   }
 
   /**
-   * 异步执行（用于触发器订阅场景，fire-and-forget）
+   * 异步执行（触发器场景，fire-and-forget）
    */
   runAsync(
     workflow: AIWorkflowEntity,
@@ -181,37 +148,118 @@ export class WorkflowEngine {
   }
 
   /**
+   * 结果回调：把挂起(waiting)的实例从等待节点的下一节点续跑。
+   * 使用发布时刻冻结的 definitionSnapshot（P0），避免续跑时读到已被改动的活定义。
+   * result.branchOutput 可指定走哪个分支（默认 'default'）；result.payload 合并进 variables(以 lastResult 承载)。
+   */
+  async resume(
+    instanceId: string,
+    waitToken: string,
+    result: { payload?: Record<string, unknown>; branchOutput?: string },
+    user: AuthUser,
+  ): Promise<AIWorkflowInstanceEntity | null> {
+    const instance = await this.instanceRepo.findOne({ where: { id: instanceId } });
+    if (!instance) return null;
+    if (instance.status !== 'waiting') return null;
+    if (!instance.waitToken || instance.waitToken !== waitToken) {
+      throw new Error('无效的 waitToken');
+    }
+    if (instance.waitExpiresAt && new Date(instance.waitExpiresAt).getTime() < Date.now()) {
+      instance.status = 'failed';
+      instance.error = '等待超时';
+      instance.waitToken = null;
+      await this.instanceRepo.save(instance);
+      return instance;
+    }
+
+    // P0：以冻结快照为续跑的流程定义来源；旧实例（无快照）回退读活定义
+    const snapshot = instance.definitionSnapshot;
+    let graph: WorkflowGraph | null = null;
+    if (snapshot) {
+      graph = {
+        workflowId: instance.workflowId,
+        docId: instance.docId,
+        tableId: instance.tableId,
+        nodes: snapshot.nodes ?? [],
+        edges: snapshot.edges ?? [],
+      };
+    } else {
+      const workflow = await this.dataSource
+        .getRepository(AIWorkflowEntity)
+        .findOne({ where: { id: instance.workflowId } });
+      if (workflow) graph = graphOf(workflow);
+    }
+    if (!graph) {
+      instance.status = 'failed';
+      instance.error = '工作流定义不存在';
+      await this.instanceRepo.save(instance);
+      return instance;
+    }
+
+    const waitNodeId = instance.waitNodeId;
+    const nowIso = new Date().toISOString();
+    // 等待节点补记一条 completed（明细落 ai_workflow_run_step 子表）
+    const waitStep: NodeExecution = {
+      nodeId: waitNodeId ?? '',
+      status: 'completed',
+      input: { ...(instance.variables ?? {}) },
+      output: { result: result.payload ?? {} },
+      branchOutput: result.branchOutput ?? 'default',
+      startedAt: nowIso,
+      completedAt: nowIso,
+    };
+    await this.appendStep(instance.id, waitStep);
+    instance.variables = { ...(instance.variables ?? {}), lastResult: result.payload ?? {} };
+    instance.status = 'running';
+    instance.waitToken = null;
+    instance.waitNodeId = null;
+    instance.waitExpiresAt = null;
+
+    const branch = result.branchOutput ?? 'default';
+    const edge = waitNodeId ? this.pickNextEdge(graph, waitNodeId, branch) : undefined;
+    instance.currentNodeId = edge?.targetNodeId ?? null;
+    await this.instanceRepo.save(instance);
+
+    if (!instance.currentNodeId) {
+      instance.status = 'completed';
+      await this.instanceRepo.save(instance);
+      return instance;
+    }
+
+    try {
+      await this.runWorkflow(instance, graph, user);
+    } catch (error) {
+      this.logger.error(`Workflow resume ${instance.id} failed: ${(error as Error).message}`);
+    }
+    return this.reload(instance.id);
+  }
+
+  /**
    * 由触发器调用：把 record.changed 事件匹配 + 派发到所有匹配的工作流
    */
-  async dispatchRecordChange(payload: {
-    action: 'added' | 'updated' | 'deleted';
-    docId: string;
-    tableId: string;
-    record: Record<string, unknown>;
-    changedFields?: string[];
-    userId: string;
-    tenantId?: string;
-  }): Promise<AIWorkflowInstanceEntity[]> {
+  async dispatchRecordChange(payload: DispatchPayload): Promise<AIWorkflowInstanceEntity[]> {
+    // 来自工作流自身的变更，跳过触发（防止 record.* 自循环）
+    if (payload.source?.startsWith('workflow:')) return [];
+
+    // 匹配的触发器类型（分 table / doc 两级作用域，统一一次查询）
+    const triggerTypes = ['record_added', 'record_updated', 'record_match', 'record_deleted'];
+
     const repo = this.dataSource.getRepository(AIWorkflowEntity);
-    // 按 docId 或 tableId 兜底获取候选；trigger 节点「选择数据表」可能覆盖工作流级 tableId
-    const workflows = await repo.find({
-      where: [
-        { tableId: payload.tableId, status: 'published', triggerType: 'record_added' as string },
-        { tableId: payload.tableId, status: 'published', triggerType: 'record_updated' as string },
-        { tableId: payload.tableId, status: 'published', triggerType: 'record_match' as string },
-        { tableId: payload.tableId, status: 'published', triggerType: 'record_deleted' as string },
-        { docId: payload.docId, status: 'published', triggerType: 'record_added' as string },
-        { docId: payload.docId, status: 'published', triggerType: 'record_updated' as string },
-        { docId: payload.docId, status: 'published', triggerType: 'record_match' as string },
-        { docId: payload.docId, status: 'published', triggerType: 'record_deleted' as string },
-      ],
-    });
+    // P1：单一查询，避免 8 个 OR 分支无法命中 (table_id, status, trigger_type) 复合索引
+    const workflows = await repo
+      .createQueryBuilder('w')
+      .where('w.status = :status', { status: 'published' })
+      .andWhere('w.trigger_type = ANY(:triggerTypes)', {
+        triggerTypes,
+      })
+      .andWhere('(w.doc_id = :docId OR w.table_id = :tableId)', {
+        docId: payload.docId,
+        tableId: payload.tableId,
+      })
+      .getMany();
     const matched: AIWorkflowInstanceEntity[] = [];
     for (const w of workflows) {
-      // trigger 节点「选择数据表」可能覆盖工作流级 tableId
-      const triggerNode = (w.nodes ?? []).find(
-        (n) => n.type?.startsWith('trigger.'),
-      );
+      const triggerNode = (w.nodes ?? []).find((n) => n.type?.startsWith('trigger.'));
       const triggerTableId =
         typeof triggerNode?.config?.tableId === 'string' && triggerNode.config.tableId
           ? triggerNode.config.tableId
@@ -220,7 +268,6 @@ export class WorkflowEngine {
       if (payload.action === 'added' && w.triggerType !== 'record_added' && w.triggerType !== 'record_match') continue;
       if (payload.action === 'updated' && w.triggerType !== 'record_updated' && w.triggerType !== 'record_match') continue;
       if (payload.action === 'deleted' && w.triggerType !== 'record_deleted') continue;
-      // 监听指定字段：仅当本次被修改字段与监听字段有交集时触发
       if (payload.action === 'updated') {
         const watchFields = Array.isArray(triggerNode?.config?.watchFields)
           ? (triggerNode.config.watchFields as string[])
@@ -230,8 +277,6 @@ export class WorkflowEngine {
           if (changed.length === 0) continue;
         }
       }
-      // 筛选条件匹配前，从 content_json 重读记录全量字段，
-      // 避免只改字段 A 而 filter 条件在字段 B 时误判不触发
       let matchRecord = payload.record;
       if (payload.action === 'updated') {
         const full = await this.loadFullRecord(payload.docId, payload.tableId, String(payload.record._id ?? ''));
@@ -251,8 +296,7 @@ export class WorkflowEngine {
   }
 
   /**
-   * 从 content_json 读取记录的完整字段（含未被本次变更的字段），
-   * 用于 filter 匹配时不再只依赖 changedFields。
+   * 从 content_json 读取记录的完整字段（用于 filter 匹配时避免只依赖 changedFields）
    */
   async loadFullRecord(
     docId: string,
@@ -284,15 +328,13 @@ export class WorkflowEngine {
       const cells = (sheetData.cells ?? {}) as Record<string, unknown>;
 
       const record: Record<string, unknown> = { _id: recordId };
-      for (let ci = 0; ci < columnDefs.length; ci++) {
+      for (let ci = 0; ci < columnDefs.length; ci += 1) {
         const col = columnDefs[ci];
         const cellEntry = cells[`R${rowIdx}C${ci}`] as { value?: unknown } | undefined;
-        const cellValue = cellEntry?.value;
-        const plain = cellToPlainValue(cellValue);
-        record[col.id] = plain;
-        record[col.name] = plain;
+        const plain = cellToPlainValue(cellEntry?.value);
+        if (col.id) record[col.id] = plain;
+        if (col.name) record[col.name] = plain;
       }
-
       return record;
     } catch (err) {
       this.logger.warn(`loadFullRecord failed: ${(err as Error).message}`);
@@ -306,8 +348,28 @@ export class WorkflowEngine {
     return inst;
   }
 
-  private getStartNode(workflow: AIWorkflowEntity): WorkflowNode {
-    const triggerLike = workflow.nodes.find(
+  /** 明细日志写入子表；stepRepo 自增 seq */
+  private async appendStep(instanceId: string, execution: NodeExecution): Promise<void> {
+    const seq = await this.stepRepo.count({ where: { instanceId } });
+    await this.stepRepo.save({
+      id: uuidv4(),
+      instanceId,
+      seq: seq + 1,
+      nodeId: execution.nodeId,
+      nodeType: null,
+      status: execution.status,
+      branchOutput: execution.branchOutput ?? null,
+      input: execution.input ?? {},
+      output: execution.output ?? null,
+      error: execution.error ?? null,
+      startedAt: execution.startedAt,
+      completedAt: execution.completedAt ?? null,
+      duration: execution.duration ?? null,
+    });
+  }
+
+  private getStartNode(graph: WorkflowGraph): WorkflowNode {
+    const triggerLike = graph.nodes.find(
       (n) => n.type?.startsWith('trigger.') || n.type === 'start',
     );
     if (!triggerLike) throw new Error('Workflow has no trigger/start node');
@@ -316,34 +378,45 @@ export class WorkflowEngine {
 
   private async runWorkflow(
     instance: AIWorkflowInstanceEntity,
-    workflow: AIWorkflowEntity,
+    graph: WorkflowGraph,
     user: AuthUser,
   ): Promise<void> {
     let currentNodeId: string | null = instance.currentNodeId;
     const variables: Record<string, unknown> = { ...(instance.variables ?? {}) };
-    // 给执行节点提供的触发记录（trigger 节点把 record 写入 variables.record）
     const record = variables.record as Record<string, unknown> | undefined;
 
     while (currentNodeId) {
-      const node = workflow.nodes.find((n) => n.id === currentNodeId);
+      const node = graph.nodes.find((n) => n.id === currentNodeId);
       if (!node) {
         await this.failInstance(instance, `Node not found: ${currentNodeId}`);
         return;
       }
 
       const execution = await this.executeNode(node, variables, user, {
-        workflowId: workflow.id,
-        docId: workflow.docId ?? undefined,
-        tableId: workflow.tableId ?? undefined,
+        workflowId: graph.workflowId,
+        docId: graph.docId ?? undefined,
+        tableId: graph.tableId ?? undefined,
         record,
       });
-      instance.history = [...(instance.history ?? []), execution];
+      await this.appendStep(instance.id, execution);
       instance.variables = variables;
       instance.currentNodeId = node.id;
 
       if (execution.status === 'failed') {
         instance.status = 'failed';
         instance.error = execution.error ?? 'Unknown error';
+        await this.instanceRepo.save(instance);
+        return;
+      }
+
+      // async 节点：挂起等待结果回调
+      if (execution.status === 'waiting') {
+        const waitInfo = (execution.output as { wait?: { token?: string; reason?: string } } | undefined)?.wait;
+        const waitTimeoutMs = this.config.get<number>('workflow.waitTimeoutMs') ?? 24 * 60 * 60_000;
+        instance.status = 'waiting';
+        instance.waitToken = waitInfo?.token ?? null;
+        instance.waitNodeId = node.id;
+        instance.waitExpiresAt = new Date(Date.now() + waitTimeoutMs);
         await this.instanceRepo.save(instance);
         return;
       }
@@ -355,11 +428,9 @@ export class WorkflowEngine {
         return;
       }
 
-      // 找匹配本节点 branchOutput 的出边
       const branch = execution.branchOutput ?? 'default';
-      const edge = this.pickNextEdge(workflow, node.id, branch);
+      const edge = this.pickNextEdge(graph, node.id, branch);
       if (!edge) {
-        // 没有出边 → 流程自然结束
         instance.status = 'completed';
         instance.currentNodeId = null;
         await this.instanceRepo.save(instance);
@@ -370,7 +441,6 @@ export class WorkflowEngine {
       await this.instanceRepo.save(instance);
     }
 
-    // currentNodeId 变 null，自然完成
     if (instance.status === 'running') {
       instance.status = 'completed';
       await this.instanceRepo.save(instance);
@@ -378,19 +448,16 @@ export class WorkflowEngine {
   }
 
   private pickNextEdge(
-    workflow: AIWorkflowEntity,
+    graph: Pick<WorkflowGraph, 'edges'>,
     nodeId: string,
     branch: string,
   ): WorkflowEdge | undefined {
-    const edges = (workflow.edges ?? []).filter((e) => e.sourceNodeId === nodeId);
+    const edges = (graph.edges ?? []).filter((e) => e.sourceNodeId === nodeId);
     if (edges.length === 0) return undefined;
-    // 1) 精确匹配 branch
     const exact = edges.find((e) => (e.branch ?? 'default') === branch);
     if (exact) return exact;
-    // 2) 兜底匹配 default
     const def = edges.find((e) => (e.branch ?? 'default') === 'default');
     if (def) return def;
-    // 3) 没有任何匹配，取第一条
     return edges[0];
   }
 
@@ -408,7 +475,8 @@ export class WorkflowEngine {
       startedAt,
     };
 
-    const executor = this.registry.get(node.type);
+    const definition = this.nodeRegistry.getDefinition(node.type);
+    const executor = this.nodeRegistry.getExecutor(node.type);
     if (!executor) {
       return {
         ...base,
@@ -418,26 +486,47 @@ export class WorkflowEngine {
       };
     }
 
+    const ctx: NodeExecContext = {
+      node,
+      input: { ...variables },
+      variables,
+      workflowId: baseCtx.workflowId,
+      docId: baseCtx.docId,
+      tableId: baseCtx.tableId,
+      record: baseCtx.record,
+      userId: user.userId,
+      tenantId: user.currentTenantId ?? undefined,
+    };
+
     try {
-      const ctx: NodeExecContext = {
-        node,
-        input: { ...variables },
-        variables,
-        workflowId: baseCtx.workflowId,
-        docId: baseCtx.docId,
-        tableId: baseCtx.tableId,
-        record: baseCtx.record,
-        userId: user.userId,
-        tenantId: user.currentTenantId ?? undefined,
-      };
-      const result = await executor.execute(ctx);
+      const retries = definition?.retries ?? 0;
+      const timeoutMs = definition?.timeoutMs;
+      let result: NodeExecResult;
+      let attempt = 0;
+      let lastErr: unknown;
+      for (; ;) {
+        try {
+          const run = () => executor.execute(ctx);
+          result = timeoutMs ? await withTimeout(run(), timeoutMs) : await run();
+          break;
+        } catch (err) {
+          lastErr = err;
+          if (attempt >= retries) throw err;
+          attempt += 1;
+          const backoff = Math.min(500 * Math.pow(2, attempt), 8000);
+          this.logger.warn(`[workflow-node] ${node.type} 第 ${attempt} 次重试，${backoff}ms 后：${(err as Error).message}`);
+          await new Promise((r) => setTimeout(r, backoff));
+        }
+      }
+
       if (result.output) {
         Object.assign(variables, result.output);
       }
+      const isWaiting = result.status === 'waiting';
       return {
         ...base,
-        status: 'completed',
-        output: result.output,
+        status: isWaiting ? 'waiting' : 'completed',
+        output: isWaiting ? { ...result.output, wait: result.wait } : result.output,
         branchOutput: result.branchOutput,
         completedAt: new Date().toISOString(),
         duration: Date.now() - new Date(startedAt).getTime(),
@@ -473,12 +562,74 @@ export class WorkflowEngine {
     return this.instanceRepo.save(instance);
   }
 
-  /** 列出某工作流的最近运行实例（用于运行日志面板） */
+  /** 列出某工作流的最近运行实例（用于运行日志面板），history 由子表聚合回填 */
   async listInstances(workflowId: string, limit = 20): Promise<AIWorkflowInstanceEntity[]> {
-    return this.instanceRepo.find({
+    const instances = await this.instanceRepo.find({
       where: { workflowId },
       order: { createdAt: 'DESC' as const },
       take: limit,
     });
+    await this.hydrateHistory(instances);
+    return instances;
   }
+
+  /** 读取单个实例详情并回填明细日志 */
+  async getInstanceWithHistory(id: string): Promise<AIWorkflowInstanceEntity | null> {
+    const instance = await this.instanceRepo.findOne({ where: { id } });
+    if (!instance) return null;
+    await this.hydrateHistory([instance]);
+    return instance;
+  }
+
+  /** 批量按 seq 聚合子表明细回填到实例.history（保持前端契约） */
+  private async hydrateHistory(instances: AIWorkflowInstanceEntity[]): Promise<void> {
+    if (instances.length === 0) return;
+    const ids = instances.map((i) => i.id);
+    const steps = await this.stepRepo
+      .createQueryBuilder('s')
+      .where('s.instanceId IN (:...ids)', { ids })
+      .orderBy('s.seq', 'ASC')
+      .getMany();
+    const byInstance = new Map<string, AIWorkflowRunStepEntity[]>();
+    for (const s of steps) {
+      const list = byInstance.get(s.instanceId) ?? [];
+      list.push(s);
+      byInstance.set(s.instanceId, list);
+    }
+    for (const inst of instances) {
+      const list = byInstance.get(inst.id) ?? [];
+      inst.history = list.map((s) => ({
+        nodeId: s.nodeId,
+        status: s.status,
+        input: s.input ?? {},
+        output: s.output ?? {},
+        branchOutput: s.branchOutput ?? undefined,
+        error: s.error ?? undefined,
+        startedAt: s.startedAt,
+        completedAt: s.completedAt ?? undefined,
+        duration: s.duration ?? undefined,
+      }));
+    }
+  }
+}
+
+/** Promise 超时包装（超时抛错） */
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  let timer: NodeJS.Timeout;
+  return Promise.race([
+    promise,
+    new Promise<never>((_resolve, reject) => {
+      timer = setTimeout(() => reject(new Error(`节点执行超时（${timeoutMs}ms）`)), timeoutMs);
+    }),
+  ]).finally(() => clearTimeout(timer));
+}
+
+function graphOf(workflow: AIWorkflowEntity): WorkflowGraph {
+  return {
+    workflowId: workflow.id,
+    docId: workflow.docId,
+    tableId: workflow.tableId,
+    nodes: workflow.nodes ?? [],
+    edges: workflow.edges ?? [],
+  };
 }

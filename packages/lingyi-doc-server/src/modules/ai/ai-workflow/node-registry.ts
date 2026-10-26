@@ -36,12 +36,20 @@ export interface NodeExecContext {
 export interface NodeExecResult {
   /** 节点输出：合并到 variables */
   output?: Record<string, unknown>;
-  /** 分支出口：用于驱动下一节点（condition.if → 'true' / 'false'） */
+  /** 分支出口：用于驱动下一节点（condition.if → 'true' / 'false'；switch → `branch:<id>`） */
   branchOutput?: string;
+  /**
+   * 执行结果：completed 正常；waiting 表示节点等待外部结果，
+   * 实例将挂起为 waiting，待结果回调 resume 后续跑。
+   */
+  status?: 'completed' | 'waiting';
+  /** async 节点等待信息（status=waiting 必填 reason） */
+  wait?: { token?: string; reason?: string };
 }
 
 export interface NodeExecutor {
-  type: string;
+  /** 节点类型（可选：经 provider 注册时由 registry 维护，实例无需自带） */
+  type?: string;
   /** 执行节点逻辑 */
   execute(ctx: NodeExecContext): Promise<NodeExecResult>;
 }
@@ -52,6 +60,7 @@ export class NodeExecutorRegistry {
   private readonly map = new Map<string, NodeExecutor>();
 
   register(executor: NodeExecutor): void {
+    if (!executor.type) return;
     this.map.set(executor.type, executor);
   }
 

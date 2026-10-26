@@ -22,6 +22,18 @@ import {
 import { DocTemplateEntity } from '../database/entities/doc-template.entity';
 import { DocUserVisitEntity } from '../database/entities/doc-user-visit.entity';
 import { UserEntity } from '../database/entities/user.entity';
+import { UserOauthBindingEntity } from '../database/entities/user-oauth-binding.entity';
+import {
+  AdminGroupEntity,
+  AdminGroupMemberEntity,
+  AdminGroupOrgEntity,
+  AdminGroupRoleEntity,
+  TenantSecurityPolicyEntity,
+} from '../database/entities/admin-console.entity';
+import { OrganizationEntity } from '../database/entities/tenant.entity';
+import { AdminAccessRepository } from './admin-access.repository';
+import { AdminDocumentRepository } from './admin-document.repository';
+import { AdminGroupRepository } from './admin-group.repository';
 import { AdminRoleRepository } from './admin-role.repository';
 import { AuditLogRepository } from './audit-log.repository';
 import { AuthSessionRepository } from './auth-session.repository';
@@ -30,11 +42,14 @@ import { DocumentDataModule } from './document-data.module';
 import { TenantDataModule } from './tenant-data.module';
 import { KnowledgeDataModule } from './knowledge-data.module';
 import { SystemConfigRepository } from './system-config.repository';
+import { TenantSecurityPolicyRepository } from './tenant-security-policy.repository';
 import { DocumentShareRepository } from './document-share.repository';
 import { DocTemplateRepository } from './doc-template.repository';
 import { UserRepository } from './user.repository';
+import { UserOauthBindingRepository } from './user-oauth-binding.repository';
 import { AuthHelpersService } from '../services/auth-helpers.service';
 import { AuthService } from '../services/auth.service';
+import { AuditWriterService } from '../services/audit-writer.service';
 import { OssService } from '../services/oss.service';
 import { SessionService } from '../services/session.service';
 import { DashboardService } from '../services/dashboard.service';
@@ -52,6 +67,7 @@ import { SmsVerificationService } from '../services/sms-verification.service';
  */
 const ENTITIES = [
   UserEntity,
+  UserOauthBindingEntity,
   AdminRoleEntity,
   AdminPermissionEntity,
   AdminRolePermissionEntity,
@@ -67,14 +83,25 @@ const ENTITIES = [
   DocShareAuditLogEntity,
   DocTemplateEntity,
   DocUserVisitEntity,
+  TenantSecurityPolicyEntity,
+  AdminGroupEntity,
+  AdminGroupRoleEntity,
+  AdminGroupMemberEntity,
+  AdminGroupOrgEntity,
+  OrganizationEntity,
 ];
 
 const REPOSITORIES = [
   UserRepository,
+  UserOauthBindingRepository,
   AuthSessionRepository,
   AdminRoleRepository,
+  AdminAccessRepository,
+  AdminGroupRepository,
+  AdminDocumentRepository,
   AuditLogRepository,
   SystemConfigRepository,
+  TenantSecurityPolicyRepository,
   DemoRequestRepository,
   DocumentShareRepository,
   DocTemplateRepository,
@@ -82,6 +109,7 @@ const REPOSITORIES = [
 
 const SERVICES = [
   AuthService,
+  AuditWriterService,
   SessionService,
   AuthHelpersService,
   StorageService,

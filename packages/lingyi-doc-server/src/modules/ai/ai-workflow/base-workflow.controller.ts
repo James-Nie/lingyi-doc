@@ -14,6 +14,7 @@
  *   GET    /api/v1/c/base/workflows/runs/:instanceId        单次运行详情
  */
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -33,6 +34,7 @@ import { AIWorkflowEntity } from '../entities/ai-workflow.entity';
 import { AIWorkflowInstanceEntity } from '../entities/ai-workflow-instance.entity';
 import { WorkflowService } from './workflow.service';
 import { WorkflowEngine } from './workflow.engine';
+import { WorkflowNodeRegistryService } from './workflow-node-registry.service';
 import {
   CreateWorkflowDto,
   ExecuteWorkflowDto,
@@ -46,7 +48,17 @@ export class BaseWorkflowController {
   constructor(
     private readonly workflowService: WorkflowService,
     private readonly engine: WorkflowEngine,
+    private readonly nodeRegistry: WorkflowNodeRegistryService,
   ) {}
+
+  private validateNodes(nodes?: Array<{ type: string; config?: Record<string, unknown> }>): void {
+    if (!nodes) return;
+    for (const n of nodes) {
+      if (!this.nodeRegistry.has(n.type)) continue; // 兼容历史/外部未注册类型，交由引擎按 skipped 处理
+      const err = this.nodeRegistry.validateConfig(n.type, n.config ?? {});
+      if (err) throw new BadRequestException(err);
+    }
+  }
 
   @Get('tables/:tableId/workflows')
   async list(
@@ -66,6 +78,7 @@ export class BaseWorkflowController {
     @Param('tableId') tableId: string,
     @Body() dto: CreateWorkflowDto,
   ) {
+    this.validateNodes(dto.nodes);
     return this.workflowService.create(
       { ...dto, tableId, docId: dto.docId },
       user,
@@ -83,6 +96,7 @@ export class BaseWorkflowController {
     @Param('id') id: string,
     @Body() dto: UpdateWorkflowDto,
   ) {
+    this.validateNodes(dto.nodes);
     return this.workflowService.update(id, dto, user);
   }
 
@@ -128,8 +142,30 @@ export class BaseWorkflowController {
   async getRun(
     @Param('instanceId') instanceId: string,
   ): Promise<AIWorkflowInstanceEntity> {
-    const inst = await this.workflowService.getInstance(instanceId);
+    const inst = await this.engine.getInstanceWithHistory(instanceId);
     if (!inst) throw new NotFoundException('Run not found');
+    return inst;
+  }
+
+  /** 开放平台：返回当前已注册的全部节点元数据（前端/第三方可动态获取目录） */
+  @Get('workflows/nodes')
+  listNodeCatalog() {
+    return this.nodeRegistry.listDefinitions();
+  }
+
+  /**
+   * 结果回调：恢复挂起(waiting)的实例并从等待节点继续执行。
+   * Body: { waitToken: string, result: { payload?: Record<string, unknown>, branchOutput?: string } }
+   */
+  @Post('workflows/runs/:instanceId/resume')
+  async resume(
+    @CurrentUser() user: AuthUser,
+    @Param('instanceId') instanceId: string,
+    @Body() body: { waitToken: string; result?: { payload?: Record<string, unknown>; branchOutput?: string } },
+  ): Promise<AIWorkflowInstanceEntity> {
+    if (!body?.waitToken) throw new BadRequestException('缺少 waitToken');
+    const inst = await this.engine.resume(instanceId, body.waitToken, body.result ?? {}, user);
+    if (!inst) throw new NotFoundException('实例不存在或不在等待状态');
     return inst;
   }
 }

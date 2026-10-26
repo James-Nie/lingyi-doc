@@ -34,7 +34,42 @@ export const PERMISSIONS = {
   STORAGE_WRITE: 'storage:write',
   API_KEY_READ: 'api_key:read',
   API_KEY_WRITE: 'api_key:write',
+  // ---- 2026-09-19 新增：管理后台 P0 能力建设 ----
+  DOCUMENT_WRITE: 'document:write',
+  DOCUMENT_EXPORT: 'document:export',
+  DOCUMENT_PURGE: 'document:purge',
+  AUDIT_MANAGE: 'audit:manage',
+  ADMIN_GROUP_READ: 'admin_group:read',
+  ADMIN_GROUP_WRITE: 'admin_group:write',
+  SECURITY_POLICY_READ: 'security:policy:read',
+  SECURITY_POLICY_WRITE: 'security:policy:write',
 } as const;
+
+/** 权限点分组元数据：用于前端权限勾选面板的分组展示 */
+export const PERMISSION_GROUPS: Array<{ group: string; label: string; codes: string[] }> = [
+  { group: 'dashboard', label: '概览', codes: [PERMISSIONS.DASHBOARD_READ] },
+  { group: 'users', label: 'C 端用户', codes: [PERMISSIONS.USER_READ, PERMISSIONS.USER_WRITE, PERMISSIONS.USER_SUSPEND] },
+  { group: 'documents', label: '内容治理', codes: [PERMISSIONS.DOCUMENT_READ, PERMISSIONS.DOCUMENT_WRITE, PERMISSIONS.DOCUMENT_EXPORT, PERMISSIONS.DOCUMENT_PURGE] },
+  { group: 'templates', label: '模板管理', codes: [PERMISSIONS.TEMPLATE_READ, PERMISSIONS.TEMPLATE_WRITE] },
+  { group: 'admins', label: '管理员与权限', codes: [PERMISSIONS.ADMIN_USER_READ, PERMISSIONS.ADMIN_USER_WRITE, PERMISSIONS.ADMIN_GROUP_READ, PERMISSIONS.ADMIN_GROUP_WRITE] },
+  { group: 'security', label: '安全策略', codes: [PERMISSIONS.SECURITY_POLICY_READ, PERMISSIONS.SECURITY_POLICY_WRITE, PERMISSIONS.CONFIG_READ, PERMISSIONS.CONFIG_WRITE] },
+  { group: 'audit', label: '审计与合规', codes: [PERMISSIONS.AUDIT_READ, PERMISSIONS.AUDIT_MANAGE] },
+  { group: 'tenant', label: '租户与组织', codes: [PERMISSIONS.PLATFORM_TENANT_READ, PERMISSIONS.TENANT_ORG_READ, PERMISSIONS.TENANT_ORG_WRITE, PERMISSIONS.TENANT_MEMBER_READ, PERMISSIONS.TENANT_MEMBER_WRITE, PERMISSIONS.TENANT_DOCUMENT_READ] },
+  { group: 'analytics', label: '运营数据', codes: [PERMISSIONS.ANALYTICS_READ, PERMISSIONS.STORAGE_READ, PERMISSIONS.STORAGE_WRITE, PERMISSIONS.AI_USAGE_READ] },
+  { group: 'ai', label: 'AI 管理', codes: [PERMISSIONS.AI_CONFIG_READ, PERMISSIONS.AI_CONFIG_WRITE] },
+  { group: 'integration', label: '集成与开放', codes: [PERMISSIONS.API_KEY_READ, PERMISSIONS.API_KEY_WRITE] },
+  { group: 'demo', label: '商机管理', codes: [PERMISSIONS.DEMO_READ, PERMISSIONS.DEMO_WRITE] },
+];
+
+/** 仅超级管理员可持有的高危权限，不允许下放到自定义角色（等保 8.1.4.2 d 最小权限/权限分离） */
+export const SUPER_ADMIN_ONLY_PERMISSIONS: string[] = [
+  PERMISSIONS.DOCUMENT_PURGE,
+  PERMISSIONS.AUDIT_MANAGE,
+  PERMISSIONS.ADMIN_USER_WRITE,
+  PERMISSIONS.ADMIN_GROUP_WRITE,
+  PERMISSIONS.SECURITY_POLICY_WRITE,
+  PERMISSIONS.CONFIG_WRITE,
+];
 
 export const ALL_PERMISSIONS: Array<{ code: string; name: string; module: string }> = [
   { code: PERMISSIONS.DASHBOARD_READ, name: '查看概览', module: 'dashboard' },
@@ -65,6 +100,15 @@ export const ALL_PERMISSIONS: Array<{ code: string; name: string; module: string
   { code: PERMISSIONS.STORAGE_WRITE, name: '管理存储配额', module: 'storage' },
   { code: PERMISSIONS.API_KEY_READ, name: '查看 API 密钥', module: 'api_keys' },
   { code: PERMISSIONS.API_KEY_WRITE, name: '管理 API 密钥', module: 'api_keys' },
+  // ---- 2026-09-19 新增 ----
+  { code: PERMISSIONS.DOCUMENT_WRITE, name: '治理文档（转移/归档/删除）', module: 'documents' },
+  { code: PERMISSIONS.DOCUMENT_EXPORT, name: '导出文档清单', module: 'documents' },
+  { code: PERMISSIONS.DOCUMENT_PURGE, name: '彻底删除文档（回收站）', module: 'documents' },
+  { code: PERMISSIONS.AUDIT_MANAGE, name: '管理审计日志保留策略', module: 'audit' },
+  { code: PERMISSIONS.ADMIN_GROUP_READ, name: '查看管理组', module: 'admin_groups' },
+  { code: PERMISSIONS.ADMIN_GROUP_WRITE, name: '管理管理组与范围', module: 'admin_groups' },
+  { code: PERMISSIONS.SECURITY_POLICY_READ, name: '查看外发安全策略', module: 'security' },
+  { code: PERMISSIONS.SECURITY_POLICY_WRITE, name: '配置外发安全策略', module: 'security' },
 ];
 
 export const ROLE_PERMISSION_MAP: Record<string, string[]> = {
@@ -93,6 +137,11 @@ export const ROLE_PERMISSION_MAP: Record<string, string[]> = {
     PERMISSIONS.AI_USAGE_READ,
     PERMISSIONS.STORAGE_READ,
     PERMISSIONS.API_KEY_READ,
+    PERMISSIONS.API_KEY_WRITE,
+    PERMISSIONS.DOCUMENT_WRITE,
+    PERMISSIONS.DOCUMENT_EXPORT,
+    PERMISSIONS.ADMIN_GROUP_READ,
+    PERMISSIONS.SECURITY_POLICY_READ,
   ],
   [ADMIN_ROLE_CODES.SUPPORT]: [
     PERMISSIONS.DASHBOARD_READ,
@@ -100,12 +149,16 @@ export const ROLE_PERMISSION_MAP: Record<string, string[]> = {
     PERMISSIONS.DOCUMENT_READ,
     PERMISSIONS.DEMO_READ,
     PERMISSIONS.TEMPLATE_READ,
+    PERMISSIONS.ADMIN_GROUP_READ,
   ],
   [ADMIN_ROLE_CODES.AUDITOR]: [
     PERMISSIONS.DASHBOARD_READ,
     PERMISSIONS.AUDIT_READ,
     PERMISSIONS.ANALYTICS_READ,
     PERMISSIONS.AI_USAGE_READ,
+    PERMISSIONS.DOCUMENT_READ,
+    PERMISSIONS.DOCUMENT_EXPORT,
+    PERMISSIONS.SECURITY_POLICY_READ,
   ],
 };
 
@@ -153,4 +206,17 @@ export const DEFAULT_SYSTEM_CONFIGS: Array<{
     value: true,
     description: '是否启用协同编辑',
   },
+  {
+    key: 'audit.retention_days',
+    value: 180,
+    description: '审计日志保留天数（等保三级 + 网络安全法第 21 条要求日志留存不少于 6 个月，下限 180）',
+  },
+  // 注意：`system_configs.config_value` 是 NOT NULL 的 json 列，
+  // 不能以 `value: null` 作为种子（会触发 not-null 约束错误并中断整批种子初始化）。
+  // `audit.last_cleanup_at` 因此不预置，读取时由 getValue(key, null) 兜底为 null。
 ];
+
+/** 审计日志保留天数下限：等保三级 + 网络安全法要求 ≥ 6 个月 */
+export const AUDIT_RETENTION_MIN_DAYS = 180;
+/** 审计日志保留天数上限：防止误配为超大值导致无界增长 */
+export const AUDIT_RETENTION_MAX_DAYS = 3650;

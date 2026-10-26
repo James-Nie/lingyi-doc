@@ -50,9 +50,12 @@ export class AuthService {
     return jwt.sign({ sub: userId, aud: 'unified', type: 'refresh' }, this.jwtSecret(), { expiresIn: ttl });
   }
 
-  // 统一的 access token 对 consumer 与 admin 场景均有效
-  verifyAccessToken(token: string, _expectedAud?: TokenAudience): AccessTokenPayload {
+  // 统一签发，但校验时按调用方期望的 audience 严格比对，避免 consumer 令牌被管理端接口接受
+  verifyAccessToken(token: string, expectedAud?: TokenAudience): AccessTokenPayload {
     const payload = jwt.verify(token, this.jwtSecret()) as AccessTokenPayload & { aud?: string };
+    if (expectedAud && payload.aud !== expectedAud) {
+      throw new Error(`Invalid token audience: expected "${expectedAud}", got "${payload.aud ?? 'none'}"`);
+    }
     return payload;
   }
 

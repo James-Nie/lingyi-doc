@@ -14,6 +14,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import type { Request } from 'express';
+import { AUDIT_ACTIONS } from '../../constants/audit';
 import { BusinessException } from '../../common/exceptions/business.exception';
 import { PERMISSIONS } from '../../constants/rbac';
 import { AuthAudience } from '../../auth/decorators/auth-audience.decorator';
@@ -104,7 +105,7 @@ export class AdminTemplateController {
   ) {
     try {
       const result = await this.templateService.create(body, user.userId);
-      this.writeAudit(req, user, 'template.create', result.id, { title: result.title });
+      this.writeAudit(req, user, AUDIT_ACTIONS.TEMPLATE_CREATE, result.id, { title: result.title });
       return result;
     } catch (err) {
       if (err instanceof BusinessException) throw err;
@@ -123,7 +124,7 @@ export class AdminTemplateController {
   ) {
     try {
       const result = await this.templateService.update(id, body, user.userId);
-      this.writeAudit(req, user, 'template.update', id, { title: result.title });
+      this.writeAudit(req, user, AUDIT_ACTIONS.TEMPLATE_UPDATE, id, { title: result.title });
       return result;
     } catch (err) {
       if (err instanceof BusinessException) throw err;
@@ -143,7 +144,7 @@ export class AdminTemplateController {
     try {
       const status = String(body?.status ?? '');
       const result = await this.templateService.updateStatus(id, status as TemplateStatus, user.userId);
-      this.writeAudit(req, user, 'template.status', id, { status });
+      this.writeAudit(req, user, AUDIT_ACTIONS.TEMPLATE_STATUS, id, { status });
       return result;
     } catch (err) {
       if (err instanceof BusinessException) throw err;
@@ -161,7 +162,7 @@ export class AdminTemplateController {
   ) {
     try {
       await this.templateService.remove(id, user.userId);
-      this.writeAudit(req, user, 'template.delete', id);
+      this.writeAudit(req, user, AUDIT_ACTIONS.TEMPLATE_DELETE, id);
       return { ok: true };
     } catch (err) {
       if (err instanceof BusinessException) throw err;

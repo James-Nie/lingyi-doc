@@ -73,7 +73,7 @@ export const DocImageInsertDialog: React.FC<DocImageInsertDialogProps> = ({
       onCancel={onClose}
       footer={null}
       width={480}
-      destroyOnClose
+      destroyOnHidden
       afterClose={() => { setError(null); setLoading(false); }}
     >
       <Upload.Dragger {...uploadProps} disabled={loading} style={{ padding: '16px 0' }}>

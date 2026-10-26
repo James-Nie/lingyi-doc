@@ -1,13 +1,13 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import type { DocBlock, ImageBlock, OutlineNode, ToolbarState, ParagraphStyle, ListType, OrderedListStyle, BlockAlign, TextMark, DocSelectionContext, PendingCaret, PendingCaretSpec, DocSelection, BlockSelectionState, DocAnchor } from '@lingyi-doc/core-doc';
-import { findActiveOutlineId, increaseBlockIndent, decreaseBlockIndent, isTextBlock, isObjectBlock, splitMarks, stripLeadingNewlines, findBlockIndexFromNode, findEditableRoot, getFocusedDocContext, isDocumentBodyContext, getSelectionBlockRange, getInlineStateFromSelection, selectElementContents, saveSelection, restoreSelection, extractContentFromEditable, extractPlainText, setCaretOffset, getCaretOffset, hasNonCollapsedTextSelection, isCaretAtStart, isCaretAtEnd, applyBlockTextMark, cloneDocBlock, marksToHtml, parseMarkdownToBlocks, spliceMarkdownBlocks, parseMarkdownTable, markdownTableDataToTableBlock, insertTableBlockAt, blocksToCellContent, spliceMarkdownIntoCellContent, applyMarkdownTableToTableBlock, createEmptyTable, createEmptyMermaid, createEmptyBaseBlock, createEmptyWhiteboardBlock, createFlowchartWhiteboardBlock, createMindmapWhiteboardBlock, splitListItemOnEnter, isListItemTextEmpty, listItemToParagraphBlocks, indentListItem, outdentListItem, parseOrderedListMarkdownLine, parseBulletListMarkdownLine, textToListItems, normalizeOrderedListItems, normalizeBulletListItems, extractListItemsFromDom, getListCaretContext, getListItemTextEl, setListItemCaret, getListItemPlainText, focusListItemFromPointer, listDomNeedsFullSync, deleteListItemCharAt, deleteListDomSelection, handleEmptyListItemEnter, handleEmptyListItemBackspace, mergeFollowingBlockIntoList, mergeTextBlockIntoPrecedingList, buildPendingCaret, pendingCaretFromBoundary, applyCaretToBlockEl, applyPendingCaretToBlockEl, isCollapsedDocSelection, isWholeBlockSelection, getSelectionBlockIndices, getBlockSelectionState, selectAllDocumentBlocks, selectBlockRange, docSelectionToContext, blockAnchor, resolveAnchorFromNode, resolveAnchorFromPoint, resolveBlockIndexFromClientY, resolveClickCaretPosition, applyTextSelectionBetweenAnchors, deleteDocSelectionBlocks, getNativeTextSelectionDetail, type DocCopyPayload, type InlineFormatAction, type NativeTextSelectionDetail, type TextSelectionSlice } from '@lingyi-doc/core-doc';
+import { findActiveOutlineId, increaseBlockIndent, decreaseBlockIndent, isTextBlock, isObjectBlock, splitMarks, stripLeadingNewlines, normalizeMarks, findBlockIndexFromNode, findEditableRoot, getFocusedDocContext, isDocumentBodyContext, getSelectionBlockRange, getInlineStateFromSelection, selectElementContents, saveSelection, restoreSelection, extractContentFromEditable, extractPlainText, setCaretOffset, getCaretOffset, hasNonCollapsedTextSelection, isCaretAtStart, isCaretAtEnd, applyBlockTextMark, cloneDocBlock, marksToHtml, parseMarkdownToBlocks, spliceMarkdownBlocks, parseMarkdownTable, markdownTableDataToTableBlock, insertTableBlockAt, blocksToCellContent, spliceMarkdownIntoCellContent, applyMarkdownTableToTableBlock, createEmptyTable, createEmptyMermaid, createEmptyBaseBlock, createEmptyWhiteboardBlock, createFlowchartWhiteboardBlock, createMindmapWhiteboardBlock, splitListItemOnEnter, isListItemTextEmpty, listItemToParagraphBlocks, indentListItem, outdentListItem, parseOrderedListMarkdownLine, parseBulletListMarkdownLine, textToListItems, normalizeOrderedListItems, normalizeBulletListItems, extractListItemsFromDom, getListCaretContext, getListItemTextEl, setListItemCaret, getListItemPlainText, focusListItemFromPointer, listDomNeedsFullSync, deleteListItemCharAt, deleteListDomSelection, handleEmptyListItemEnter, handleEmptyListItemBackspace, mergeFollowingBlockIntoList, mergeTextBlockIntoPrecedingList, buildPendingCaret, pendingCaretFromBoundary, applyCaretToBlockEl, applyPendingCaretToBlockEl, isCollapsedDocSelection, isWholeBlockSelection, getSelectionBlockIndices, getBlockSelectionState, selectAllDocumentBlocks, selectBlockRange, docSelectionToContext, blockAnchor, resolveAnchorFromNode, resolveAnchorFromPoint, resolveBlockIndexFromClientY, resolveClickCaretPosition, applyTextSelectionBetweenAnchors, deleteDocSelectionBlocks, getNativeTextSelectionDetail, type DocCopyPayload, type InlineFormatAction, type NativeTextSelectionDetail, type TextSelectionSlice } from '@lingyi-doc/core-doc';
 import { applyCommentMarkFromSlice, applyCommentMarksFromThreads, applyRemoteCommentUpdate, appendCommentReply, createEmptyCommentThread, removeCommentMarksFromBlocks, resolveCommentThread, updateCommentReply, deleteCommentReply, deleteCommentThread, toggleCommentReplyLike, type CommentUpdatePayload, type DocCommentThread, findInDocument, groupFindHighlights, replaceMatchInDocument, replaceAllInDocument, selectTextOffsetsInEditable, computeRichDocumentTextStats, type FindMatch } from '@lingyi-doc/core-doc';
 import { useEditorPaste } from './hooks/useEditorPaste';
 import { type MarkdownPasteContext } from './markdownPaste';
 import { getImageFileFromClipboard, getImageFileFromClipboardAsync, prepareImageFileForInsert } from '@lingyi-doc/editor-shared';
 import { DOC_PAGE_BG, DOC_EDITOR_MAX_WIDTH, DOC_PLACEHOLDER_BODY_COLOR } from './styles';
-import { DocBlockView, createEmptyParagraph, genBlockId } from './DocBlockView';
+import { DocBlockView, createEmptyParagraph, genBlockId, type MarkdownShortcutKind } from './DocBlockView';
 import { DocSelectionOverlay } from './DocSelectionOverlay';
 import { DOC_BODY_PLACEHOLDER } from './DocTitleEditor';
 import { DocBlockWrapper, type BlockDragState } from './DocBlockWrapper';
@@ -156,6 +156,8 @@ export const RichDocEditor: React.FC<RichDocEditorProps> = ({
   const [pendingMarkdown, setPendingMarkdown] = useState('');
   const [linkDialogOpen, setLinkDialogOpen] = useState(false);
   const [linkDialogTitle, setLinkDialogTitle] = useState('');
+  /** 链接弹窗打开期间保护已保存选区，防止焦点转移触发的 selectionchange 清空它 */
+  const selectionSnapshotLockRef = useRef(false);
   const [showCommentPanel, setShowCommentPanel] = useState(false);
   const [commentThreads, setCommentThreads] = useState<DocCommentThread[]>(initialCommentThreads ?? []);
   const [selectedCommentId, setSelectedCommentId] = useState<string | null>(null);
@@ -244,9 +246,10 @@ export const RichDocEditor: React.FC<RichDocEditorProps> = ({
     getFormatBlockIndices,
     captureTextSelectionSnapshot,
     flushPendingSelectionRestore,
-  } = useEditorSelection({
+  } =   useEditorSelection({
     blocksRef,
     blockRefs,
+    selectionSnapshotLockRef,
     docSelectionRef,
     savedTextSelectionRef,
     pendingSelectionRestoreRef,
@@ -283,8 +286,18 @@ export const RichDocEditor: React.FC<RichDocEditorProps> = ({
       setToolbarInsertMenuOpen(false);
       setSlashMenuOpen(false);
     };
+    const onKeydown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setToolbarInsertMenuOpen(false);
+        setSlashMenuOpen(false);
+      }
+    };
     document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    document.addEventListener('keydown', onKeydown);
+    return () => {
+      document.removeEventListener('mousedown', handler);
+      document.removeEventListener('keydown', onKeydown);
+    };
   }, [toolbarInsertMenuOpen, slashMenuOpen]);
 
   const keepImageSelected = useCallback((index: number) => {
@@ -498,9 +511,46 @@ export const RichDocEditor: React.FC<RichDocEditorProps> = ({
       } else {
         setLinkDialogTitle('');
       }
+      selectionSnapshotLockRef.current = true;
       setLinkDialogOpen(true);
     },
   });
+
+  // ── Markdown 快捷语法：行首前缀 + 空格 → 块类型转换 ──
+  const handleMarkdownShortcut = useCallback((index: number, kind: MarkdownShortcutKind, prefixLen: number) => {
+    const block = blocksRef.current[index];
+    if (!block) return;
+    if (!isTextBlock(block)) return;
+
+    const newText = block.text.slice(prefixLen);
+    const shifted = (block.marks ?? [])
+      .map(m => ({ ...m, start: Math.max(0, m.start - prefixLen), end: Math.max(0, m.end - prefixLen) }))
+      .filter(m => m.end > 0);
+    const marks = normalizeMarks(shifted, newText.length);
+
+    let nextBlock: DocBlock;
+    if (kind === 'bullet' || kind === 'ordered' || kind === 'task') {
+      nextBlock = {
+        type: 'list', id: block.id, listType: kind,
+        items: [{ text: newText, level: 1, checked: false, marks }],
+        align: 'align' in block ? block.align : 'left',
+      } as DocBlock;
+    } else {
+      const level = Number(kind.replace('heading', '')) as 1 | 2 | 3 | 4 | 5 | 6;
+      nextBlock = {
+        type: 'heading', id: block.id, level, text: newText, marks,
+        align: 'align' in block ? block.align : 'left',
+      } as DocBlock;
+    }
+
+    const next = [...blocksRef.current];
+    next[index] = nextBlock;
+    const pending = scheduleCaret({ blockIndex: index, position: 0 }, next);
+    if (pending) queuePendingCaretFallback(pending);
+    setActiveIndex(index);
+    onActiveBlockChange(index);
+    onBlocksChange(next, true);
+  }, [blocksRef, scheduleCaret, queuePendingCaretFallback, setActiveIndex, onActiveBlockChange, onBlocksChange]);
 
   // (selectEntireDocument → useEditorSelection)
   // (selectCurrentBlock → useEditorSelection)
@@ -1543,10 +1593,12 @@ export const RichDocEditor: React.FC<RichDocEditorProps> = ({
         initialTitle={linkDialogTitle}
         initialUrl=""
         onConfirm={(title, url) => {
+          selectionSnapshotLockRef.current = false;
           setLinkDialogOpen(false);
           applyLinkWithTitle(title, url);
         }}
         onCancel={() => {
+          selectionSnapshotLockRef.current = false;
           setLinkDialogOpen(false);
         }}
       />
@@ -1688,6 +1740,7 @@ export const RichDocEditor: React.FC<RichDocEditorProps> = ({
                 onImagePatch={(patch, recordHistory) => handleImagePatch(index, patch, recordHistory)}
                 onEnter={(cursorOffset, fullText, marks) => handleEnter(index, cursorOffset, fullText, marks)}
                 onTab={shiftKey => handleTabIndent(index, shiftKey)}
+                onMarkdownShortcut={(kind, prefixLen) => handleMarkdownShortcut(index, kind, prefixLen)}
                 onSlashCommand={() => {
                   const block = blocksRef.current[index];
                   const el = block?.id ? blockRefs.current.get(block.id) : null;

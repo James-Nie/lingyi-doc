@@ -1,0 +1,231 @@
+/**
+ * 零一文档 · 管理后台 Design Tokens v2.0
+ * 单一色值来源 —— 业务代码禁止再出现字面量色值，一律引用本文件变量。
+ *
+ * 对比度实测（WCAG 2.1）：
+ *   text-1 / 白底 15.78 AAA     text-2 / 白底 5.45 AA
+ *   text-3 / 白底 3.02（仅非文本图形，不可承载正文）
+ *   text-4 / 页面底 4.53 AA     primary-solid + 白字 5.71 AA
+ *
+ * 引入方式：在 main.tsx 顶部 `import './styles/tokens.css';`（须早于 antd 样式）
+ */
+
+:root {
+  /* ---------- 品牌 / 主色 ---------- */
+  --color-primary: #1677ff;          /* 填充 / 选中 / 图表主系列 / 焦点轮廓 */
+  --color-primary-hover: #3c89ff;
+  --color-primary-active: #0e5fdb;
+  --color-primary-solid: #0e5fdb;    /* 实心按钮底色：白字 5.71 ✅（#1677ff 仅 4.10 ✗） */
+  --color-primary-solid-hover: #1254c4;
+  --color-primary-solid-active: #0b4fb0;
+  --color-primary-text: #0b5fd9;     /* 链接 / 主色文字：页面底 5.75 ✅ */
+  --color-primary-bg: #e8f1ff;       /* 选中项浅底 */
+  --color-primary-bg-hover: #d6e4ff;
+  --color-primary-border: #94bfff;
+
+  /* 危险实心按钮：白字 5.02 ✅（#f53f3f 仅 3.71 ✗） */
+  --color-danger-solid: #d42b2b;
+  --color-danger-solid-hover: #bf2424;
+  --color-danger-solid-active: #a81f1f;
+
+  /* ---------- 中性 / 文字 ---------- */
+  --color-text-1: #1f2329;           /* 标题 / 正文 */
+  --color-text-2: #646a73;           /* 次要说明 / 表头 / 单位 */
+  --color-text-3: #8f959e;           /* ⚠ 仅图标、禁用态、非文本图形（白底 3.02） */
+  --color-text-4: #6c727c;           /* 占位符 / 时间戳等「可读弱文本」（页面底 4.53） */
+  --color-text-inverse: #ffffff;
+
+  /* ---------- 背景 / 面 ---------- */
+  --color-bg-page: #f5f7fa;
+  --color-bg-card: #ffffff;
+  --color-bg-header: #fafafa;        /* 表头 */
+  --color-bg-hover: #f7f9fc;         /* 表格行 hover */
+  --color-bg-selected: #f0f6ff;      /* 表格选中行 / 列表选中 */
+  --color-bg-fill: #f2f3f5;          /* 输入框、代码块等填充底 */
+  --color-bg-mask: rgba(15, 23, 42, 0.45);
+  --color-bg-skeleton: #f0f1f3;
+  --color-bg-skeleton-shine: #f8f9fb;
+
+  /* ---------- 侧栏 ----------
+   * 已定方案：浅色侧栏（用户 2026-09-19 决策）。
+   * 浅色侧栏的实际配色由 theme.ts 的 Menu 组件 token 承担，下面这些变量与之一一对应，
+   * 供「深色侧栏」备选方案（文件末尾 html[data-sider='dark']）与自定义 DOM 使用，
+   * 两边取值保持一致，避免出现第二套事实。
+   */
+  --sider-bg: #ffffff;
+  --sider-border: #f0f0f0;
+  --sider-item-text: #4e5969;         /* 白底 7.10 ✅ —— 对应 Menu.itemColor */
+  --sider-item-hover-bg: #f7f9fc;     /* 对应 Menu.itemHoverBg */
+  --sider-item-active-bg: #e8f1ff;    /* 对应 Menu.itemSelectedBg */
+  --sider-item-active-text: #0b5fd9;  /* 浅底 5.05 ✅ —— 对应 Menu.itemSelectedColor */
+  --sider-group-title: #6c727c;       /* 白底 4.84 ✅（#8F959E 仅 3.02，不可承载文字） */
+
+  /* ---------- 顶部栏 ---------- */
+  --header-bg: #ffffff;
+  --header-border: #f0f0f0;
+
+  /* ---------- 边框 / 分割线 ---------- */
+  --color-border: #e5e6eb;           /* 输入框、卡片描边 */
+  --color-border-strong: #d0d3d9;    /* 输入 hover */
+  --color-border-split: #f0f0f0;     /* 分割线 */
+  --color-border-focus: #1677ff;
+
+  /* ---------- 语义色（图形版 → 用于图标/色块/进度） ---------- */
+  --color-success: #00b42a;
+  --color-warning: #ff7d00;
+  --color-danger: #f53f3f;
+  --color-info: #1677ff;
+
+  /* ---------- 语义色（文字版 → 用于胶囊字/链接，浅底 ≥4.5） ---------- */
+  --color-success-text: #0b7a1e;
+  --color-warning-text: #a85a00;
+  --color-danger-text: #c62828;
+  --color-info-text: #0b5fd9;
+
+  /* ---------- 语义色（浅底） ---------- */
+  --color-success-bg: #e6f8ea;
+  --color-warning-bg: #fff2e6;
+  --color-danger-bg: #feecec;
+  --color-info-bg: #e8f1ff;
+  --color-success-border: #a8e5b4;
+  --color-warning-border: #ffd6a8;
+  --color-danger-border: #f8b4b4;
+  --color-info-border: #94bfff;
+
+  /* ---------- 字体 ---------- */
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+    'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: 'SF Mono', 'JetBrains Mono', Menlo, Consolas, 'Courier New', monospace;
+  /* 表格数字列 / KPI / 金额 —— 等宽数字，避免跳动 */
+  --font-numeric: tabular-nums;
+
+  /* 字号阶梯 */
+  --fs-12: 12px;   /* 辅助、标签 */
+  --fs-13: 13px;   /* 表格内紧凑文本 */
+  --fs-14: 14px;   /* 正文基准 */
+  --fs-16: 16px;   /* 卡片标题 */
+  --fs-18: 18px;   /* 区块标题 */
+  --fs-20: 20px;   /* 页面标题 */
+  --fs-24: 24px;   /* 概览标题 */
+  --fs-30: 30px;   /* KPI 数值 */
+
+  /* 行高 */
+  --lh-tight: 1.35;   /* 标题 */
+  --lh-base: 1.5;     /* 正文 */
+  --lh-numeric: 1.2;  /* 大数值 */
+
+  /* 字重 */
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+
+  /* ---------- 间距（8pt 栅格） ---------- */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+  --sp-10: 40px;
+  --sp-12: 48px;
+
+  /* ---------- 圆角 ---------- */
+  --radius-xs: 4px;    /* 标签内小方块、代码 */
+  --radius-sm: 6px;    /* 按钮 / 输入 / 下拉 */
+  --radius-md: 10px;   /* 卡片 */
+  --radius-lg: 12px;   /* 弹窗 / 抽屉 */
+  --radius-pill: 999px;/* 胶囊标签 / 头像 */
+
+  /* ---------- 阴影（克制：静止态几乎无阴影） ---------- */
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-2: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.06);
+  --shadow-3: 0 2px 4px rgba(0, 0, 0, 0.04), 0 6px 16px rgba(0, 0, 0, 0.08);
+  --shadow-4: 0 12px 32px rgba(15, 23, 42, 0.12);
+  --shadow-focus: 0 0 0 2px rgba(22, 119, 255, 0.2);
+
+  /* ---------- 动效 ---------- */
+  --dur-fast: 150ms;
+  --dur-base: 200ms;
+  --dur-slow: 250ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* ---------- 布局 ---------- */
+  --layout-sider-w: 240px;
+  --layout-sider-collapsed-w: 64px;
+  --layout-header-h: 56px;
+  --layout-content-pad: 24px;
+  --layout-table-row-h: 48px;
+  --layout-table-header-h: 44px;
+  --layout-control-h: 32px;   /* 默认控件高度 */
+  --layout-control-h-lg: 36px;
+  --layout-content-max: 1680px;
+
+  /* ---------- z-index ---------- */
+  --z-sticky: 100;
+  --z-sider: 200;
+  --z-header: 300;
+  --z-drawer: 1000;
+  --z-modal: 1100;
+  --z-toast: 1200;
+}
+
+/* ============================================================
+   暗色模式（预留：private 部署白标场景）
+   背景 #0F1115 / 卡片 #171A1F / 主文本 #E5E6EB
+   ============================================================ */
+html[data-theme='dark'] {
+  --color-primary: #3c89ff;
+  --color-primary-solid: #1677ff;
+  --color-primary-solid-hover: #3c89ff;
+  --color-primary-text: #69b1ff;
+  --color-primary-bg: rgba(22, 119, 255, 0.16);
+
+  --color-text-1: #e5e6eb;   /* 暗底 15.16 AAA */
+  --color-text-2: #a9aeb8;   /* 7.84 AAA */
+  --color-text-3: #8e949d;   /* 5.71 ✅（暗色下反而可用作文本） */
+  --color-text-4: #858b94;
+
+  --color-bg-page: #0f1115;
+  --color-bg-card: #171a1f;
+  --color-bg-header: #1c2027;
+  --color-bg-hover: #1c2027;
+  --color-bg-selected: rgba(22, 119, 255, 0.14);
+  --color-bg-fill: #1c2027;
+  --color-bg-skeleton: #1c2027;
+  --color-bg-skeleton-shine: #24282f;
+
+  --sider-bg: #171a1f;
+  --sider-border: rgba(255, 255, 255, 0.08);
+  --sider-item-text: #a3acba;
+  --sider-item-hover-bg: rgba(255, 255, 255, 0.06);
+  --sider-item-active-bg: rgba(22, 119, 255, 0.16);
+  --sider-item-active-text: #ffffff;
+  --sider-group-title: #7c8797;
+
+  --header-bg: #171a1f;
+  --header-border: rgba(255, 255, 255, 0.08);
+
+  --color-border: #2a2f37;
+  --color-border-strong: #3a4049;
+  --color-border-split: #24282f;
+
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-2: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 12px rgba(0, 0, 0, 0.5);
+  --shadow-3: 0 2px 4px rgba(0, 0, 0, 0.4), 0 6px 16px rgba(0, 0, 0, 0.5);
+}
+
+/**
+ * 可选：深色侧栏方案（白标 / 品牌感诉求）。
+ * 在 <html> 上加 data-sider="dark" 即可启用，无需改动组件代码。
+ */
+html[data-sider='dark'] {
+  --sider-bg: #0f172a;
+  --sider-border: rgba(255, 255, 255, 0.08);
+  --sider-item-text: #a3acba;        /* 7.79 AAA */
+  --sider-item-hover-bg: rgba(255, 255, 255, 0.06);
+  --sider-item-active-bg: #1e293b;
+  --sider-item-active-text: #ffffff; /* 14.63 AAA */
+  --sider-group-title: #7c8797;      /* 4.90 AA（原 #6B7686 仅 3.88 ✗） */
+}

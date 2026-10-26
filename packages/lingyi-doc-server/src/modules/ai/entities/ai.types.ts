@@ -123,7 +123,7 @@ export type WorkflowTriggerFilter = ConditionGroup;
 
 export interface NodeExecution {
   nodeId: string;
-  status: 'pending' | 'running' | 'completed' | 'failed' | 'skipped';
+  status: 'pending' | 'running' | 'waiting' | 'completed' | 'failed' | 'skipped';
   input: Record<string, unknown>;
   output?: Record<string, unknown>;
   branchOutput?: string;

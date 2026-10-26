@@ -57,7 +57,7 @@ function toRoleNode(entity: TenantRoleEntity, memberCount = 0): TenantRoleNode {
     name: entity.name,
     description: entity.description,
     permissions: Array.isArray(entity.permissions) ? entity.permissions : [],
-    isSystem: entity.isSystem === 1,
+    isSystem: entity.isSystem === true,
     systemRole: entity.systemRole,
     sortOrder: entity.sortOrder,
     memberCount,
@@ -90,7 +90,7 @@ export class TenantRoleRepository {
         name: def.name,
         description: def.description,
         permissions: def.permissions,
-        isSystem: 1,
+        isSystem: true,
         systemRole: def.systemRole,
         sortOrder: def.sortOrder,
       });
@@ -112,7 +112,7 @@ export class TenantRoleRepository {
   }
 
   async backfillMemberRoleIds(tenantId: string): Promise<void> {
-    const roles = await this.roleRepo.find({ where: { tenantId, isSystem: 1 } });
+    const roles = await this.roleRepo.find({ where: { tenantId, isSystem: true } });
     const roleIdBySystemRole = new Map(
       roles.filter(r => r.systemRole != null).map(r => [r.systemRole!, r.id]),
     );
@@ -150,7 +150,7 @@ export class TenantRoleRepository {
   }
 
   async findMemberRole(tenantId: string): Promise<TenantRoleEntity | null> {
-    return this.roleRepo.findOne({ where: { tenantId, systemRole: 3, isSystem: 1 } });
+    return this.roleRepo.findOne({ where: { tenantId, systemRole: 3, isSystem: true } });
   }
 
   async create(input: {
@@ -167,7 +167,7 @@ export class TenantRoleRepository {
       name: input.name.trim(),
       description: input.description?.trim() || null,
       permissions: input.permissions ?? [],
-      isSystem: 0,
+      isSystem: false,
       systemRole: null,
       sortOrder,
     });

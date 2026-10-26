@@ -147,7 +147,7 @@ export const DemoModal: React.FC<DemoModalProps> = ({ open, onClose }) => {
       footer={null}
       width={860}
       centered
-      destroyOnClose
+      destroyOnHidden
       closable={false}
       className="home-demo-modal"
     >

@@ -13,6 +13,8 @@ import { BusinessException } from '../../common/exceptions/business.exception';
 import { AuthAudience } from '../../auth/decorators/auth-audience.decorator';
 import { CurrentUser, type AuthUser } from '../../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { DeployService } from '../../config/deploy.service';
+import { AdminAccessRepository } from '../../repositories/admin-access.repository';
 import { AdminRoleRepository } from '../../repositories/admin-role.repository';
 import { AuthSessionRepository } from '../../repositories/auth-session.repository';
 import { TenantRepository } from '../../repositories/tenant.repository';
@@ -35,7 +37,9 @@ export class AdminAuthController {
     private readonly userRepository: UserRepository,
     private readonly authSessionRepository: AuthSessionRepository,
     private readonly adminRoleRepository: AdminRoleRepository,
+    private readonly adminAccessRepository: AdminAccessRepository,
     private readonly tenantRepository: TenantRepository,
+    private readonly deployService: DeployService,
   ) {}
 
   @Post('login')
@@ -120,10 +124,16 @@ export class AdminAuthController {
     const tenants = await this.tenantRepository.listForUser(dbUser.id);
     const tenantBackendPermissions = await this.tenantRepository.listUserBackendPermissions(dbUser.id);
     const permissions = [...new Set([...platformPermissions, ...tenantBackendPermissions])];
+    // 管理范围（P0-3）：供前端做数据可见性提示与菜单分叉（C1 决策）
+    const scope = await this.adminAccessRepository.getAdminScope(dbUser.id);
     return {
       ...this.userRepository.toPublicUser(dbUser),
       roles,
       permissions,
+      /** 1=SaaS 2=本地私有化 3=专属私有化。前端据此隐藏租户/计费/多租户切换入口 */
+      deployType: this.deployService.type,
+      isPrivateDeploy: this.deployService.isPrivate(),
+      managementScope: scope,
       tenantAdmins: tenants
         .filter(t => t.tenantRole === 2 || hasTenantBackendPermission(t.permissions))
         .map(t => ({

@@ -186,7 +186,7 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
         confirmLoading={loading}
         onCancel={onCancel}
         onOk={() => void handleOk()}
-        destroyOnClose
+        destroyOnHidden
         width={720}
         footer={isCreate ? (_, { OkBtn, CancelBtn }) => (
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

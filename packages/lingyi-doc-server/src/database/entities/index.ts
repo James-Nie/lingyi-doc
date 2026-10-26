@@ -1,4 +1,5 @@
 export { UserEntity } from './user.entity';
+export { UserOauthBindingEntity } from './user-oauth-binding.entity';
 export { DocumentEntity } from './document.entity';
 export { DocumentContentEntity } from './document-content.entity';
 export { DocumentSnapshotEntity } from './document-snapshot.entity';
@@ -14,6 +15,13 @@ export {
   AdminRolePermissionEntity,
   UserAdminRoleEntity,
 } from './admin.entity';
+export {
+  TenantSecurityPolicyEntity,
+  AdminGroupEntity,
+  AdminGroupRoleEntity,
+  AdminGroupMemberEntity,
+  AdminGroupOrgEntity,
+} from './admin-console.entity';
 export {
   AuditLogEntity,
   SystemConfigEntity,
@@ -37,10 +45,12 @@ export { DocCommentThreadEntity, DocCommentReplyEntity, DocCommentReplyLikeEntit
 export { DocUserVisitEntity } from './doc-user-visit.entity';
 export { QuotaDailyLogEntity } from './quota-daily-log.entity';
 export { WfTriggerOutboxEntity } from './wf-trigger-outbox.entity';
+export { AIWorkflowRunStepEntity } from './ai-workflow-run-step.entity';
 export { AI_ENTITIES } from '../../modules/ai/entities';
 export { MCP_ENTITIES } from '../../modules/mcp/entities';
 
 import { UserEntity } from './user.entity';
+import { UserOauthBindingEntity } from './user-oauth-binding.entity';
 import { DocumentEntity } from './document.entity';
 import { DocumentContentEntity } from './document-content.entity';
 import { DocumentSnapshotEntity } from './document-snapshot.entity';
@@ -56,6 +66,13 @@ import {
   AdminRolePermissionEntity,
   UserAdminRoleEntity,
 } from './admin.entity';
+import {
+  TenantSecurityPolicyEntity,
+  AdminGroupEntity,
+  AdminGroupRoleEntity,
+  AdminGroupMemberEntity,
+  AdminGroupOrgEntity,
+} from './admin-console.entity';
 import {
   AuditLogEntity,
   SystemConfigEntity,
@@ -79,12 +96,14 @@ import { DocCommentReplyEntity, DocCommentReplyLikeEntity, DocCommentThreadEntit
 import { DocUserVisitEntity } from './doc-user-visit.entity';
 import { QuotaDailyLogEntity } from './quota-daily-log.entity';
 import { WfTriggerOutboxEntity } from './wf-trigger-outbox.entity';
+import { AIWorkflowRunStepEntity } from './ai-workflow-run-step.entity';
 import { AI_ENTITIES } from '../../modules/ai/entities';
 import { MCP_ENTITIES } from '../../modules/mcp/entities';
 
 /** 与现有 MySQL schema 对应的全部 TypeORM 实体 */
 export const ALL_ENTITIES = [
   UserEntity,
+  UserOauthBindingEntity,
   DocumentEntity,
   DocumentContentEntity,
   DocumentSnapshotEntity,
@@ -107,6 +126,11 @@ export const ALL_ENTITIES = [
   AdminPermissionEntity,
   AdminRolePermissionEntity,
   UserAdminRoleEntity,
+  TenantSecurityPolicyEntity,
+  AdminGroupEntity,
+  AdminGroupRoleEntity,
+  AdminGroupMemberEntity,
+  AdminGroupOrgEntity,
   AuditLogEntity,
   SystemConfigEntity,
   AuthSessionEntity,
@@ -126,6 +150,7 @@ export const ALL_ENTITIES = [
   DocUserVisitEntity,
   QuotaDailyLogEntity,
   WfTriggerOutboxEntity,
+  AIWorkflowRunStepEntity,
   ...AI_ENTITIES,
   ...MCP_ENTITIES,
 ];

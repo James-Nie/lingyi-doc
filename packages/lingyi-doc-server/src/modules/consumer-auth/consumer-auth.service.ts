@@ -383,9 +383,12 @@ export class ConsumerAuthService {
       throw new BusinessException(110004, '用户不存在', HttpStatus.NOT_FOUND);
     }
 
-    const valid = await bcrypt.compare(decryptedOld, dbUser.password_hash);
-    if (!valid) {
-      throw new BusinessException(120004, '原密码错误');
+    // 第三方扫码注册用户首次设置密码时无原密码，跳过校验；有密码则必须校验原密码
+    if (dbUser.password_hash) {
+      const valid = await bcrypt.compare(decryptedOld, dbUser.password_hash);
+      if (!valid) {
+        throw new BusinessException(120004, '原密码错误');
+      }
     }
 
     const passwordHash = await bcrypt.hash(decryptedNew, 12);

@@ -149,6 +149,11 @@ export class RichDocument {
       base.paragraphStyle = blockToParagraphStyle(block);
       base.align = (block.type !== 'quote' ? block.align : 'left') as BlockAlign || 'left';
       base.isQuote = block.type === 'quote';
+      // 标题块：字号显示随标题级别联动（与 editor-doc headingStyles 保持一致）
+      if (block.type === 'heading') {
+        const headingFontSizes = { 1: 28, 2: 22, 3: 18, 4: 16, 5: 14, 6: 13 } as const;
+        base.fontSize = headingFontSizes[block.level] ?? 15;
+      }
     }
     if (isListBlock(block)) {
       base.listType = block.listType as ListType;

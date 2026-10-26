@@ -11,6 +11,14 @@ export class AuditLogEntity {
   @Column({ type: 'varchar', length: 100 })
   action!: string;
 
+  /** 动作所属模块，由 action 前缀推导（admin_group.create → admin_group）。供筛选与分组 */
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  module!: string | null;
+
+  /** 事件结果：success | failure。等保三级 8.1.4.3 b) 要求记录事件是否成功 */
+  @Column({ type: 'varchar', length: 20, default: 'success' })
+  result!: string;
+
   @Column({ name: 'target_type', type: 'varchar', length: 50, nullable: true })
   targetType!: string | null;
 

@@ -37,8 +37,8 @@ export const MarkdownConvertDialog: React.FC<MarkdownConvertDialogProps> = ({
       footer={null}
       width={420}
       centered
-      maskClosable={false}
-      destroyOnClose
+      mask={{ closable: false }}
+      destroyOnHidden
       zIndex={10050}
       getContainer={() => document.body}
     >

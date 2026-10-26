@@ -11,6 +11,12 @@ export interface AdminUser {
   status: string;
   roles: Array<{ code: string; name: string }>;
   permissions: string[];
+  /** 1=SaaS 2=本地私有化 3=专属私有化。用于 C1 决策的菜单分叉 */
+  deployType?: number;
+  /** 是否私有化部署（隐藏租户 / 计费 / 多租户切换入口） */
+  isPrivateDeploy?: boolean;
+  /** 当前管理员的有效管理范围（P0-3） */
+  managementScope?: { type: 'all' } | { type: 'orgs'; orgIds: string[] } | { type: 'none' };
   tenantAdmins?: Array<{ tenantId: string; tenantName: string; tenantRole: number; permissions: string[] }>;
 }
 

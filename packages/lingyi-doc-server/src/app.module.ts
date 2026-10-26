@@ -12,6 +12,7 @@ import { AppLoggerModule } from './common/logger';
 import { AuthModule } from './auth/auth.module';
 import { HealthModule } from './modules/health/health.module';
 import { ConsumerAuthModule } from './modules/consumer-auth/consumer-auth.module';
+import { OAuthModule } from './modules/oauth/oauth.module';
 import { ConsumerTenantModule } from './modules/consumer-tenant/consumer-tenant.module';
 import { LegacyAuthModule } from './modules/legacy-auth/legacy-auth.module';
 import { AdminAuthModule } from './modules/admin-auth/admin-auth.module';
@@ -52,6 +53,7 @@ import { SearchModule } from './modules/search/search.module';
     AuthModule,
     HealthModule,
     ConsumerAuthModule,
+    OAuthModule,
     ConsumerTenantModule,
     LegacyAuthModule,
     AdminAuthModule,

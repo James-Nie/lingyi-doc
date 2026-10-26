@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
 import {
   AdminPermissionEntity,
@@ -8,10 +8,12 @@ import {
   AdminRolePermissionEntity,
   UserAdminRoleEntity,
 } from '../database/entities/admin.entity';
+import { AdminGroupRoleEntity } from '../database/entities/admin-console.entity';
 import {
   ADMIN_ROLE_CODES,
   ALL_PERMISSIONS,
   ROLE_PERMISSION_MAP,
+  SUPER_ADMIN_ONLY_PERMISSIONS,
 } from '../constants/rbac';
 import type { DbAdminRole } from '../types/database';
 
@@ -37,6 +39,8 @@ export class AdminRoleRepository {
     private readonly rolePermRepo: Repository<AdminRolePermissionEntity>,
     @InjectRepository(UserAdminRoleEntity)
     private readonly userRoleRepo: Repository<UserAdminRoleEntity>,
+    @InjectRepository(AdminGroupRoleEntity)
+    private readonly groupRoleRepo: Repository<AdminGroupRoleEntity>,
   ) {}
 
   async seedDefaults(): Promise<void> {
@@ -127,7 +131,7 @@ export class AdminRoleRepository {
   }
 
   async getUserRoles(userId: string): Promise<Array<{ code: string; name: string }>> {
-    const map = await this.getUsersRoles([userId]);
+    const map = await this.resolveRolesForUsers([userId]);
     return map.get(userId) ?? [];
   }
 
@@ -156,16 +160,74 @@ export class AdminRoleRepository {
     return map;
   }
 
+  /**
+   * 用户角色（去重）= 直接授予的角色 ∪ 所属管理组携带的角色。
+   *
+   * 批量版本供管理员列表使用。用 UNION 一次取回两条授予路径，
+   * 避免 N+1；UNION 自带去重，同一角色经两条路径授予时只出现一次。
+   */
+  async resolveRolesForUsers(
+    userIds: string[],
+  ): Promise<Map<string, Array<{ code: string; name: string }>>> {
+    const unique = [...new Set(userIds.filter(Boolean))];
+    const map = new Map<string, Array<{ code: string; name: string }>>();
+    for (const id of unique) map.set(id, []);
+    if (!unique.length) return map;
+
+    const rows: Array<{ user_id: string; code: string; name: string }> =
+      await this.userRoleRepo.query(
+        `SELECT uar."user_id" AS user_id, r.code, r.name
+           FROM "user_admin_roles" uar
+           JOIN "admin_roles" r ON r.id = uar."role_id"
+          WHERE uar."user_id" = ANY($1::varchar[])
+          UNION
+         SELECT agm."user_id" AS user_id, r.code, r.name
+           FROM "admin_group_members" agm
+           JOIN "admin_group_roles" agr ON agr."group_id" = agm."group_id"
+           JOIN "admin_roles" r ON r.id = agr."role_id"
+          WHERE agm."user_id" = ANY($1::varchar[])`,
+        [unique],
+      );
+
+    for (const row of rows) {
+      const list = map.get(row.user_id);
+      if (list) list.push({ code: row.code, name: row.name });
+    }
+    return map;
+  }
+
+  /** 用户有效权限 = 直接角色权限 ∪ 管理组角色权限（P0-3 管理组落地关键路径） */
   async getUserPermissions(userId: string): Promise<string[]> {
-    const rows = await this.userRoleRepo
-      .createQueryBuilder('uar')
-      .innerJoin(AdminRolePermissionEntity, 'arp', 'arp.roleId = uar.roleId')
+    const roleIds = await this.resolveRoleIds([userId]);
+    if (!roleIds.length) return [];
+
+    const rows = await this.rolePermRepo
+      .createQueryBuilder('arp')
       .innerJoin(AdminPermissionEntity, 'p', 'p.id = arp.permissionId')
-      .where('uar.userId = :userId', { userId })
+      .where('arp.roleId IN (:...roleIds)', { roleIds })
       .select('DISTINCT p.code', 'code')
       .getRawMany<{ code: string }>();
 
     return rows.map((r) => r.code);
+  }
+
+  /** 解析多个用户的有效角色 ID（直接授予 ∪ 管理组） */
+  async resolveRoleIds(userIds: string[]): Promise<string[]> {
+    const unique = [...new Set(userIds.filter(Boolean))];
+    if (!unique.length) return [];
+
+    const rows: Array<{ role_id: string }> = await this.userRoleRepo.query(
+      `SELECT uar."role_id" AS role_id
+         FROM "user_admin_roles" uar
+        WHERE uar."user_id" = ANY($1::varchar[])
+        UNION
+       SELECT agr."role_id" AS role_id
+         FROM "admin_group_members" agm
+         JOIN "admin_group_roles" agr ON agr."group_id" = agm."group_id"
+        WHERE agm."user_id" = ANY($1::varchar[])`,
+      [unique],
+    );
+    return [...new Set(rows.map((r) => r.role_id))];
   }
 
   async assignRole(userId: string, roleCode: string, grantedBy: string): Promise<void> {
@@ -206,5 +268,177 @@ export class AdminRoleRepository {
       userIds: rows.map((r: { userId: string }) => r.userId),
       total,
     };
+  }
+
+  // ================================================================
+  // P0-3：自定义角色 CRUD 与角色引用统计
+  // ================================================================
+
+  /** 权限点目录（按 module 分组），供前端权限勾选面板使用 */
+  async listPermissionCatalog(): Promise<
+    Array<{ code: string; name: string; module: string }>
+  > {
+    const rows = await this.permRepo.find({
+      select: ['code', 'name', 'module'],
+      order: { module: 'ASC', code: 'ASC' },
+    });
+    return rows.map((r) => ({ code: r.code, name: r.name, module: r.module }));
+  }
+
+  /** 角色列表（含权限点、直接授予人数、被管理组引用数） */
+  async listRolesDetailed(): Promise<
+    Array<{
+      id: string;
+      code: string;
+      name: string;
+      description: string | null;
+      isSystem: boolean;
+      permissions: string[];
+      userCount: number;
+      groupCount: number;
+      memberCount: number;
+    }>
+  > {
+    const roles = await this.roleRepo.find({ order: { createdAt: 'ASC' } });
+    if (!roles.length) return [];
+    const roleIds = roles.map((r) => r.id);
+
+    const permRows = await this.rolePermRepo
+      .createQueryBuilder('arp')
+      .innerJoin(AdminPermissionEntity, 'p', 'p.id = arp.permissionId')
+      .select('arp.roleId', 'role_id')
+      .addSelect('p.code', 'code')
+      .where('arp.roleId IN (:...roleIds)', { roleIds })
+      .getRawMany<{ role_id: string; code: string }>();
+
+    const permMap = new Map<string, string[]>();
+    for (const row of permRows) {
+      const list = permMap.get(row.role_id) ?? [];
+      list.push(row.code);
+      permMap.set(row.role_id, list);
+    }
+
+    const userRows = await this.userRoleRepo
+      .createQueryBuilder('uar')
+      .select('uar.roleId', 'role_id')
+      .addSelect('uar.userId', 'user_id')
+      .where('uar.roleId IN (:...roleIds)', { roleIds })
+      .getRawMany<{ role_id: string; user_id: string }>();
+
+    const directUsers = new Map<string, Set<string>>();
+    for (const row of userRows) {
+      const set = directUsers.get(row.role_id) ?? new Set<string>();
+      set.add(row.user_id);
+      directUsers.set(row.role_id, set);
+    }
+
+    const groupRows = await this.groupRoleRepo
+      .createQueryBuilder('agr')
+      .select('agr.roleId', 'role_id')
+      .addSelect('agr.groupId', 'group_id')
+      .where('agr.roleId IN (:...roleIds)', { roleIds })
+      .getRawMany<{ role_id: string; group_id: string }>();
+
+    const groupMap = new Map<string, Set<string>>();
+    for (const row of groupRows) {
+      const set = groupMap.get(row.role_id) ?? new Set<string>();
+      set.add(row.group_id);
+      groupMap.set(row.role_id, set);
+    }
+
+    return roles.map((r) => ({
+      id: r.id,
+      code: r.code,
+      name: r.name,
+      description: r.description,
+      isSystem: r.isSystem,
+      permissions: permMap.get(r.id) ?? [],
+      userCount: directUsers.get(r.id)?.size ?? 0,
+      groupCount: groupMap.get(r.id)?.size ?? 0,
+      // memberCount 供前端展示「影响多少管理员」；此处只含直接授予人数，
+      // 管理组成员数在列表页由 groupCount 单独提示，避免误导性的求和
+      memberCount: directUsers.get(r.id)?.size ?? 0,
+    }));
+  }
+
+  async findRoleById(id: string): Promise<DbAdminRole | null> {
+    const entity = await this.roleRepo.findOne({ where: { id } });
+    return entity ? toDbAdminRole(entity) : null;
+  }
+
+  /**
+   * 自定义角色允许持有的权限点。
+   * 等保三级 8.1.4.2 d) 最小权限/权限分离：高危权限不下放给自定义角色，
+   * 违规项直接剔除而不是报错，保证「勾选面板」与「存储结果」不会不一致。
+   */
+  sanitizeCustomRolePermissions(codes: string[]): { accepted: string[]; rejected: string[] } {
+    const rejected = codes.filter((c) => SUPER_ADMIN_ONLY_PERMISSIONS.includes(c));
+    return { accepted: codes.filter((c) => !SUPER_ADMIN_ONLY_PERMISSIONS.includes(c)), rejected };
+  }
+
+  async createRole(input: {
+    code: string;
+    name: string;
+    description?: string | null;
+    permissionCodes: string[];
+  }): Promise<string> {
+    const id = uuidv4();
+    await this.roleRepo.save({
+      id,
+      code: input.code,
+      name: input.name,
+      description: input.description ?? null,
+      isSystem: false,
+    });
+    await this.setRolePermissions(id, input.permissionCodes);
+    return id;
+  }
+
+  async updateRole(
+    id: string,
+    patch: { name?: string; description?: string | null; permissionCodes?: string[] },
+  ): Promise<void> {
+    const entity = await this.roleRepo.findOne({ where: { id } });
+    if (!entity) return;
+    if (patch.name !== undefined) entity.name = patch.name;
+    if (patch.description !== undefined) entity.description = patch.description;
+    await this.roleRepo.save(entity);
+    if (patch.permissionCodes !== undefined) {
+      await this.setRolePermissions(id, patch.permissionCodes);
+    }
+  }
+
+  async deleteRole(id: string): Promise<void> {
+    await this.rolePermRepo.delete({ roleId: id });
+    await this.roleRepo.delete({ id });
+  }
+
+  /** 覆盖式设置角色权限点；未知 code 静默忽略（种子未跑时的容错） */
+  async setRolePermissions(roleId: string, codes: string[]): Promise<void> {
+    await this.rolePermRepo.delete({ roleId });
+    const unique = [...new Set(codes.filter(Boolean))];
+    if (!unique.length) return;
+
+    const perms = await this.permRepo.find({
+      where: { code: In(unique) },
+      select: ['id', 'code'],
+    });
+    if (!perms.length) return;
+    await this.rolePermRepo
+      .createQueryBuilder()
+      .insert()
+      .into(AdminRolePermissionEntity)
+      .values(perms.map((p) => ({ roleId, permissionId: p.id })))
+      .orIgnore()
+      .execute();
+  }
+
+  /** 角色是否被引用（有直接授予的用户，或被管理组引用） */
+  async isRoleReferenced(roleId: string): Promise<{ users: number; groups: number }> {
+    const [users, groups] = await Promise.all([
+      this.userRoleRepo.count({ where: { roleId } }),
+      this.groupRoleRepo.count({ where: { roleId } }),
+    ]);
+    return { users, groups };
   }
 }

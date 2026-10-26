@@ -60,7 +60,7 @@ export const OrgFormModal: React.FC<OrgFormModalProps> = ({
       confirmLoading={loading}
       onCancel={onCancel}
       onOk={() => form.validateFields().then(onSubmit)}
-      destroyOnClose
+      destroyOnHidden
       width={480}
     >
       <Form form={form} layout="vertical">

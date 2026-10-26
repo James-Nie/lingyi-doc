@@ -1,22 +1,19 @@
 /**
  * 工作流节点类型目录
- * 定义所有可用节点的元信息（名称、图标、颜色、默认配置等）
+ * 定义所有可用节点的元信息（名称、图标、颜色、默认配置等）。
+ *
+ * 开放架构：本文件是「内置目录 + 初始化」，真正的注册表在 nodeMeta.ts。
+ * 第三方通过 registerNodeMeta() 运行时增量注册节点。
  */
-import type { WorkflowNodeType } from './types';
+import {
+  seedNodeMetaCatalog,
+  registerNodeMeta,
+  listNodeMetas,
+  getNodeMeta,
+  type NodeConfigField,
+  type NodeTypeMeta,
+} from './nodeMeta';
 import { getIfElseDefaultConfig, getSwitchDefaultConfig, IF_ELSE_BRANCH_PORTS } from './nodeConfig';
-
-export interface NodeTypeMeta {
-  type: WorkflowNodeType;
-  label: string;
-  category: 'common' | 'feishu' | 'dingtalk' | 'ai' | 'shortcut';
-  icon: string;
-  color: string;
-  description?: string;
-  defaultConfig?: Record<string, unknown>;
-  branches?: Array<{ key: string; label: string }>;
-  /** 触发器分组（仅 trigger 节点）：table / todo / tool */
-  triggerGroup?: 'table' | 'todo' | 'tool';
-}
 
 /** 触发器分组（按产品语义划分，展示顺序固定） */
 export const TRIGGER_GROUPS: Array<{ key: 'table' | 'todo' | 'tool'; title: string }> = [
@@ -25,6 +22,7 @@ export const TRIGGER_GROUPS: Array<{ key: 'table' | 'todo' | 'tool'; title: stri
   { key: 'tool', title: '内置工具' },
 ];
 
+/** 内置节点目录（初始化种子；运行时新增请用 registerNodeMeta） */
 export const NODE_TYPE_CATALOG: NodeTypeMeta[] = [
   // 触发器
   {
@@ -255,6 +253,15 @@ export const NODE_TYPE_CATALOG: NodeTypeMeta[] = [
       atMobiles: [],
       atAll: false,
     },
+    configFields: [
+      { key: 'webhook', label: '钉钉机器人 Webhook', type: 'secret', required: true },
+      { key: 'secret', label: '加签密钥', type: 'secret' },
+      { key: 'msgType', label: '消息类型', type: 'select', options: [{ value: 'text', label: '文本' }, { value: 'markdown', label: 'Markdown' }], default: 'text' },
+      { key: 'title', label: '标题', type: 'text', onlyFor: { key: 'msgType', value: 'markdown' } },
+      { key: 'body', label: '消息内容', type: 'textarea', required: true },
+      { key: 'atMobiles', label: '@ 指定成员', type: 'tags' },
+      { key: 'atAll', label: '@ 所有人', type: 'boolean', default: false },
+    ],
   },
   {
     type: 'notify.dingtalk_email',
@@ -269,10 +276,26 @@ export const NODE_TYPE_CATALOG: NodeTypeMeta[] = [
       body: '',
     },
   },
+  // 异步节点：等待结果回调续跑
+  {
+    type: 'approval.human',
+    label: '人工确认',
+    category: 'shortcut',
+    icon: '\uD83D\uDC49',
+    color: '#722ed1',
+    description: '挂起流程等待人工确认，确认后继续执行（async 节点）',
+    kind: 'async',
+    defaultConfig: { reason: '等待人工确认' },
+    configFields: [
+      { key: 'reason', label: '等待原因', type: 'text', placeholder: '等待人工确认' },
+    ],
+    outputs: [{ key: 'lastResult', description: '外部/人工回调传入的结果（result.payload）' }],
+  },
   // 终止
   { type: 'end', label: '结束', category: 'common', icon: '\uD83D\uDED1', color: '#8c8c8c' },
 ];
 
-export function getNodeMeta(type: WorkflowNodeType): NodeTypeMeta | undefined {
-  return NODE_TYPE_CATALOG.find((m) => m.type === type);
-}
+seedNodeMetaCatalog(NODE_TYPE_CATALOG);
+
+export { registerNodeMeta, listNodeMetas, getNodeMeta };
+export type { NodeTypeMeta, NodeConfigField };

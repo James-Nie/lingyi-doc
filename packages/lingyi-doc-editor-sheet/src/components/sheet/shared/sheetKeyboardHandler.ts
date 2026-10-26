@@ -140,6 +140,40 @@ export function handleSheetKeyDown(e: KeyboardEvent, d: SheetInteractionDeps) {
         return;
       }
 
+      // Home / End: 行首/行末导航
+      if (e.key === 'Home') {
+        e.preventDefault();
+        const active = selMgr.activeCell ?? { row: 0, col: 0 };
+        const target: CellCoord = ctrl
+          ? { row: 0, col: 0 }                           // Ctrl+Home → A1
+          : { row: active.row, col: 0 };                 // Home → 行首
+        if (e.shiftKey) {
+          applyExtendedSelection(target, target);
+        } else {
+          setSelection({ sheetId: t.sheetId, start: target, end: target }, target);
+          const cellData = t.getCell(target.row, target.col);
+          setFormulaBarText(cellData ? formatCellEditText(cellData.value) : '');
+        }
+        scheduleRender();
+        return;
+      }
+      if (e.key === 'End') {
+        e.preventDefault();
+        const active = selMgr.activeCell ?? { row: 0, col: 0 };
+        const target: CellCoord = ctrl
+          ? { row: t.rowCount - 1, col: t.colCount - 1 } // Ctrl+End → 右下角
+          : { row: active.row, col: t.colCount - 1 };     // End → 行末
+        if (e.shiftKey) {
+          applyExtendedSelection(target, target);
+        } else {
+          setSelection({ sheetId: t.sheetId, start: target, end: target }, target);
+          const cellData = t.getCell(target.row, target.col);
+          setFormulaBarText(cellData ? formatCellEditText(cellData.value) : '');
+        }
+        scheduleRender();
+        return;
+      }
+
       // Ctrl+A: Select all cells
       if (ctrl && (e.key === 'a' || e.key === 'A')) {
         e.preventDefault();

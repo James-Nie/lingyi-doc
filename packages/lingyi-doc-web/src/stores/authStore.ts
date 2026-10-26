@@ -405,6 +405,47 @@ export const authStore = {
     return parsed.data.user;
   },
 
+  /**
+   * 第三方扫码登录回调：使用服务端下发的令牌完成本地登录。
+   * 令牌由回调页从 URL fragment 提取，用户资料随后经 /me 拉取。
+   */
+  async loginWithTokens(accessToken: string, refreshToken: string) {
+    if (!accessToken || !refreshToken) {
+      throw new Error('登录凭证缺失');
+    }
+    persistTokens(accessToken, refreshToken);
+    setState({ accessToken, refreshToken, user: null });
+    const me = await authStore.refreshMe();
+    return me as unknown as AuthUser;
+  },
+
+  /**
+   * 第三方扫码命中既有账号时的「二次确认合并」：
+   * 提交本地账号密码以证明所有权，通过后由服务端建立绑定并下发令牌。
+   */
+  async confirmOAuthBind(pendingToken: string, password: string) {
+    if (!pendingToken) throw new Error('确认令牌缺失，请重新扫码');
+    const encryptedPassword = await encryptPasswordForAuth(password);
+    const res = await fetch('/api/v1/c/auth/oauth/bind-confirm', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pendingToken, password: encryptedPassword }),
+    });
+    const parsed = await parseResponse<{
+      user: AuthUser;
+      accessToken: string;
+      refreshToken: string;
+      session: SessionInfo;
+      tenants?: TenantSummary[];
+    }>(res);
+    if (!parsed.ok || !parsed.data) {
+      throw new Error(parsed.message || '合并失败');
+    }
+    applyAuthPayload(parsed.data);
+    await authStore.refreshMe();
+    return parsed.data.user;
+  },
+
   async register(
     email: string,
     password: string,

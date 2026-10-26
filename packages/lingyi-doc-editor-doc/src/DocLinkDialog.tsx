@@ -71,8 +71,8 @@ export const DocLinkDialog: React.FC<DocLinkDialogProps> = ({
       footer={null}
       width={420}
       centered
-      maskClosable={false}
-      destroyOnClose
+      mask={{ closable: false }}
+      destroyOnHidden
       zIndex={10050}
       getContainer={() => document.body}
     >

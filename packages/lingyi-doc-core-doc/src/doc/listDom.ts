@@ -164,9 +164,15 @@ export function listDomNeedsFullSync(listRoot: HTMLElement, block: ListBlock): b
     const domMarks = trimItemMarks(extracted.marks, domText.length);
     if (!marksEqual(item.marks, domMarks)) return true;
     if (clampListLevel(Number(li.dataset.listLevel ?? 1)) !== clampListLevel(item.level)) return true;
+    // listType 结构检测：task 需要 checkbox，非 task 需要 marker；结构不匹配必须全量重建
     if (block.listType === 'task') {
       const cb = li.querySelector('input[data-list-checkbox]') as HTMLInputElement | null;
-      if (!!cb?.checked !== !!item.checked) return true;
+      if (!cb) return true;
+      if (!!cb.checked !== !!item.checked) return true;
+    } else {
+      if (li.querySelector('input[data-list-checkbox]')) return true;
+      const marker = li.querySelector('[data-list-marker]');
+      if (!marker) return true;
     }
     return false;
   });

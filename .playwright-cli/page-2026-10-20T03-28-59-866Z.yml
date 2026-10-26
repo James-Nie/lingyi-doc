@@ -1,0 +1,293 @@
+- generic [ref=e1]:
+  - generic [ref=e5]:
+    - complementary [ref=e6]:
+      - generic [ref=e8]:
+        - img "零一文档" [ref=e9]
+        - generic [ref=e10]: 零一文档
+      - generic [ref=e12]:
+        - img
+        - textbox "搜索文档..." [ref=e15] [cursor=pointer]
+        - generic [ref=e16] [cursor=pointer]: ⌘K
+      - navigation [ref=e17]:
+        - button "主页" [ref=e18] [cursor=pointer]:
+          - img [ref=e19]
+          - text: 主页
+        - button "知识库" [ref=e21] [cursor=pointer]:
+          - img [ref=e22]
+          - text: 知识库
+        - button "回收站" [ref=e25] [cursor=pointer]:
+          - img [ref=e26]
+          - text: 回收站
+      - generic [ref=e30]:
+        - generic [ref=e31]:
+          - button "我的文档库" [ref=e32] [cursor=pointer]:
+            - img [ref=e33]
+            - generic [ref=e35]: 我的文档库
+          - button "+" [ref=e36] [cursor=pointer]
+          - button "排序" [ref=e37] [cursor=pointer]:
+            - img [ref=e38]
+        - generic [ref=e40]:
+          - button "文 测试文档 ···" [ref=e48] [cursor=pointer]:
+            - generic [ref=e50]: 文
+            - generic [ref=e51]: 测试文档
+            - generic:
+              - button "···"
+          - button "▦ 多维表格 ···" [ref=e52] [cursor=pointer]:
+            - generic [ref=e53]: ▦
+            - generic [ref=e54]: 多维表格
+            - generic:
+              - button "···"
+          - button "文 李白 ···" [ref=e55] [cursor=pointer]:
+            - generic [ref=e56]: 文
+            - generic [ref=e57]: 李白
+            - generic:
+              - button "···"
+          - button "⊞ 普通表格 ···" [ref=e58] [cursor=pointer]:
+            - generic [ref=e59]: ⊞
+            - generic [ref=e60]: 普通表格
+            - generic:
+              - button "···"
+          - button "文 苏轼 ···" [ref=e61] [cursor=pointer]:
+            - generic [ref=e62]: 文
+            - generic [ref=e63]: 苏轼
+            - generic:
+              - button "···"
+          - button "⊞ 未命名表格 ···" [ref=e64] [cursor=pointer]:
+            - generic [ref=e65]: ⊞
+            - generic [ref=e66]: 未命名表格
+            - generic:
+              - button "···"
+          - button "▦ 未命名多维表格 ···" [ref=e67] [cursor=pointer]:
+            - generic [ref=e68]: ▦
+            - generic [ref=e69]: 未命名多维表格
+            - generic:
+              - button "···"
+          - button "画 未命名画板 ···" [ref=e70] [cursor=pointer]:
+            - generic [ref=e71]: 画
+            - generic [ref=e72]: 未命名画板
+            - generic:
+              - button "···"
+          - button "文 HR业务流程梳理-入职离职合同管理 ···" [ref=e73] [cursor=pointer]:
+            - generic [ref=e74]: 文
+            - generic [ref=e75]: HR业务流程梳理-入职离职合同管理
+            - generic:
+              - button "···"
+      - separator "调整侧边栏宽度" [ref=e42]
+    - main [ref=e44]:
+      - generic [ref=e77]:
+        - generic [ref=e78]:
+          - generic [ref=e80]:
+            - generic [ref=e82]:
+              - button "我的空间" [ref=e83] [cursor=pointer]
+              - generic [ref=e84]: ">"
+              - generic [ref=e85]: 测试文档
+            - generic [ref=e86]: 最近修改：刚刚 · 已保存
+          - generic [ref=e87]:
+            - button "AI 助手" [ref=e88] [cursor=pointer]
+            - button "预览" [ref=e89] [cursor=pointer]
+            - button "分享" [ref=e90] [cursor=pointer]
+            - button "通知" [ref=e92] [cursor=pointer]:
+              - img [ref=e94]
+            - button "···" [ref=e98] [cursor=pointer]:
+              - generic [ref=e99]: ···
+            - button "搜索" [ref=e101] [cursor=pointer]:
+              - img [ref=e102]
+            - button "新建" [ref=e106] [cursor=pointer]:
+              - img [ref=e107]
+            - button "聂" [ref=e110] [cursor=pointer]:
+              - generic [ref=e111]: 聂
+        - generic [ref=e114]:
+          - generic [ref=e115]:
+            - button "+" [ref=e117] [cursor=pointer]
+            - button [ref=e119] [cursor=pointer]:
+              - img [ref=e121]
+            - button [disabled] [ref=e125]:
+              - img [ref=e127]
+            - button "正文" [ref=e497] [cursor=pointer]:
+              - generic [ref=e134]: 正文
+              - img [ref=e135]
+            - button "15px" [ref=e392] [cursor=pointer]:
+              - generic [ref=e140]: 15px
+              - img [ref=e141]
+            - button [ref=e145] [cursor=pointer]:
+              - img [ref=e147]
+            - button [ref=e150] [cursor=pointer]:
+              - img [ref=e152]
+            - button [ref=e155] [cursor=pointer]:
+              - img [ref=e157]
+            - button [ref=e160] [cursor=pointer]:
+              - img [ref=e162]
+            - button [ref=e165] [cursor=pointer]:
+              - img [ref=e167]
+            - button "A" [ref=e172] [cursor=pointer]:
+              - generic [ref=e174]: A
+            - button [ref=e178] [cursor=pointer]:
+              - img [ref=e179]
+            - button [ref=e184] [cursor=pointer]:
+              - img [ref=e186]
+              - img [ref=e188]
+            - button [ref=e191] [cursor=pointer]:
+              - img [ref=e193]
+            - button [ref=e200] [cursor=pointer]:
+              - img [ref=e202]:
+                - generic [ref=e204]: "1"
+                - generic [ref=e205]: "2"
+                - generic [ref=e206]: "3"
+              - img [ref=e207]
+            - button [ref=e211] [cursor=pointer]:
+              - img [ref=e212]
+              - img [ref=e215]
+            - button [ref=e219] [cursor=pointer]:
+              - img [ref=e221]
+            - button [ref=e225] [cursor=pointer]:
+              - img [ref=e227]
+            - button [ref=e231] [cursor=pointer]:
+              - img [ref=e233]
+            - button [ref=e236] [cursor=pointer]:
+              - img [ref=e238]
+            - button [ref=e241] [cursor=pointer]:
+              - img [ref=e243]
+            - button [ref=e249] [cursor=pointer]:
+              - img [ref=e251]
+            - button [ref=e254] [cursor=pointer]:
+              - img [ref=e256]
+            - button [ref=e262] [cursor=pointer]:
+              - img [ref=e264]
+            - button [ref=e268] [cursor=pointer]:
+              - img [ref=e270]
+          - generic [ref=e272]:
+            - generic [ref=e273]:
+              - generic [ref=e275]:
+                - generic [ref=e277]: 测试文档
+                - list [ref=e281]:
+                  - listitem [ref=e564]:
+                    - generic [ref=e565]: ●
+                    - generic [ref=e566]: 范德萨发的
+                - generic [ref=e285]:
+                  - generic:
+                    - button "T":
+                      - generic: T
+                      - img
+                - generic [ref=e291]:
+                  - generic:
+                    - button "T":
+                      - generic: T
+                      - img
+                - generic [ref=e297]:
+                  - generic:
+                    - button "T":
+                      - generic: T
+                      - img
+                - generic [ref=e303]:
+                  - generic:
+                    - button "H1":
+                      - generic: H1
+                      - img
+                  - emphasis [ref=e552]:
+                    - strong [ref=e553]:
+                      - generic [ref=e554]: 范德萨发
+                - generic [active] [ref=e622]: 对齐测试段落
+                - generic [ref=e667]:
+                  - generic:
+                    - button "T":
+                      - generic: T
+                      - img
+                - separator [ref=e632] [cursor=pointer]
+                - generic [ref=e633]:
+                  - generic:
+                    - button "T":
+                      - generic: T
+                      - img
+              - generic: 15 个字
+            - generic [ref=e309]:
+              - generic [ref=e311]: 大纲
+              - generic [ref=e358] [cursor=pointer]: 范德萨发
+  - button [ref=e625] [cursor=pointer]:
+    - img [ref=e626]
+  - generic [ref=e674]:
+    - button "无填充色" [ref=e675] [cursor=pointer]: 无填充色
+    - generic [ref=e678]:
+      - button [ref=e679] [cursor=pointer]
+      - button [ref=e680] [cursor=pointer]
+      - button [ref=e681] [cursor=pointer]
+      - button [ref=e682] [cursor=pointer]
+      - button [ref=e683] [cursor=pointer]
+      - button [ref=e684] [cursor=pointer]
+      - button [ref=e685] [cursor=pointer]
+      - button [ref=e686] [cursor=pointer]
+      - button [ref=e687] [cursor=pointer]
+      - button [ref=e688] [cursor=pointer]:
+        - img [ref=e689]
+    - generic [ref=e691]:
+      - generic [ref=e692]:
+        - button [ref=e693] [cursor=pointer]:
+          - img [ref=e694]
+        - button [ref=e696] [cursor=pointer]
+        - button [ref=e697] [cursor=pointer]
+        - button [ref=e698] [cursor=pointer]
+        - button [ref=e699] [cursor=pointer]
+        - button [ref=e700] [cursor=pointer]
+        - button [ref=e701] [cursor=pointer]
+        - button [ref=e702] [cursor=pointer]
+        - button [ref=e703] [cursor=pointer]
+        - button [ref=e704] [cursor=pointer]
+      - generic [ref=e705]:
+        - button [ref=e706] [cursor=pointer]
+        - button [ref=e707] [cursor=pointer]
+        - button [ref=e708] [cursor=pointer]
+        - button [ref=e709] [cursor=pointer]
+        - button [ref=e710] [cursor=pointer]
+        - button [ref=e711] [cursor=pointer]
+        - button [ref=e712] [cursor=pointer]
+        - button [ref=e713] [cursor=pointer]
+        - button [ref=e714] [cursor=pointer]
+        - button [ref=e715] [cursor=pointer]
+      - generic [ref=e716]:
+        - button [ref=e717] [cursor=pointer]
+        - button [ref=e718] [cursor=pointer]
+        - button [ref=e719] [cursor=pointer]
+        - button [ref=e720] [cursor=pointer]
+        - button [ref=e721] [cursor=pointer]
+        - button [ref=e722] [cursor=pointer]
+        - button [ref=e723] [cursor=pointer]
+        - button [ref=e724] [cursor=pointer]
+        - button [ref=e725] [cursor=pointer]
+        - button [ref=e726] [cursor=pointer]
+      - generic [ref=e727]:
+        - button [ref=e728] [cursor=pointer]
+        - button [ref=e729] [cursor=pointer]
+        - button [ref=e730] [cursor=pointer]
+        - button [ref=e731] [cursor=pointer]
+        - button [ref=e732] [cursor=pointer]
+        - button [ref=e733] [cursor=pointer]
+        - button [ref=e734] [cursor=pointer]
+        - button [ref=e735] [cursor=pointer]
+        - button [ref=e736] [cursor=pointer]
+        - button [ref=e737] [cursor=pointer]
+      - generic [ref=e738]:
+        - button [ref=e739] [cursor=pointer]
+        - button [ref=e740] [cursor=pointer]
+        - button [ref=e741] [cursor=pointer]
+        - button [ref=e742] [cursor=pointer]
+        - button [ref=e743] [cursor=pointer]
+        - button [ref=e744] [cursor=pointer]
+        - button [ref=e745] [cursor=pointer]
+        - button [ref=e746] [cursor=pointer]
+        - button [ref=e747] [cursor=pointer]
+        - button [ref=e748] [cursor=pointer]
+      - generic [ref=e749]:
+        - button [ref=e750] [cursor=pointer]
+        - button [ref=e751] [cursor=pointer]
+        - button [ref=e752] [cursor=pointer]
+        - button [ref=e753] [cursor=pointer]
+        - button [ref=e754] [cursor=pointer]
+        - button [ref=e755] [cursor=pointer]
+        - button [ref=e756] [cursor=pointer]
+        - button [ref=e757] [cursor=pointer]
+        - button [ref=e758] [cursor=pointer]
+        - button [ref=e759] [cursor=pointer]
+    - generic [ref=e760]: 最近使用自定义颜色
+    - generic [ref=e762]: 暂无
+    - button "更多颜色" [ref=e763] [cursor=pointer]:
+      - generic [ref=e765]: 更多颜色
+      - img [ref=e766]

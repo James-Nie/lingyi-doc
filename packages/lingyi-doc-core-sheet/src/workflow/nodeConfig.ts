@@ -32,6 +32,11 @@ export interface NodeBranchPort {
 export const SWITCH_DEFAULT_BRANCH_KEY = 'default';
 export const SWITCH_DEFAULT_BRANCH_LABEL = '其他';
 
+/** switch 分支 key 契约：`branch:<branchId>`（与引擎 branchOutput 完全一致） */
+export function switchBranchKey(branchId: string): string {
+  return `branch:${branchId}`;
+}
+
 export const IF_ELSE_BRANCH_PORTS: NodeBranchPort[] = [
   { key: 'true', label: '满足' },
   { key: 'false', label: '不满足' },
@@ -114,7 +119,7 @@ export function getNodeBranchPorts(node: Pick<WorkflowNode, 'type' | 'config'>):
   if (node.type === 'condition.switch') {
     const cfg = normalizeSwitchConfig(node.config ?? {});
     return [
-      ...cfg.branches.map((b) => ({ key: b.id, label: b.name || '分支' })),
+      ...cfg.branches.map((b) => ({ key: switchBranchKey(b.id), label: b.name || '分支' })),
       { key: SWITCH_DEFAULT_BRANCH_KEY, label: SWITCH_DEFAULT_BRANCH_LABEL },
     ];
   }

@@ -407,7 +407,7 @@ export class AdminTenantService {
     return {
       users: [{
         id: user.id,
-        email: user.email,
+        email: user.email ?? '',
         phone: user.phone ?? null,
         displayName: user.display_name,
         isMember,
@@ -657,7 +657,7 @@ export class AdminTenantService {
       name: updated.name,
       description: updated.description,
       permissions: updated.permissions ?? [],
-      isSystem: updated.isSystem === 1,
+      isSystem: updated.isSystem === true,
       systemRole: updated.systemRole,
       sortOrder: updated.sortOrder,
     };

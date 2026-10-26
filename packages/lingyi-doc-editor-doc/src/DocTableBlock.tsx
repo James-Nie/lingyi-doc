@@ -308,6 +308,8 @@ export const DocTableBlock: React.FC<DocTableBlockProps> = ({
     || selectedRows.size > 0 || selectedCols.size > 0);
 
   const { columnWidths, rowHeights } = useMemo(() => ensureTableSizes(block), [block]);
+  const rowHeightsRef = useRef(rowHeights);
+  rowHeightsRef.current = rowHeights;
 
   const gridTemplateColumns = useMemo(
     () => columnWidths.map(w => `${w}px`).join(' '),
@@ -324,6 +326,37 @@ export const DocTableBlock: React.FC<DocTableBlockProps> = ({
     onRegisterRef(block.id, rootRef.current);
     return () => onRegisterRef(block.id, null);
   }, [block.id, onRegisterRef]);
+
+  // 自动同步单元格实际渲染高度到 rowHeights，解决多行文本导致的行高不对齐问题
+  useEffect(() => {
+    if (readOnly) return;
+    const grid = tableBodyRef.current?.querySelector('[style*="display: grid"]') as HTMLElement;
+    if (!grid) return;
+
+    const observer = new ResizeObserver(() => {
+      let changed = false;
+      const nextHeights = [...rowHeights];
+
+      for (let ri = 0; ri < block.rows; ri++) {
+        const cell = grid.children[ri * block.cols] as HTMLElement;
+        if (!cell) continue;
+        
+        const actualHeight = cell.offsetHeight;
+        // 1px 容差，防止亚像素渲染导致的频繁更新
+        if (Math.abs(actualHeight - rowHeightsRef.current[ri]) > 1) {
+          nextHeights[ri] = actualHeight;
+          changed = true;
+        }
+      }
+
+      if (changed) {
+        onChange({ ...block, rowHeights: nextHeights }, false);
+      }
+    });
+
+    observer.observe(grid);
+    return () => observer.disconnect();
+  }, [block, onChange, readOnly]);
 
   useEffect(() => {
     const root = rootRef.current;

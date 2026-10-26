@@ -10,7 +10,7 @@ export const IconRedo = () => (
 );
 export const IconBold = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5h5.5a3.5 3.5 0 010 7H8V5zm0 9h6.5a3.5 3.5 0 010 7H8v-7z" /></svg>;
 export const IconItalic = () => <svg width="16" height="16" viewBox="0 0 24 24" {...S}><path d="M12 5h4M8 19h4M14 5l-4 14" /></svg>;
-export const IconStrike = () => <svg width="16" height="16" viewBox="0 0 24 24" {...S}><path d="M5 12h14M7 7c0-2 2.5-3 5-3s5 1 5 3M7 17c0 2 2.5 3 5 3s5-1 5-3 dfsf" /></svg>;
+export const IconStrike = () => <svg width="16" height="16" viewBox="0 0 24 24" {...S}><path d="M5 12h14M7 7c0-2 2.5-3 5-3s5 1 5 3M7 17c0 2 2.5 3 5 3s5-1 5-3" /></svg>;
 export const IconUnderline = () => <svg width="16" height="16" viewBox="0 0 24 24" {...S}><path d="M6 5v6a6 6 0 0012 0V5M4 19h16" /></svg>;
 export const IconInlineCode = () => <svg width="16" height="16" viewBox="0 0 24 24" {...S}><path d="M8 8L4 12l4 4M16 8l4 4-4 4" /></svg>;
 export const IconAlignLeft = () => <svg width="16" height="16" viewBox="0 0 24 24" {...S}><path d="M4 6h16M4 10h10M4 14h16M4 18h10" /></svg>;

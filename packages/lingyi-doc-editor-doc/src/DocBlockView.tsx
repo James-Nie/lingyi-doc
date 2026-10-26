@@ -10,6 +10,24 @@ import { getEditorEmbed } from '@lingyi-doc/editor-shared';
 import { useNativePasteHandler } from './useNativePasteHandler';
 import { useDocHistoryRevision } from './DocHistoryContext';
 
+/** Markdown 快捷语法支持的块类型 */
+export type MarkdownShortcutKind =
+  | 'heading1' | 'heading2' | 'heading3' | 'heading4' | 'heading5' | 'heading6'
+  | 'bullet' | 'ordered' | 'task';
+
+/**
+ * 匹配行首 Markdown 前缀。
+ * 注意：keydown 时空格尚未插入 DOM，因此匹配不含尾随空格的前缀（空格由 preventDefault 拦截）。
+ */
+function matchMarkdownPrefix(prefix: string): { kind: MarkdownShortcutKind; prefixLen: number } | null {
+  const heading = /^(#{1,6})$/.exec(prefix);
+  if (heading) return { kind: `heading${heading[1].length}` as MarkdownShortcutKind, prefixLen: prefix.length };
+  if (prefix === '-' || prefix === '*') return { kind: 'bullet', prefixLen: 1 };
+  if (prefix === '1.' || prefix === '1、') return { kind: 'ordered', prefixLen: prefix.length };
+  if (prefix === '[]' || prefix === '[ ]') return { kind: 'task', prefixLen: prefix.length };
+  return null;
+}
+
 interface DocBlockViewProps {
   block: DocBlock;
   index: number;
@@ -34,6 +52,8 @@ interface DocBlockViewProps {
   onTab?: (shiftKey?: boolean) => void;
   /** 空段落输入 `/` 时唤起插入菜单 */
   onSlashCommand?: () => void;
+  /** Markdown 快捷语法：行首前缀 + 空格时触发块类型转换 */
+  onMarkdownShortcut?: (kind: MarkdownShortcutKind, prefixLen: number) => void;
   onBackspaceEmpty: () => void;
   onBackspaceAtStart?: () => void;
   onDeleteAtEnd?: () => void;
@@ -77,6 +97,7 @@ export const DocBlockView: React.FC<DocBlockViewProps> = ({
   onEnter,
   onTab,
   onSlashCommand,
+  onMarkdownShortcut,
   onBackspaceEmpty,
   onBackspaceAtStart,
   onDeleteAtEnd,
@@ -185,6 +206,27 @@ export const DocBlockView: React.FC<DocBlockViewProps> = ({
         e.preventDefault();
         onSlashCommand();
         return;
+      }
+    }
+
+    // Markdown 快捷语法：行首前缀 + 空格 → 转换块类型（飞书风格）
+    if (
+      e.key === ' '
+      && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey
+      && onMarkdownShortcut
+      && isTextBlock(block)
+    ) {
+      const el = editableRef.current;
+      if (el) {
+        const { text } = extractContentFromEditable(el);
+        const offset = getCaretOffset(el);
+        const lineStart = text.lastIndexOf('\n', Math.max(0, offset - 1)) + 1;
+        const matched = matchMarkdownPrefix(text.slice(lineStart, offset));
+        if (matched) {
+          e.preventDefault();
+          onMarkdownShortcut(matched.kind, offset - lineStart);
+          return;
+        }
       }
     }
 
@@ -892,14 +934,12 @@ function ListBlockView({
       style={{
         margin: 0,
         padding: '8px 0',
-        paddingLeft: 0,
         listStyle: 'none',
         outline: 'none',
         userSelect: 'text',
         WebkitUserSelect: 'text',
         ...paragraphStyle,
-        paddingTop: paragraphStyle.padding,
-        paddingBottom: paragraphStyle.padding,
+        paddingLeft: 0,
       }}
       data-block-id={block.id}
       data-block-index={index}

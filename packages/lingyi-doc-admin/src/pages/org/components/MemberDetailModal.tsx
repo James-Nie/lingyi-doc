@@ -53,7 +53,7 @@ export const MemberDetailModal: React.FC<MemberDetailModalProps> = ({
       open={open}
       onCancel={onClose}
       footer={null}
-      destroyOnClose
+      destroyOnHidden
       width={640}
     >
       <Descriptions column={2} bordered size="small">

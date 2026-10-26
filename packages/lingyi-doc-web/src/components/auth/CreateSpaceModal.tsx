@@ -31,7 +31,7 @@ export const CreateSpaceModal: React.FC<CreateSpaceModalProps> = ({
       confirmLoading={loading}
       okText="创建"
       cancelText="取消"
-      destroyOnClose
+      destroyOnHidden
     >
       <p style={{ margin: '0 0 16px', color: '#8f959e', fontSize: 14 }}>
         填写企业名称，创建后你将成为该空间的超级管理员。

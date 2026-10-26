@@ -43,7 +43,7 @@ export const RenameDocumentModal: React.FC<RenameDocumentModalProps> = ({
       confirmLoading={loading}
       okText="确定"
       cancelText="取消"
-      destroyOnClose
+      destroyOnHidden
       centered
     >
       <Form form={form} layout="vertical" requiredMark={false} style={{ marginTop: 8 }}>

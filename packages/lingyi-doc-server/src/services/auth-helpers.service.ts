@@ -79,7 +79,7 @@ export class AuthHelpersService {
 
   async issueTokens(
     user: DbUser,
-    _audience: TokenAudience,
+    audience: TokenAudience,
     req: RequestMeta,
     sessionOverride?: ConsumerSessionContext,
   ): Promise<AuthTokenResult> {
@@ -108,8 +108,8 @@ export class AuthHelpersService {
 
     const accessToken = this.authService.signAccessToken({
       sub: user.id,
-      email: user.email,
-      aud: 'admin',
+      email: user.email ?? '',
+      aud: audience,
       userType: user.user_type,
       roles: roles.map((r) => r.code),
       permissions,
@@ -227,6 +227,11 @@ export class AuthHelpersService {
 
     const loginBlock = this.authService.canLogin(currentUser);
     if (loginBlock) throw new AuthError(120006, loginBlock);
+
+    // 纯第三方扫码注册的用户没有本地密码，不能走密码登录
+    if (!currentUser.password_hash) {
+      throw new AuthError(120004, '该账号由第三方扫码登录创建，请使用扫码登录');
+    }
 
     const valid = await bcrypt.compare(input.password, currentUser.password_hash);
     if (!valid) {
